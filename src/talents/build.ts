@@ -258,28 +258,59 @@ function scaleNumbers(text: string, idx: number[], factor: number): string {
   });
 }
 
+/**
+ * Which numbers to scale, when the data does not say.
+ *
+ * `scaleIdx` is only present on 159 of the 470 talents. Of the rest, a text carrying
+ * exactly one number has no ambiguity: Genesis reads "increases periodic damage by 1%"
+ * and there is nothing else in the sentence that rank could be changing. Two or more
+ * numbers and it is a guess — "a 12% chance to generate 1 additional Rage" scales the
+ * chance and not the Rage — so those are left alone and reported as unknown rather than
+ * silently shown with rank 1's figures.
+ */
+function scaleTargets(talent: Talent, text: string): number[] | null {
+  if (talent.scaleIdx?.length) return talent.scaleIdx;
+  return (text.match(NUMBER) ?? []).length === 1 ? [0] : null;
+}
+
+export interface RankText {
+  text: string;
+  /** The figures are worked out rather than read, so the tooltip must say so. */
+  estimated: boolean;
+  /** How the text was arrived at, which decides what the tooltip admits to. */
+  basis: 'read' | 'scaled' | 'unknown';
+}
+
 /** Rank text for a talent, interpolating when only some ranks were read off the demo. */
-export function rankText(talent: Talent, rank: number): { text: string; estimated: boolean } {
+export function rankText(talent: Talent, rank: number): RankText {
   const wanted = Math.max(1, Math.min(talent.max, rank));
   if (Array.isArray(talent.desc)) {
     const text = talent.desc[wanted - 1] ?? talent.desc[0] ?? '';
-    return { text, estimated: talent.complete === false };
+    const estimated = talent.complete === false;
+    return { text, estimated, basis: estimated ? 'scaled' : 'read' };
   }
   const map = talent.desc ?? {};
   const exact = map[String(wanted)];
-  if (exact) return { text: exact, estimated: false };
+  if (exact) return { text: exact, estimated: false, basis: 'read' };
 
   const known = Object.keys(map)
     .map(Number)
     .filter((n) => !Number.isNaN(n) && n > 0)
     .sort((a, b) => a - b);
-  if (!known.length) return { text: '', estimated: true };
+  if (!known.length) return { text: '', estimated: true, basis: 'unknown' };
 
   // Scale from whichever read rank is closest, so the guess travels the shortest distance.
   const from = known.reduce((best, n) =>
     Math.abs(n - wanted) < Math.abs(best - wanted) ? n : best,
   );
   const base = map[String(from)] ?? '';
-  if (!talent.scaleIdx?.length || from === wanted) return { text: base, estimated: true };
-  return { text: scaleNumbers(base, talent.scaleIdx, wanted / from), estimated: true };
+  if (from === wanted) return { text: base, estimated: false, basis: 'read' };
+
+  const idx = scaleTargets(talent, base);
+  if (!idx) return { text: base, estimated: true, basis: 'unknown' };
+  return {
+    text: scaleNumbers(base, idx, wanted / from),
+    estimated: true,
+    basis: 'scaled',
+  };
 }

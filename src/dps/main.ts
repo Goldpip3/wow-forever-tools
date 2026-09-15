@@ -402,10 +402,6 @@ function draw(): void {
 
   renderHeader({
     page: 'dps',
-    title: 'Gear and DPS',
-    subtitle: character
-    ? character.source.name + ', level ' + character.source.level
-    : 'Import a character and find out what its gear is worth',
   });
 
   if (!character) {

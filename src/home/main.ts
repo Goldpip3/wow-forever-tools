@@ -14,11 +14,11 @@ function el(tag: string, cls?: string, text?: string): HTMLElement {
 
 function hero(): HTMLElement {
   const section = el('section', 'hero');
-  const h2 = el('h2', 'hero__title', 'Plan the build. Plan the raid. Then prove the gear.');
+  const h2 = el('h2', 'hero__title', 'Talents, raid buffs and gear for WoW Forever');
   const lead = el(
     'p',
     'hero__lead',
-    'Three tools for World of Warcraft: Forever. A talent calculator for all nine classes that shows you what changed since Classic, a raid planner that works out which buffs your composition actually covers, and a gear analyser that simulates your character and ranks everything you own.',
+    'Forever’s trees are not Classic’s, and nothing has been datamined yet. Everything here was read off the BlizzCon demo, and the guesses are marked as guesses. The calculator covers all nine classes. The raid planner works out which buffs a group actually covers, and which ones only look covered.',
   );
   const actions = el('div', 'hero__actions');
 
@@ -35,7 +35,7 @@ function hero(): HTMLElement {
   const dps = document.createElement('a');
   dps.className = 'btn btn--big';
   dps.href = href('dps.html');
-  dps.textContent = 'Analyse your gear';
+  dps.textContent = 'Open the gear tool';
 
   actions.append(talents, raid, dps);
 
@@ -205,11 +205,7 @@ function render(): void {
   if (!app) return;
   app.replaceChildren();
 
-  renderHeader({
-    page: 'home',
-    title: 'WoW Forever Tools',
-    subtitle: 'Talents, raid composition and gear for Forever',
-  });
+  renderHeader({ page: 'home' });
 
   app.appendChild(hero());
   app.appendChild(features());

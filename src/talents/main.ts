@@ -152,8 +152,6 @@ function draw(): void {
 
   renderHeader({
     page: 'talents',
-    title: 'Talents Forever Tools',
-    subtitle: 'WoW Forever ' + className() + ' talent calculator, read from BlizzCon 2026',
     nav: [whatsNew],
   });
 
@@ -350,8 +348,6 @@ async function start(): Promise<void> {
     app.replaceChildren();
     renderHeader({
       page: 'talents',
-      title: 'Talent Calculator',
-      subtitle: 'WoW Forever',
     });
     app.appendChild(
       el(

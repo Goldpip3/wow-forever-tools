@@ -360,3 +360,73 @@ describe('rank text', () => {
     expect(guess.text).toBe((sparse.desc as Record<string, string>)[known]);
   });
 });
+
+describe('every talent, every rank', () => {
+  const CLASSES = Object.entries(DATA.talents) as Array<[string, ClassTalents]>;
+
+  it('gives Genesis a different figure at all five ranks', () => {
+    const druid = DATA.talents.Druid!;
+    const balance = druid.trees[treeIndex(druid, 'Balance')]!;
+    const genesis = balance.talents[talentIndex(druid, 'Balance', 'Genesis')]!;
+    const texts = [1, 2, 3, 4, 5].map((r) => rankText(genesis, r).text);
+    expect(texts[0]).toMatch(/by 1%/);
+    expect(texts[4]).toMatch(/by 5%/);
+    expect(new Set(texts).size).toBe(5);
+  });
+
+  it('never claims a rank was scaled when it was not', () => {
+    // 'unknown' means the text on screen belongs to another rank, and the tooltip has to
+    // say so. 'scaled' means figures were worked out. Getting these the wrong way round
+    // is what made every rank of Genesis read 1%.
+    const wrong: string[] = [];
+    for (const [cls, data] of CLASSES) {
+      for (const tree of data.trees) {
+        for (const talent of tree.talents) {
+          for (let r = 1; r <= talent.max; r += 1) {
+            const got = rankText(talent, r);
+            const isRead = got.basis === 'read';
+            if (isRead !== !got.estimated) wrong.push(`${cls} ${talent.name} r${r}`);
+          }
+        }
+      }
+    }
+    expect(wrong).toEqual([]);
+  });
+
+  it('leaves a multi-number talent alone rather than guessing which figure moves', () => {
+    const warrior = WARRIOR;
+    const fury = warrior.trees[treeIndex(warrior, 'Fury')]!;
+    const idx = fury.talents.findIndex((t) => t.name === 'Unbridled Wrath');
+    if (idx < 0) return;
+    const talent = fury.talents[idx]!;
+    const got = rankText(talent, talent.max);
+    // "a 12% chance to generate 1 additional Rage" — the chance moves, the Rage does not,
+    // and nothing in the data says which, so it must not invent an answer.
+    expect(got.basis).toBe('unknown');
+    expect(got.estimated).toBe(true);
+  });
+
+  it('scales a talent that carries exactly one number', () => {
+    let checked = 0;
+    for (const [, data] of CLASSES) {
+      for (const tree of data.trees) {
+        for (const talent of tree.talents) {
+          if (talent.max < 2 || Array.isArray(talent.desc)) continue;
+          const keys = Object.keys(talent.desc);
+          if (keys.length !== 1 || talent.scaleIdx?.length) continue;
+          const known = Number(keys[0]);
+          const base = (talent.desc as Record<string, string>)[keys[0]!]!;
+          if ((base.match(/\d+(?:\.\d+)?/g) ?? []).length !== 1) continue;
+          // Probe a rank that is not the one the demo showed; at the known rank there is
+          // nothing to work out, which is why Reverence reads as 'read' at its max.
+          const probe = known === talent.max ? talent.max - 1 : talent.max;
+          const got = rankText(talent, probe);
+          expect(got.basis, talent.name).toBe('scaled');
+          expect(got.text, talent.name).not.toBe(base);
+          checked += 1;
+        }
+      }
+    }
+    expect(checked).toBeGreaterThan(30);
+  });
+});

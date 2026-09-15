@@ -3,13 +3,23 @@ import { iconImg } from './icons';
 /** The site mark, the same on every page. */
 export const SITE_ICON = 'achievement_boss_onyxia';
 
+/**
+ * The mark and the name never change, on any page.
+ *
+ * They used to carry the current tool's name and a line of live state — the roster
+ * summary on the planner, the class on the calculator — which meant the left of the bar
+ * rewrote itself on every page and every click. A site mark that moves is not a site
+ * mark. It says the same thing everywhere now, and the page says what it is in its own
+ * heading.
+ */
+const SITE_TITLE = 'WoW Forever Tools';
+const SITE_TAGLINE = 'Talents, raid composition and gear for Forever';
+
 export interface HeaderOptions {
-  title: string;
-  subtitle: string;
-  /** Rendered on the right of the header. */
+  /** Rendered on the right of the header, after the tool links. */
   nav?: HTMLElement[];
   /** Which page is current, so its nav link can be marked. */
-  page: 'home' | 'talents' | 'raid' | 'dps';
+  page: 'home' | 'talents' | 'raid' | 'dps' | 'roster';
 }
 
 const BASE = import.meta.env.BASE_URL ?? '/';
@@ -48,10 +58,10 @@ export function renderHeader(opts: HeaderOptions): HTMLElement {
   titles.className = 'site-header__titles';
   const h1 = document.createElement('h1');
   h1.className = 'site-header__title';
-  h1.textContent = opts.title;
+  h1.textContent = SITE_TITLE;
   const sub = document.createElement('p');
   sub.className = 'site-header__sub';
-  sub.textContent = opts.subtitle;
+  sub.textContent = SITE_TAGLINE;
   titles.append(h1, sub);
   home.appendChild(titles);
   inner.appendChild(home);
@@ -59,11 +69,13 @@ export function renderHeader(opts: HeaderOptions): HTMLElement {
   const nav = document.createElement('nav');
   nav.className = 'site-header__nav';
 
+  // Four tools and no Home button: the mark and the name are the way back to the front,
+  // which is where every site on the web puts it.
   const links: Array<[HeaderOptions['page'], string, string]> = [
-    ['home', 'Home', href('index.html')],
     ['talents', 'Talents', href('talents.html')],
     ['raid', 'Raid planner', href('raid.html')],
     ['dps', 'Gear & DPS', href('dps.html')],
+    ['roster', 'Roster', href('raid.html') + '#roster'],
   ];
   for (const [page, label, url] of links) {
     const a = document.createElement('a');

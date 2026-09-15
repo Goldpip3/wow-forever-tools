@@ -70,7 +70,23 @@ export function buildTalentTip(opts: TipOptions): HTMLElement {
     frag.appendChild(line('tip__next', 'Next rank: ' + next.text));
   }
 
-  if (talent.complete === false) {
+  /* Say which of the two it is. Calling an unscaled rank "estimated" implied a figure had
+     been worked out for it, when in fact the reader is looking at the one rank the demo
+     showed. That is the difference between a guess and a gap, and the tooltip should not
+     blur it. */
+  const nextShown = rank > 0 && rank < talent.max ? rankText(talent, rank + 1) : null;
+  const bases = new Set([current.basis, nextShown?.basis].filter(Boolean));
+  if (bases.has('unknown')) {
+    const readRanks = Array.isArray(talent.desc) ? [] : Object.keys(talent.desc ?? {});
+    const which = readRanks.length === 1 ? 'rank ' + readRanks[0] : 'some ranks';
+    frag.appendChild(
+      line(
+        'tip__est',
+        'The demo only showed ' + which +
+          ', and this talent’s numbers cannot be worked out from that. You are reading the rank it did show.',
+      ),
+    );
+  } else if (bases.has('scaled')) {
     frag.appendChild(
       line(
         'tip__est',

@@ -3,7 +3,7 @@ import { copyText, toast } from '../shared/toast';
 import { KEY_ROSTERS, readJson, writeJson } from '../shared/storage';
 import { CLASSES, type ClassId } from '../shared/classes';
 import { GROUP_COUNT, GROUP_SIZE, type Player, type Roster } from './types';
-import { computeCoverage, emptyRoster, rosterSummary } from './engine';
+import { computeCoverage, emptyRoster } from './engine';
 import { createPlayer } from './loadout';
 import { decodeRoster, encodeRoster, isEmptyRoster } from './codec';
 import {
@@ -385,8 +385,6 @@ function draw(): void {
 
   renderHeader({
     page: 'raid',
-    title: 'Raid Planner',
-    subtitle: rosterSummary(roster),
   });
 
   app.appendChild(renderToolbar(roster, coverage, handlers));

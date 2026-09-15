@@ -14,7 +14,14 @@
 .hero--video {
   position: relative;
   overflow: hidden;
-  padding: clamp(40px, 7vw, 86px) 0 clamp(30px, 5vw, 60px);
+  /* Tall, with the words pushed to the bottom, so the top two thirds of the section is
+     the cinematic and nothing else. A hero video you can only see a strip of is not
+     worth the six megabytes. */
+  min-height: min(70vh, 580px);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: clamp(90px, 22vh, 260px) 0 clamp(28px, 4vw, 56px);
   background: var(--bg) url(/assets/video/hero-poster.jpg) center / cover no-repeat;
   /* The section runs full-bleed while its contents stay in the column. */
   margin-left: calc(50% - 50vw);
@@ -33,16 +40,19 @@
   pointer-events: none;
   /* Knocked back in the pixels rather than only under the scrim: a full-brightness
      cinematic next to the gold makes the gold look like a different site. */
-  filter: saturate(.72) contrast(1.04) brightness(.5);
+  filter: saturate(.78) contrast(1.04) brightness(.62);
 }
+/* Dark where the words are and clear where they are not. The vertical pass does most of
+   the work now that the text sits at the bottom: the top stays open so the cinematic can
+   be seen, and the bottom goes to the page colour so the section has no hard edge. */
 .hero__scrim {
   position: absolute;
   inset: 0;
   z-index: 1;
   pointer-events: none;
   background:
-    linear-gradient(90deg, rgba(18, 18, 18, .95) 0%, rgba(18, 18, 18, .82) 44%, rgba(18, 18, 18, .38) 74%, rgba(18, 18, 18, .6) 100%),
-    linear-gradient(180deg, rgba(18, 18, 18, .55) 0%, rgba(18, 18, 18, 0) 30%, rgba(18, 18, 18, 0) 55%, var(--bg) 100%);
+    linear-gradient(180deg, rgba(18, 18, 18, .34) 0%, rgba(18, 18, 18, .06) 24%, rgba(18, 18, 18, .55) 66%, var(--bg) 100%),
+    linear-gradient(90deg, rgba(18, 18, 18, .8) 0%, rgba(18, 18, 18, .5) 46%, rgba(18, 18, 18, .12) 78%, rgba(18, 18, 18, .3) 100%);
 }
 .hero__inner { position: relative; z-index: 2; }
 
