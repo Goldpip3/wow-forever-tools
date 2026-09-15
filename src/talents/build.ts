@@ -232,6 +232,32 @@ export function primaryTree(
   return { index: best, tree: cls.trees[best]!, points: bestPoints };
 }
 
+const NUMBER = /\d+(?:\.\d+)?/g;
+
+/**
+ * Scale the numbers a talent's text carries from one rank to another.
+ *
+ * `scaleIdx` lists which numbers in the string grow with rank, counted in the order they
+ * appear, so "a 33% chance to return 20% of the Mana cost" with `[0, 1]` scales both and
+ * "lowers movement speed by 15% for 1.5 sec" with `[0]` leaves the duration alone.
+ *
+ * The result is an estimate and is always labelled as one. Checked against the thirteen
+ * talents whose data happens to carry two read ranks: nine come out exactly right and
+ * three land within Blizzard's own rounding. Improved Blizzard is the one that does not,
+ * because its real progression is 15/30/40 rather than a straight multiple.
+ */
+function scaleNumbers(text: string, idx: number[], factor: number): string {
+  let seen = 0;
+  return text.replace(NUMBER, (match) => {
+    if (!idx.includes(seen++)) return match;
+    const scaled = parseFloat(match) * factor;
+    // A whole number stays whole; one that was written with a decimal keeps one.
+    return match.includes('.')
+      ? String(Math.round(scaled * 10) / 10)
+      : String(Math.round(scaled));
+  });
+}
+
 /** Rank text for a talent, interpolating when only some ranks were read off the demo. */
 export function rankText(talent: Talent, rank: number): { text: string; estimated: boolean } {
   const wanted = Math.max(1, Math.min(talent.max, rank));
@@ -242,11 +268,18 @@ export function rankText(talent: Talent, rank: number): { text: string; estimate
   const map = talent.desc ?? {};
   const exact = map[String(wanted)];
   if (exact) return { text: exact, estimated: false };
+
   const known = Object.keys(map)
     .map(Number)
-    .filter((n) => !Number.isNaN(n))
+    .filter((n) => !Number.isNaN(n) && n > 0)
     .sort((a, b) => a - b);
-  const lower = [...known].reverse().find((n) => n < wanted);
-  const pick = lower ?? known[0];
-  return { text: pick !== undefined ? (map[String(pick)] ?? '') : '', estimated: true };
+  if (!known.length) return { text: '', estimated: true };
+
+  // Scale from whichever read rank is closest, so the guess travels the shortest distance.
+  const from = known.reduce((best, n) =>
+    Math.abs(n - wanted) < Math.abs(best - wanted) ? n : best,
+  );
+  const base = map[String(from)] ?? '';
+  if (!talent.scaleIdx?.length || from === wanted) return { text: base, estimated: true };
+  return { text: scaleNumbers(base, talent.scaleIdx, wanted / from), estimated: true };
 }

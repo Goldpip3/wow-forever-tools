@@ -302,16 +302,61 @@ describe('rank text', () => {
     expect(rankText(deflection, 5).estimated).toBe(false);
   });
 
-  it('marks an interpolated rank as estimated', () => {
+  it('scales the numbers on a rank the demo never showed, and says it guessed', () => {
+    // Wand Specialization is the reported case: two ranks, only the first one read, so
+    // rank 2 used to repeat rank 1's "13%" and looked like the click had done nothing.
+    const priest: ClassTalents = DATA.talents.Priest!;
+    const disc = priest.trees[treeIndex(priest, 'Discipline')]!;
+    const wand = disc.talents[talentIndex(priest, 'Discipline', 'Wand Specialization')]!;
+
+    const one = rankText(wand, 1);
+    const two = rankText(wand, 2);
+    expect(one.text).toMatch(/Wands by 13%/);
+    expect(one.estimated).toBe(false);
+    expect(two.text).toMatch(/Wands by 26%/);
+    expect(two.estimated).toBe(true);
+  });
+
+  it('scales only the numbers listed in scaleIdx', () => {
+    const talent = {
+      name: 'Test',
+      max: 3,
+      row: 1,
+      col: 1,
+      icon: 'x',
+      desc: { '1': 'Slows the target by 15% for 1.5 sec and costs 20 Mana.' },
+      scaleIdx: [0],
+    } as unknown as Parameters<typeof rankText>[0];
+
+    // The 15% triples; the duration and the cost are left exactly as they were.
+    expect(rankText(talent, 3).text).toBe('Slows the target by 45% for 1.5 sec and costs 20 Mana.');
+  });
+
+  it('scales from the nearest read rank, not always the lowest', () => {
+    const talent = {
+      name: 'Test',
+      max: 6,
+      row: 1,
+      col: 1,
+      icon: 'x',
+      desc: { '1': 'Deals 10 damage.', '4': 'Deals 40 damage.' },
+      scaleIdx: [0],
+    } as unknown as Parameters<typeof rankText>[0];
+
+    // Rank 5 is one step from rank 4, five steps from rank 1.
+    expect(rankText(talent, 5).text).toBe('Deals 50 damage.');
+  });
+
+  it('leaves the text alone when nothing is marked as scaling', () => {
     const arms = treeIndex(WARRIOR, 'Arms');
     const tree = WARRIOR.trees[arms]!;
-    const sparse = tree.talents.find((t) => !Array.isArray(t.desc) && t.max > 1)!;
-    const highest = rankText(sparse, sparse.max);
-    expect(typeof highest.text).toBe('string');
-    const missingRank = Object.keys(sparse.desc as Record<string, string>).length < sparse.max;
-    if (missingRank) {
-      const mid = rankText(sparse, sparse.max - 1);
-      expect(typeof mid.estimated).toBe('boolean');
-    }
+    const sparse = tree.talents.find(
+      (t) => !Array.isArray(t.desc) && t.max > 1 && !t.scaleIdx?.length,
+    );
+    if (!sparse) return;
+    const known = Object.keys(sparse.desc as Record<string, string>)[0]!;
+    const guess = rankText(sparse, sparse.max);
+    expect(guess.estimated).toBe(true);
+    expect(guess.text).toBe((sparse.desc as Record<string, string>)[known]);
   });
 });
