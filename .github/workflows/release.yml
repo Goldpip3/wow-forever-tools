@@ -1,0 +1,41 @@
+# Builds the addon and publishes it whenever a version tag is pushed.
+#
+#   git tag -a 1.0.1 -m "1.0.1"
+#   git push origin 1.0.1
+#
+# The tag is where the version number comes from, so it has to be annotated and
+# it should match the Version line in the table of contents.
+#
+# With no secrets set this still produces a GitHub release, which is a perfectly
+# good way to hand people an addon. Adding CF_API_KEY turns on CurseForge;
+# WAGO_API_TOKEN and WOWI_API_TOKEN turn on the other two. See
+# addon/WoWForeverSync/RELEASING.md.
+
+name: Package and release the addon
+
+on:
+  push:
+    tags:
+      - '*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone the project
+        uses: actions/checkout@v4
+        with:
+          # The packager walks the tag history to write the changelog, so a
+          # shallow clone gives it nothing to work from.
+          fetch-depth: 0
+
+      - name: Package and release
+        uses: BigWigsMods/packager@v2
+        env:
+          GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
+          CF_API_KEY: ${{ secrets.CF_API_KEY }}
+          # WAGO_API_TOKEN: ${{ secrets.WAGO_API_TOKEN }}
+          # WOWI_API_TOKEN: ${{ secrets.WOWI_API_TOKEN }}

@@ -92,6 +92,7 @@ src/dps/sim/                            the simulator: rolls, event queue, auras
 src/dps/sim/specs/                      one file per spec; frost mage is the one written
 src/dps/data/                           the editable numbers: spells, buffs, conversions
 addon/WoWForeverSync/                   the in-game addon that exports your character
+addon/RELEASING.md                      how to publish it, and the CurseForge caveat
 tests/                                  build, catalog, engine and suggestion tests
 ```
 
@@ -161,6 +162,12 @@ The page walks people through it and offers the addon as a download, which is wh
 every entry so unchanged sources produce the same bytes and the file does not churn
 in the history. A test unzips it and compares it against the source files, so a
 stale download cannot ship.
+
+Pushing an annotated tag builds the addon and publishes a GitHub release, via
+`.github/workflows/release.yml` and the BigWigs packager. CurseForge, Wago and
+WoWInterface each turn on by adding one repository secret.
+[addon/RELEASING.md](addon/RELEASING.md) covers all of it, including why Forever
+is not a CurseForge game version yet and what goes wrong if you pretend it is.
 
 **The baseline comes from the sheet, not from a table.** Forever has published no
 race and class stat tables, so rebuilding your character from first principles

@@ -54,6 +54,11 @@ loses that one field and marks the export partial rather than failing. The stat
 patterns are English only. On another locale the item stats come back empty, and
 the site will show the items with nothing on them rather than inventing numbers.
 
+## Publishing it
+
+See [RELEASING.md](../RELEASING.md) one folder up: how to cut a release, what
+CurseForge wants, and why Forever is not a CurseForge game version yet.
+
 ## Keeping it working
 
 `## Interface` in the `.toc` is set to the Classic Era number. When the Forever
