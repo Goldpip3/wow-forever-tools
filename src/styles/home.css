@@ -4,6 +4,51 @@
   border-bottom: 1px solid var(--line);
   margin-bottom: 16px;
 }
+
+/* ---------- the hero loop ----------
+   The cinematic plays behind the headline. The poster is a background on the section as
+   well as the video's own poster attribute, so the still carries the page wherever the
+   video does not play at all: a narrow screen, reduced motion, or a browser that refuses
+   to autoplay. Text keeps its contrast against the scrim, never against whatever frame
+   happens to be underneath it. */
+.hero--video {
+  position: relative;
+  overflow: hidden;
+  padding: clamp(40px, 7vw, 86px) 0 clamp(30px, 5vw, 60px);
+  background: var(--bg) url(/assets/video/hero-poster.jpg) center / cover no-repeat;
+  /* The section runs full-bleed while its contents stay in the column. */
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  padding-left: max(12px, calc(50vw - 590px));
+  padding-right: max(12px, calc(50vw - 590px));
+}
+.hero__video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+  border: 0;
+  pointer-events: none;
+  /* Knocked back in the pixels rather than only under the scrim: a full-brightness
+     cinematic next to the gold makes the gold look like a different site. */
+  filter: saturate(.72) contrast(1.04) brightness(.5);
+}
+.hero__scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(18, 18, 18, .95) 0%, rgba(18, 18, 18, .82) 44%, rgba(18, 18, 18, .38) 74%, rgba(18, 18, 18, .6) 100%),
+    linear-gradient(180deg, rgba(18, 18, 18, .55) 0%, rgba(18, 18, 18, 0) 30%, rgba(18, 18, 18, 0) 55%, var(--bg) 100%);
+}
+.hero__inner { position: relative; z-index: 2; }
+
+/* No motion, and no six megabytes on a phone: the poster carries the page on its own. */
+@media (prefers-reduced-motion: reduce) { .hero__video { display: none; } }
+@media (max-width: 760px) { .hero__video { display: none; } }
 .hero__title {
   font-family: var(--font-title);
   color: var(--gold);

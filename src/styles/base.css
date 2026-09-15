@@ -21,14 +21,27 @@ button { font-family: inherit; font-size: inherit; cursor: pointer; }
 
 .wrap { max-width: 1180px; margin: 0 auto; padding: 0 12px; }
 
-/* ---------- site header ---------- */
+/* ---------- site header ----------
+   The bar spans the window and stays at the top of it, so the tools are always one click
+   away however far down a talent tree or a roster you have scrolled. It sits outside
+   .wrap for the full-width background and blur, and carries its own .wrap inside to keep
+   its contents lined up with the page under it. */
 .site-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 10px;
+  background: rgba(18, 18, 18, .92);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.site-header .wrap {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 0 12px;
-  border-bottom: 1px solid var(--line);
-  margin-bottom: 10px;
+  padding-top: 10px;
+  padding-bottom: 10px;
 }
 .site-header__home {
   display: flex; align-items: center; gap: 12px;
@@ -155,7 +168,7 @@ select.btn { appearance: none; padding-right: 26px;
 .c-druid   { color: var(--c-druid); }
 
 @media (max-width: 640px) {
-  .site-header { flex-wrap: wrap; }
+  .site-header .wrap { flex-wrap: wrap; }
   .site-header__nav { width: 100%; }
 }
 
@@ -203,3 +216,57 @@ select.btn { appearance: none; padding-right: 26px;
 }
 .modal__title { font-family: var(--font-display); color: var(--gold); font-size: 17px; margin: 0; }
 .modal__body { padding: 12px 14px; }
+
+/* ---------- turning a page ----------
+   The four tools are four documents, so moving between them is a real navigation. The
+   browser's cross-document view transition makes it read as one app anyway: the arriving
+   page sweeps a full screen width across the departing one rather than blinking into
+   place.
+
+   WHICH WAY IT SLIDES SAYS WHICH WAY YOU WENT. public/page-turn.js puts one attribute on
+   <html> before the first frame, read from where the reader came from:
+     fwd    rightwards along the nav: the new page comes in from the right
+     back   leftwards along it: the mirror
+     same   the same page with a different hash, which is a filter and not a journey
+
+   The header keeps its own transition name and no animation, so the bar sits perfectly
+   still while the page turns underneath it. That is the whole trick: without it you see
+   two pages that happen to share a design, with it you see one app. */
+@view-transition { navigation: auto; }
+
+@keyframes wf-fade-out { to { opacity: 0; } }
+@keyframes wf-fade-in { from { opacity: 0; } }
+@keyframes wf-from-right { from { transform: translateX(100%); } }
+@keyframes wf-from-left { from { transform: translateX(-100%); } }
+
+/* A page parked a screen to the right must not lengthen the document while it travels. */
+::view-transition { overflow: clip; }
+/* The ground the two pictures move over. Without it the departing page, fading out,
+   reveals the live arriving document underneath, and the arrival reads as bleeding
+   through the departure rather than as sliding across it. */
+::view-transition-image-pair(root) { background: var(--bg); }
+::view-transition-old(root) { animation: wf-fade-out .22s ease both; }
+::view-transition-new(root) { animation: wf-fade-in .22s ease both; }
+
+:root[data-nav=fwd]::view-transition-new(root) { animation: wf-from-right .34s ease both; }
+:root[data-nav=back]::view-transition-new(root) { animation: wf-from-left .34s ease both; }
+:root[data-nav=same]::view-transition-old(root),
+:root[data-nav=same]::view-transition-new(root) { animation: none; }
+
+.site-header { view-transition-name: wf-head; }
+/* The bar is 92% opaque with a blur behind it, which is right on a page you scroll and
+   wrong for the moment the page is turning: the outgoing page slides underneath and you
+   see it through the bar, which reads as the header flickering rather than as the page
+   moving. For the length of the turn it is solid. */
+::view-transition-old(wf-head),
+::view-transition-new(wf-head) {
+  animation: none;
+  background: var(--bg);
+}
+
+/* A page that turns is decoration. Somebody who has asked for less of it gets a cut; the
+   script leaves the attribute off under the same query, so no directional rule matches. */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) { animation: none; }
+}

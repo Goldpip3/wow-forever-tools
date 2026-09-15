@@ -383,13 +383,11 @@ function draw(): void {
   const coverage = computeCoverage(roster);
   const suggestions = suggestSwaps(roster, coverage);
 
-  app.appendChild(
-    renderHeader({
-      page: 'raid',
-      title: 'Raid Planner',
-      subtitle: rosterSummary(roster),
-    }),
-  );
+  renderHeader({
+    page: 'raid',
+    title: 'Raid Planner',
+    subtitle: rosterSummary(roster),
+  });
 
   app.appendChild(renderToolbar(roster, coverage, handlers));
   const alerts = renderAlertBar(coverage);

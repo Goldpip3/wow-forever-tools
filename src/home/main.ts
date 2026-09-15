@@ -38,7 +38,36 @@ function hero(): HTMLElement {
   dps.textContent = 'Analyse your gear';
 
   actions.append(talents, raid, dps);
-  section.append(h2, lead, actions);
+
+  /* The cinematic runs behind the headline. It is decoration and nothing else: no sound,
+     no controls, out of the tab order and hidden from screen readers. The poster is also
+     set as a background on the section in home.css, so the still is what shows wherever
+     the video does not play — a phone, reduced motion, or a browser that refuses to
+     autoplay — rather than a black rectangle. */
+  const video = document.createElement('video');
+  video.className = 'hero__video';
+  video.autoplay = true;
+  video.muted = true;
+  video.loop = true;
+  video.playsInline = true;
+  video.preload = 'metadata';
+  video.poster = href('assets/video/hero-poster.jpg');
+  video.tabIndex = -1;
+  video.setAttribute('aria-hidden', 'true');
+  const mp4 = document.createElement('source');
+  mp4.src = href('assets/video/hero.mp4');
+  mp4.type = 'video/mp4';
+  video.appendChild(mp4);
+
+  // Two gradients: heaviest on the left where the text sits, and along the bottom so the
+  // section hands off to the page colour instead of stopping at an edge.
+  const scrim = el('div', 'hero__scrim');
+
+  const inner = el('div', 'hero__inner');
+  inner.append(h2, lead, actions);
+
+  section.classList.add('hero--video');
+  section.append(video, scrim, inner);
   return section;
 }
 
@@ -176,13 +205,11 @@ function render(): void {
   if (!app) return;
   app.replaceChildren();
 
-  app.appendChild(
-    renderHeader({
-      page: 'home',
-      title: 'WoW Forever Tools',
-      subtitle: 'Talents, raid composition and gear for Forever',
-    }),
-  );
+  renderHeader({
+    page: 'home',
+    title: 'WoW Forever Tools',
+    subtitle: 'Talents, raid composition and gear for Forever',
+  });
 
   app.appendChild(hero());
   app.appendChild(features());

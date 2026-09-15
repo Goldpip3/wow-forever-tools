@@ -15,9 +15,23 @@ export interface HeaderOptions {
 const BASE = import.meta.env.BASE_URL ?? '/';
 const href = (file: string) => (BASE.endsWith('/') ? BASE + file : `${BASE}/${file}`);
 
+/**
+ * Fill the sticky bar at the top of the window.
+ *
+ * The <header> itself is in the page's HTML rather than created here, for two reasons: it
+ * has to span the window, so it cannot live inside the content column that every page
+ * clears on re-render, and it has to exist when the document first paints, or the view
+ * transition in base.css captures a page with no bar on it and the header appears to
+ * flash in. This fills that element and hands it back.
+ */
 export function renderHeader(opts: HeaderOptions): HTMLElement {
-  const header = document.createElement('header');
+  const header = document.getElementById('site-header') ?? document.createElement('header');
   header.className = 'site-header';
+  header.replaceChildren();
+
+  // Contents line up with the page under the bar, which is why there is a wrap in here.
+  const inner = document.createElement('div');
+  inner.className = 'wrap';
 
   // The mark and title go home, so every page has a way back to the front.
   const home = document.createElement('a');
@@ -40,7 +54,7 @@ export function renderHeader(opts: HeaderOptions): HTMLElement {
   sub.textContent = opts.subtitle;
   titles.append(h1, sub);
   home.appendChild(titles);
-  header.appendChild(home);
+  inner.appendChild(home);
 
   const nav = document.createElement('nav');
   nav.className = 'site-header__nav';
@@ -60,7 +74,8 @@ export function renderHeader(opts: HeaderOptions): HTMLElement {
   }
   for (const el of opts.nav ?? []) nav.appendChild(el);
 
-  header.appendChild(nav);
+  inner.appendChild(nav);
+  header.appendChild(inner);
   return header;
 }
 

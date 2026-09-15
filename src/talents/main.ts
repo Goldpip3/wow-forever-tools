@@ -150,14 +150,12 @@ function draw(): void {
     document.body.appendChild(renderChangelogModal(data!.changelog ?? []));
   });
 
-  app.appendChild(
-    renderHeader({
-      page: 'talents',
-      title: 'Talents Forever Tools',
-      subtitle: 'WoW Forever ' + className() + ' talent calculator, read from BlizzCon 2026',
-      nav: [whatsNew],
-    }),
-  );
+  renderHeader({
+    page: 'talents',
+    title: 'Talents Forever Tools',
+    subtitle: 'WoW Forever ' + className() + ' talent calculator, read from BlizzCon 2026',
+    nav: [whatsNew],
+  });
 
   app.appendChild(renderClassTabs(build.classKey));
 
@@ -350,13 +348,11 @@ async function start(): Promise<void> {
     data = await loadTalentData();
   } catch (err) {
     app.replaceChildren();
-    app.appendChild(
-      renderHeader({
-        page: 'talents',
-        title: 'Talent Calculator',
-        subtitle: 'WoW Forever',
-      }),
-    );
+    renderHeader({
+      page: 'talents',
+      title: 'Talent Calculator',
+      subtitle: 'WoW Forever',
+    });
     app.appendChild(
       el(
         'p',

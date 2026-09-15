@@ -400,15 +400,13 @@ function draw(): void {
   const info = character ? CLASSES[character.classId] : null;
   const spec = character ? specById(character.specId) : undefined;
 
-  app.appendChild(
-    renderHeader({
-      page: 'dps',
-      title: 'Gear and DPS',
-      subtitle: character
-        ? character.source.name + ', level ' + character.source.level
-        : 'Import a character and find out what its gear is worth',
-    }),
-  );
+  renderHeader({
+    page: 'dps',
+    title: 'Gear and DPS',
+    subtitle: character
+    ? character.source.name + ', level ' + character.source.level
+    : 'Import a character and find out what its gear is worth',
+  });
 
   if (!character) {
     app.appendChild(renderHowTo());
