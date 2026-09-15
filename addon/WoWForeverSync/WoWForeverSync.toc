@@ -1,0 +1,14 @@
+## Interface: 11507
+## Title: WoW Forever Sync
+## Notes: Exports your character, gear, bags and bank for the WoW Forever gear and DPS tool.
+## Author: WoW Forever Tools
+## Version: 1.0.0
+## SavedVariables: WoWForeverSyncDB
+
+# Interface is the Classic Era 1.15.x number. When the Forever client ships,
+# raise it to whatever that client reports, or the addon shows as out of date.
+
+json.lua
+scan.lua
+export.lua
+ui.lua

@@ -1,0 +1,45 @@
+.tip {
+  position: fixed;
+  z-index: 400;
+  max-width: 340px;
+  background: var(--tip-bg);
+  border: 1px solid var(--tip-line);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  color: var(--ink);
+  font-size: 12.5px;
+  line-height: 1.5;
+  pointer-events: none;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, .6);
+}
+.tip__name { font-weight: 700; color: var(--gold); font-size: 13.5px; }
+.tip__rank { color: var(--ink2); }
+.tip__meta { color: var(--muted); font-size: 11.5px; }
+.tip__body { margin-top: 4px; white-space: pre-wrap; }
+.tip__next { margin-top: 6px; color: var(--green2); white-space: pre-wrap; }
+.tip__req { margin-top: 6px; color: var(--red); }
+.tip__est { margin-top: 6px; color: var(--muted); font-style: italic; font-size: 11.5px; }
+.tip__hr { height: 1px; background: var(--line); margin: 7px 0; }
+.tip__classic-label {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted);
+}
+.tip__classic-text { margin-top: 3px; color: var(--ink2); white-space: pre-wrap; }
+.tip__note { margin-top: 6px; color: var(--blue); font-size: 11.5px; }
+
+/* Mobile bottom sheet: same content, docked, taps pass through. */
+.sheet {
+  position: fixed; left: 8px; right: 8px; bottom: 8px;
+  z-index: 400;
+  background: rgba(14, 14, 16, .93);
+  border: 1px solid var(--tip-line);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  font-size: 13px;
+  max-height: 46vh; overflow-y: auto;
+  pointer-events: none;
+  box-shadow: 0 -4px 26px rgba(0, 0, 0, .7);
+}
+
+/* Cost on the left, range on the right, the way the game lays it out. */
+.tip__cost { display: flex; justify-content: space-between; gap: 14px; color: var(--ink2); font-size: 12px; }

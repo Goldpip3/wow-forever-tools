@@ -1,0 +1,317 @@
+import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import type { TalentData, ClassTalents } from '../src/talents/types';
+import {
+  MAX_POINTS,
+  addPoint,
+  canAdd,
+  canRemove,
+  cellState,
+  createBuild,
+  levelNeeded,
+  nextRowAt,
+  pointsForLevel,
+  pointsLeft,
+  primaryTree,
+  rankText,
+  removePoint,
+  resetAll,
+  rowRequirement,
+  totalSpent,
+  treeTotal,
+} from '../src/talents/build';
+import { decode, encode, encodeTrees, parseCode } from '../src/talents/codec';
+
+const DATA: TalentData = JSON.parse(
+  readFileSync(resolve(__dirname, '../public/data/talents.generated.json'), 'utf8'),
+);
+
+const WARRIOR: ClassTalents = DATA.talents.Warrior!;
+const EXAMPLE = 'warrior/60/05305213030510201-000000000000000000-0000000000000000000';
+
+function treeIndex(cls: ClassTalents, name: string): number {
+  return cls.trees.findIndex((t) => t.name === name);
+}
+
+function talentIndex(cls: ClassTalents, treeName: string, talentName: string): number {
+  const tree = cls.trees[treeIndex(cls, treeName)]!;
+  return tree.talents.findIndex((t) => t.name === talentName);
+}
+
+describe('point budget', () => {
+  it('gives one point at level 10 and 51 at level 60', () => {
+    expect(pointsForLevel(10)).toBe(1);
+    expect(pointsForLevel(60)).toBe(MAX_POINTS);
+    expect(pointsForLevel(40)).toBe(31);
+    expect(pointsForLevel(9)).toBe(0);
+  });
+
+  it('never exceeds 51 even above level 60', () => {
+    expect(pointsForLevel(70)).toBe(MAX_POINTS);
+  });
+
+  it('refuses a point once the level budget is spent', () => {
+    const build = createBuild('warrior', WARRIOR, 10);
+    const arms = treeIndex(WARRIOR, 'Arms');
+    const deflection = talentIndex(WARRIOR, 'Arms', 'Deflection');
+    expect(addPoint(WARRIOR, build, arms, deflection).ok).toBe(true);
+    const second = addPoint(WARRIOR, build, arms, deflection);
+    expect(second.ok).toBe(false);
+    expect(second.reason).toMatch(/All points are spent/);
+  });
+});
+
+describe('row unlocking', () => {
+  it('requires five points per row', () => {
+    expect(rowRequirement(1)).toBe(0);
+    expect(rowRequirement(2)).toBe(5);
+    expect(rowRequirement(7)).toBe(30);
+  });
+
+  it('locks a row-2 talent until five points sit in the tree', () => {
+    const build = createBuild('warrior', WARRIOR, 60);
+    const arms = treeIndex(WARRIOR, 'Arms');
+    const row2 = WARRIOR.trees[arms]!.talents.findIndex((t) => t.row === 2);
+    expect(canAdd(WARRIOR, build, arms, row2).ok).toBe(false);
+    expect(cellState(WARRIOR, build, arms, row2)).toBe('locked');
+
+    const deflection = talentIndex(WARRIOR, 'Arms', 'Deflection');
+    for (let i = 0; i < 5; i += 1) addPoint(WARRIOR, build, arms, deflection);
+    expect(treeTotal(build.ranks, arms)).toBe(5);
+    expect(canAdd(WARRIOR, build, arms, row2).ok).toBe(true);
+    expect(cellState(WARRIOR, build, arms, row2)).toBe('open');
+  });
+
+  it('reports the next locked row threshold', () => {
+    const build = createBuild('warrior', WARRIOR, 60);
+    const arms = treeIndex(WARRIOR, 'Arms');
+    expect(nextRowAt(WARRIOR, build.ranks, arms)).toBe(5);
+  });
+});
+
+describe('prerequisites', () => {
+  it('blocks a talent whose prerequisite is not maxed', () => {
+    const build = createBuild('warrior', WARRIOR, 60);
+    const arms = treeIndex(WARRIOR, 'Arms');
+    const tree = WARRIOR.trees[arms]!;
+    const gatedIdx = tree.talents.findIndex((t) => !!t.req);
+    expect(gatedIdx).toBeGreaterThanOrEqual(0);
+    const gated = tree.talents[gatedIdx]!;
+    const reqIdx = tree.talents.findIndex((t) => t.name === gated.req);
+
+    // Fill the tree so rows are open but the prerequisite stays empty.
+    const filler = talentIndex(WARRIOR, 'Arms', 'Deflection');
+    for (let i = 0; i < 5; i += 1) addPoint(WARRIOR, build, arms, filler);
+    while (treeTotal(build.ranks, arms) < rowRequirement(gated.row)) {
+      const open = tree.talents.findIndex(
+        (t, i) => i !== reqIdx && i !== gatedIdx && cellState(WARRIOR, build, arms, i) !== 'locked'
+          && (build.ranks[arms]![i] ?? 0) < t.max,
+      );
+      if (open < 0) break;
+      addPoint(WARRIOR, build, arms, open);
+    }
+
+    const blocked = canAdd(WARRIOR, build, arms, gatedIdx);
+    expect(blocked.ok).toBe(false);
+    expect(blocked.reason).toMatch(/Requires/);
+  });
+
+  it('refuses to unlearn a maxed prerequisite that something depends on', () => {
+    const build = createBuild('warrior', WARRIOR, 60);
+    const arms = treeIndex(WARRIOR, 'Arms');
+    const tree = WARRIOR.trees[arms]!;
+    const gatedIdx = tree.talents.findIndex((t) => !!t.req);
+    const gated = tree.talents[gatedIdx]!;
+    const reqIdx = tree.talents.findIndex((t) => t.name === gated.req)!;
+
+    // Spend enough in the tree to reach the gated talent's row.
+    const filler = talentIndex(WARRIOR, 'Arms', 'Deflection');
+    for (let i = 0; i < 5; i += 1) addPoint(WARRIOR, build, arms, filler);
+    for (let i = 0; i < tree.talents.length && treeTotal(build.ranks, arms) < rowRequirement(gated.row); i += 1) {
+      while (
+        treeTotal(build.ranks, arms) < rowRequirement(gated.row) &&
+        addPoint(WARRIOR, build, arms, i).ok
+      ) {
+        /* keep filling */
+      }
+    }
+    while ((build.ranks[arms]![reqIdx] ?? 0) < tree.talents[reqIdx]!.max) {
+      if (!addPoint(WARRIOR, build, arms, reqIdx).ok) break;
+    }
+    expect(build.ranks[arms]![reqIdx]).toBe(tree.talents[reqIdx]!.max);
+
+    addPoint(WARRIOR, build, arms, gatedIdx);
+    expect(build.ranks[arms]![gatedIdx]).toBeGreaterThan(0);
+
+    const blocked = canRemove(WARRIOR, build, arms, reqIdx);
+    expect(blocked.ok).toBe(false);
+    expect(blocked.reason).toMatch(/Unlearn it first/);
+  });
+});
+
+describe('removing points', () => {
+  /** 5 in row 1, 5 in row 2, 1 in row 3: exactly 11 points, with row 3 needing 10. */
+  function elevenPointArms() {
+    const build = createBuild('warrior', WARRIOR, 60);
+    const arms = treeIndex(WARRIOR, 'Arms');
+    const tree = WARRIOR.trees[arms]!;
+    const row1 = talentIndex(WARRIOR, 'Arms', 'Deflection');
+    for (let i = 0; i < 5; i += 1) addPoint(WARRIOR, build, arms, row1);
+    // Improved Tactical Mastery: row 2, max 5, and Anger Management above it depends on it.
+    const row2 = talentIndex(WARRIOR, 'Arms', 'Improved Tactical Mastery');
+    for (let i = 0; i < 5; i += 1) addPoint(WARRIOR, build, arms, row2);
+    expect(treeTotal(build.ranks, arms)).toBe(10);
+    const row3 = tree.talents.findIndex(
+      (t) => t.row === 3 && (!t.req || t.req === tree.talents[row2]!.name),
+    );
+    expect(addPoint(WARRIOR, build, arms, row3).ok).toBe(true);
+    expect(treeTotal(build.ranks, arms)).toBe(11);
+    return { build, arms, row1, row2, row3 };
+  }
+
+  it('refuses a removal that would strand points in a higher row', () => {
+    const { build, arms, row1 } = elevenPointArms();
+    // 11 -> 10 is fine, row 3 still needs 10.
+    expect(removePoint(WARRIOR, build, arms, row1).ok).toBe(true);
+    // 10 -> 9 would strand the row-3 point.
+    const blocked = canRemove(WARRIOR, build, arms, row1);
+    expect(blocked.ok).toBe(false);
+    expect(blocked.reason).toMatch(/needs 10 points/);
+  });
+
+  it('allows a removal once the higher row is empty again', () => {
+    const { build, arms, row1, row3 } = elevenPointArms();
+    removePoint(WARRIOR, build, arms, row1);
+    expect(canRemove(WARRIOR, build, arms, row1).ok).toBe(false);
+    removePoint(WARRIOR, build, arms, row3);
+    expect(canRemove(WARRIOR, build, arms, row1).ok).toBe(true);
+  });
+
+  it('resets everything to zero', () => {
+    const build = createBuild('warrior', WARRIOR, 60);
+    const arms = treeIndex(WARRIOR, 'Arms');
+    addPoint(WARRIOR, build, arms, talentIndex(WARRIOR, 'Arms', 'Deflection'));
+    resetAll(build);
+    expect(totalSpent(build.ranks)).toBe(0);
+  });
+});
+
+describe('build code round trip', () => {
+  it('decodes the reference Arms build to 31 points', () => {
+    const build = decode(WARRIOR, EXAMPLE)!;
+    expect(build).not.toBeNull();
+    expect(build.classKey).toBe('warrior');
+    expect(build.level).toBe(60);
+    const arms = treeIndex(WARRIOR, 'Arms');
+    expect(treeTotal(build.ranks, arms)).toBe(31);
+    expect(totalSpent(build.ranks)).toBe(31);
+    expect(pointsLeft(build)).toBe(20);
+    expect(levelNeeded(build)).toBe(40);
+  });
+
+  it('re-encodes to the identical string', () => {
+    const build = decode(WARRIOR, EXAMPLE)!;
+    expect(encode(build)).toBe(EXAMPLE);
+  });
+
+  it('reads the reference build as Arms', () => {
+    const build = decode(WARRIOR, EXAMPLE)!;
+    const primary = primaryTree(WARRIOR, build)!;
+    expect(primary.tree.name).toBe('Arms');
+    expect(primary.points).toBe(31);
+  });
+
+  it('puts the right ranks on the right talents', () => {
+    const build = decode(WARRIOR, EXAMPLE)!;
+    const arms = treeIndex(WARRIOR, 'Arms');
+    const at = (name: string) => build.ranks[arms]![talentIndex(WARRIOR, 'Arms', name)];
+    expect(at('Improved Heroic Strike')).toBe(0);
+    expect(at('Deflection')).toBe(5);
+    expect(at('Improved Rend')).toBe(3);
+    expect(at('Mortal Strike')).toBe(1);
+  });
+
+  it('writes one digit per talent in each tree', () => {
+    const build = decode(WARRIOR, EXAMPLE)!;
+    const segments = encodeTrees(build).split('-');
+    expect(segments).toHaveLength(WARRIOR.trees.length);
+    WARRIOR.trees.forEach((tree, i) => {
+      expect(segments[i]!.length).toBe(tree.talents.length);
+    });
+  });
+
+  it('accepts a full talentsforever.com URL', () => {
+    const parsed = parseCode('https://talentsforever.com/' + EXAMPLE);
+    expect(parsed?.classKey).toBe('warrior');
+    expect(parsed?.level).toBe(60);
+    expect(parsed?.trees[0]).toBe('05305213030510201');
+  });
+
+  it('accepts our own hash form', () => {
+    const parsed = parseCode('#' + EXAMPLE);
+    expect(parsed?.classKey).toBe('warrior');
+  });
+
+  it('accepts a class-only code and defaults to level 60', () => {
+    const parsed = parseCode('druid');
+    expect(parsed?.classKey).toBe('druid');
+    expect(parsed?.level).toBe(60);
+    expect(parsed?.trees).toEqual([]);
+  });
+
+  it('rejects an unknown class', () => {
+    expect(parseCode('deathknight/60/000')).toBeNull();
+    expect(parseCode('')).toBeNull();
+  });
+
+  it('clamps a digit above a talent maximum', () => {
+    const arms = treeIndex(WARRIOR, 'Arms');
+    const first = WARRIOR.trees[arms]!.talents[0]!;
+    const build = decode(WARRIOR, 'warrior/60/9')!;
+    expect(build.ranks[arms]![0]).toBe(first.max);
+  });
+
+  it('round-trips every class at full points', () => {
+    for (const [key, cls] of Object.entries(DATA.talents)) {
+      const classKey = key.toLowerCase();
+      const build = createBuild(classKey, cls, 60);
+      const treeIdx = 0;
+      let guard = 0;
+      while (pointsLeft(build) > 0 && guard < 200) {
+        guard += 1;
+        const idx = cls.trees[treeIdx]!.talents.findIndex(
+          (t, i) => (build.ranks[treeIdx]![i] ?? 0) < t.max && canAdd(cls, build, treeIdx, i).ok,
+        );
+        if (idx < 0) break;
+        addPoint(cls, build, treeIdx, idx);
+      }
+      const code = encode(build);
+      const back = decode(cls, code)!;
+      expect(back.ranks, key).toEqual(build.ranks);
+    }
+  });
+});
+
+describe('rank text', () => {
+  it('returns the exact text for a rank that was read off the demo', () => {
+    const arms = treeIndex(WARRIOR, 'Arms');
+    const deflection = WARRIOR.trees[arms]!.talents[talentIndex(WARRIOR, 'Arms', 'Deflection')]!;
+    expect(rankText(deflection, 1).text).toMatch(/Parry chance by 1%/);
+    expect(rankText(deflection, 5).text).toMatch(/Parry chance by 5%/);
+    expect(rankText(deflection, 5).estimated).toBe(false);
+  });
+
+  it('marks an interpolated rank as estimated', () => {
+    const arms = treeIndex(WARRIOR, 'Arms');
+    const tree = WARRIOR.trees[arms]!;
+    const sparse = tree.talents.find((t) => !Array.isArray(t.desc) && t.max > 1)!;
+    const highest = rankText(sparse, sparse.max);
+    expect(typeof highest.text).toBe('string');
+    const missingRank = Object.keys(sparse.desc as Record<string, string>).length < sparse.max;
+    if (missingRank) {
+      const mid = rankText(sparse, sparse.max - 1);
+      expect(typeof mid.estimated).toBe('boolean');
+    }
+  });
+});

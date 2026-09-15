@@ -1,0 +1,78 @@
+/* ---------------------------------------------------------------------- hero */
+.hero {
+  padding: 26px 0 20px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 16px;
+}
+.hero__title {
+  font-family: var(--font-title);
+  color: var(--gold);
+  font-size: clamp(26px, 4.2vw, 40px);
+  line-height: 1.15;
+  margin: 0 0 10px;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, .7);
+}
+.hero__lead {
+  color: var(--ink2);
+  max-width: 64ch;
+  font-size: 15px;
+  margin: 0 0 16px;
+}
+.hero__actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.btn--big { padding: 9px 18px; font-size: 14.5px; }
+
+/* --------------------------------------------------------------------- cards */
+.home-cards {
+  display: grid; gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+  margin-bottom: 10px;
+}
+.home-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-top: 2px solid var(--gold2);
+  border-radius: var(--radius);
+  padding: 15px;
+  display: flex; flex-direction: column;
+}
+.home-card h3 {
+  font-family: var(--font-display);
+  color: var(--gold);
+  margin: 0 0 5px;
+  font-size: 18px;
+}
+.home-card > p { color: var(--ink2); margin: 0 0 10px; }
+.home-card ul { margin: 0 0 14px; padding-left: 18px; color: var(--ink2); flex: 1; }
+.home-card li { margin-bottom: 5px; }
+.home-card .btn { align-self: flex-start; }
+
+/* ------------------------------------------------------------------- classes */
+.home-classes {
+  display: grid; gap: 6px;
+  grid-template-columns: repeat(auto-fill, minmax(135px, 1fr));
+  margin-bottom: 14px;
+}
+.home-class {
+  display: flex; align-items: center; gap: 9px;
+  padding: 8px 10px;
+  background: var(--grad-panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--ink); font-weight: 600;
+  text-decoration: none;
+}
+.home-class:hover { border-color: var(--gold2); text-decoration: none; }
+.home-class img { width: 28px; height: 28px; border-radius: var(--radius-sm); border: 1px solid #000; flex: 0 0 28px; }
+
+/* --------------------------------------------------------------------- quote */
+.quote {
+  margin: 10px 0;
+  padding: 9px 14px;
+  border-left: 3px solid var(--gold2);
+  background: var(--panel2);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  color: var(--ink);
+  font-style: italic;
+}
+.panel__body > p { color: var(--ink2); margin: 0 0 9px; }
+.panel__body > p:last-child { margin-bottom: 0; }

@@ -1,0 +1,58 @@
+/*
+ * World of Warcraft uses two fonts: Friz Quadrata TT for almost all UI text, and
+ * Morpheus for large titles. Both are licensed by Blizzard and cannot ship here,
+ * so each @font-face tries three things in order:
+ *
+ *   1. local()  - the font installed on this machine
+ *   2. url()    - a copy dropped into public/assets/fonts/
+ *   3. the free Google Fonts stand-in named in tokens.css
+ *
+ * A missing file just falls through to the stand-in, so nothing breaks.
+ * See README.md for how to supply your own copies.
+ */
+
+@font-face {
+  font-family: 'Friz Quadrata TT';
+  src:
+    local('Friz Quadrata TT'),
+    local('FrizQuadrataTT'),
+    local('Friz Quadrata'),
+    url('/assets/fonts/FRIZQT__.TTF') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Friz Quadrata TT';
+  src:
+    local('Friz Quadrata TT Bold'),
+    local('FrizQuadrataTT-Bold'),
+    url('/assets/fonts/FRIZQT__.TTF') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Morpheus';
+  src:
+    local('Morpheus'),
+    local('MORPHEUS'),
+    url('/assets/fonts/MORPHEUS.TTF') format('truetype');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Chat and damage numbers in game. Handy for the tabular bits here. */
+@font-face {
+  font-family: 'WoW Narrow';
+  src:
+    local('Arial Narrow'),
+    local('ArialNarrow'),
+    url('/assets/fonts/ARIALN.TTF') format('truetype');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}

@@ -1,0 +1,151 @@
+/* The simulation half of the gear page: settings, results, weights, upgrades. */
+
+/* --------------------------------------------------------------- settings */
+
+.dfields { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.dfield { display: flex; flex-direction: column; gap: 2px; }
+.dfield__label {
+  font-family: var(--font-narrow);
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: .6px;
+  color: var(--muted);
+}
+.dfield__input { min-width: 108px; }
+
+.dbuffs { margin-bottom: 8px; }
+.dbuffs__head {
+  font-family: var(--font-narrow);
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: .6px;
+  color: var(--muted);
+  margin: 6px 0 3px;
+}
+.dbuff {
+  display: flex; align-items: center; gap: 6px;
+  padding: 3px 5px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.dbuff:hover { background: var(--panel2); border-color: var(--line); }
+.dbuff--on { background: var(--panel2); border-color: var(--gold2); }
+.dbuff__icon { width: 20px; height: 20px; border-radius: 3px; flex: none; }
+.dbuff__text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.dbuff__name { font-size: 12.5px; line-height: 1.2; }
+.dbuff__from { font-family: var(--font-narrow); font-size: 10.5px; color: var(--muted); }
+
+.dprogress {
+  height: 6px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+.dprogress__fill { height: 100%; background: var(--grad-gold); transition: width .12s linear; }
+.dprogress__label {
+  font-family: var(--font-narrow);
+  font-size: 11px; color: var(--muted);
+  margin-top: 3px;
+}
+
+/* ---------------------------------------------------------------- results */
+
+.ddps {
+  display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  padding: 8px 10px;
+  background: var(--panel2);
+  border: 1px solid var(--gold2);
+  border-radius: var(--radius-sm);
+  margin-bottom: 8px;
+}
+.ddps__value {
+  font-family: var(--font-title);
+  font-size: 34px; line-height: 1;
+  color: var(--gold);
+}
+.ddps__unit { color: var(--ink2); font-size: 13px; }
+.ddps__range {
+  margin-left: auto;
+  font-family: var(--font-narrow);
+  font-size: 11.5px; color: var(--muted);
+}
+
+.dtable { display: flex; flex-direction: column; margin: 8px 0; }
+.dtable__row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  padding: 3px 4px;
+  border-bottom: 1px solid var(--line);
+  align-items: center;
+}
+.dtable__row:last-child { border-bottom: 0; }
+.dtable__row--head {
+  font-family: var(--font-narrow);
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: .6px;
+  color: var(--muted);
+  border-bottom-color: var(--gold2);
+}
+.dtable__cell {
+  font-family: var(--font-narrow);
+  font-size: 12.5px;
+  text-align: right;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.dtable__cell--name { text-align: left; font-family: var(--font-body); font-size: 13px; }
+.dtable__cell--muted { color: var(--muted); }
+.dtable__cell--noisy { color: var(--st-moved); }
+.dtable--weights .dtable__row { grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr)); }
+.dtable__input { width: 100%; min-width: 0; padding: 2px 4px; font-size: 12px; text-align: right; }
+
+.dnotes {
+  margin-top: 8px;
+  padding: 7px 9px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--st-unverified);
+  border-radius: var(--radius-sm);
+}
+.dnotes__head { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink2); }
+.dnotes ul { margin: 5px 0 0; padding-left: 18px; }
+.dnotes li { color: var(--muted); font-size: 12px; margin-bottom: 3px; }
+
+/* --------------------------------------------------------------- upgrades */
+
+.dupgrade {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 4px;
+  border-bottom: 1px solid var(--line);
+}
+.dupgrade:last-of-type { border-bottom: 0; }
+.dupgrade__text { min-width: 0; flex: 1; }
+.dupgrade__line { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+.dupgrade__slot {
+  font-family: var(--font-narrow);
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: .6px;
+  color: var(--muted);
+  flex: none;
+}
+.dupgrade__name { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dupgrade__from { font-size: 11.5px; color: var(--muted); }
+.dupgrade__gain {
+  font-family: var(--font-narrow);
+  font-weight: 700; font-size: 14px;
+  color: var(--green2);
+  flex: none;
+}
+.dupgrade__measured {
+  font-family: var(--font-narrow);
+  font-size: 11.5px;
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  flex: none;
+}
+.dupgrade__measured--up { color: var(--green2); border-color: var(--green2); }
+.dupgrade__measured--down { color: var(--red); border-color: var(--red); }
+
+@media (max-width: 620px) {
+  .ddps__value { font-size: 28px; }
+  .dtable__row { grid-template-columns: minmax(0, 1.6fr) repeat(4, minmax(0, 1fr)); }
+  .dtable__cell { font-size: 11.5px; }
+}

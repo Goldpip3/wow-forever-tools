@@ -1,0 +1,49 @@
+:root {
+  --bg: #121212;
+  --panel: #1e1e1e;
+  --panel2: #262626;
+  --bar: #2b2b2b;
+  --line: #3a3a3a;
+  --ink: #e8e8e8;
+  --ink2: #bdbdbd;
+  --muted: #8a8a8a;
+  --gold: #ffd100;
+  --gold2: #c89b1a;
+  --green: #1eff00;
+  --green2: #4fbf3a;
+  --blue: #58a6ff;
+  --red: #ff4d4d;
+  --tip-bg: #0e0e10;
+  --tip-line: #5a4a1e;
+
+  /* derived */
+  /* Real WoW fonts first, free stand-ins after. See fonts.css. */
+  --font-body: 'Friz Quadrata TT', Alegreya, Georgia, 'Times New Roman', serif;
+  --font-display: 'Friz Quadrata TT', Alegreya, Georgia, serif;
+  --font-title: Morpheus, Almendra, 'Friz Quadrata TT', Georgia, serif;
+  --font-narrow: 'WoW Narrow', 'Arial Narrow', Alegreya, sans-serif;
+  --grad-gold: linear-gradient(90deg, var(--gold2), var(--gold));
+  --grad-panel: linear-gradient(#303030, #2b2b2b);
+  --grad-dark: linear-gradient(135deg, #3a3a3a, #1a1a1a);
+  --radius: 6px;
+  --radius-sm: 4px;
+
+  /* class colors (Blizzard official) */
+  --c-warrior: #c69b6d;
+  --c-paladin: #f48cba;
+  --c-hunter: #aad372;
+  --c-rogue: #fff468;
+  --c-priest: #ffffff;
+  --c-shaman: #0070dd;
+  --c-mage: #3fc7eb;
+  --c-warlock: #8788ee;
+  --c-druid: #ff7c0a;
+
+  /* status pills */
+  --st-same: #6a6a6a;
+  --st-changed: #58a6ff;
+  --st-new: #4fbf3a;
+  --st-moved: #c89b1a;
+  --st-removed: #ff4d4d;
+  --st-unverified: #a06cd5;
+}
