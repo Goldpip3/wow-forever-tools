@@ -18,8 +18,27 @@ import {
   renderSuggestions,
   renderToolbar,
   renderWarnings,
+  renderPool,
+  renderRosterBar,
+  renderPublishConfirm,
+  renderPublishResult,
   type RaidHandlers,
 } from './render';
+import {
+  ApiError,
+  Saver,
+  explain,
+  fetchRoster,
+  makeGuest,
+  publishRoster,
+  readRosterLink,
+  slotsFrom,
+  stateFromPayload,
+  type ApiFailure,
+  type RosterLink,
+  type RosterState,
+  type SaveState,
+} from './roster-mode';
 import { renderDrawer } from './drawer';
 import { parseCode } from '../talents/codec';
 import { applySuggestion, suggestSwaps, type Suggestion } from './suggestions';
@@ -38,6 +57,20 @@ interface SavedRoster {
 const app = document.getElementById('app');
 let roster: Roster = emptyRoster(40);
 let suppressHash = false;
+
+/**
+ * Planner mode invents people and lives in the URL hash. Roster mode holds a real
+ * Discord event and is entered only by a signed link. Everything the two share reads
+ * `mode` rather than guessing, and the hash is never rewritten in roster mode: the token
+ * lives in it, so writing an encoded roster over the top would throw the token away and
+ * break the page on reload.
+ */
+let mode: 'planner' | 'roster' = 'planner';
+let link: RosterLink | null = null;
+let rosterState: RosterState | null = null;
+let saver: Saver | null = null;
+let saveState: SaveState = 'idle';
+let saveDetail: string | undefined;
 
 function el(tag: string, cls?: string, text?: string): HTMLElement {
   const node = document.createElement(tag);
@@ -63,6 +96,8 @@ function findPlayer(id: string): { player: Player; group: number; slot: number }
 }
 
 function syncHash(): void {
+  // The roster-mode hash carries the event id and the auth token. Never overwrite it.
+  if (mode === 'roster') return;
   suppressHash = true;
   const next = isEmptyRoster(roster) ? '' : '#' + encodeRoster(roster);
   history.replaceState(null, '', location.pathname + location.search + next);
@@ -72,8 +107,18 @@ function syncHash(): void {
 }
 
 function update(): void {
+  if (mode === 'roster') {
+    rosterChanged();
+    return;
+  }
   syncHash();
   draw();
+}
+
+/** Any edit to a real roster: redraw at once, and save a second after the last one. */
+function rosterChanged(): void {
+  draw();
+  saver?.queue();
 }
 
 /* --------------------------------------------------------------- sample raid */
@@ -119,6 +164,15 @@ const handlers: RaidHandlers = {
   },
 
   onRemove: (group, slot) => {
+    // A real person is never deleted by clearing their seat: they go back to the pool,
+    // where they are standby rather than silently gone from the roster entirely.
+    if (mode === 'roster' && rosterState) {
+      const sitting = rosterState.roster.groups[group]?.[slot] ?? null;
+      rosterState.roster.groups[group]![slot] = null;
+      if (sitting) returnToPool(sitting);
+      rosterChanged();
+      return;
+    }
     roster.groups[group]![slot] = null;
     update();
   },
@@ -376,6 +430,10 @@ function renderSaveBar(): HTMLElement {
 /* ------------------------------------------------------------------- drawing */
 
 function draw(): void {
+  if (mode === 'roster') {
+    drawRoster();
+    return;
+  }
   if (!app) return;
   const scrollY = window.scrollY;
   app.replaceChildren();
@@ -493,10 +551,34 @@ document.addEventListener('keydown', (ev) => {
 
 window.addEventListener('hashchange', () => {
   if (suppressHash) return;
+  /* A fresh signed link pasted into a tab that is already in roster mode. This is what a
+     leader does after being told their link expired, so it has to work: the page reloads
+     onto the new token rather than sitting there doing nothing. A hash change that is not
+     a different link is ignored, because roster mode never writes its own hash. */
+  if (mode === 'roster') {
+    const next = readRosterLink();
+    if (next && link && (next.token !== link.token || next.eventId !== link.eventId)) {
+      saver?.flush();
+      location.reload();
+    }
+    return;
+  }
+  /* Planner mode arriving at a signed link: a Discord link opened in a tab that already
+     had the planner up is only a hash change, not a load, so it has to be caught here or
+     the leader sits looking at a hypothetical raid wondering where their signups are. */
+  const arriving = readRosterLink();
+  if (arriving) {
+    void enterRosterMode(arriving);
+    return;
+  }
   readHash();
 });
 
-readHash();
+/* A signed roster link wins over every other reading of the hash. Without one the page
+   is exactly what it has always been, with no network call and no account. */
+const rosterLink = readRosterLink();
+if (rosterLink) void enterRosterMode(rosterLink);
+else readHash();
 
 // The game's own spell text lives in the talent data. The page draws straight
 // away with what it has, then redraws once that lands so every tooltip carries
@@ -509,3 +591,388 @@ void loadTalentData()
   .catch(() => {
     /* tooltips fall back to the short descriptions */
   });
+
+/* =========================================================================
+   Roster mode
+   ========================================================================= */
+
+/** Everyone the roster knows about, wherever they currently sit. */
+function allRosterPlayers(): Player[] {
+  if (!rosterState) return [];
+  return [
+    ...rosterState.roster.groups.flat().filter((p): p is Player => !!p),
+    ...rosterState.pool,
+    ...rosterState.cut,
+  ];
+}
+
+function takeFromPoolOrCut(userId: string): Player | null {
+  if (!rosterState) return null;
+  const fromPool = rosterState.pool.findIndex((p) => p.discord?.userId === userId);
+  if (fromPool >= 0) return rosterState.pool.splice(fromPool, 1)[0]!;
+  const fromCut = rosterState.cut.findIndex((p) => p.discord?.userId === userId);
+  if (fromCut >= 0) return rosterState.cut.splice(fromCut, 1)[0]!;
+  return null;
+}
+
+function seatOf(playerId: string): { group: number; slot: number } | null {
+  if (!rosterState) return null;
+  for (let g = 0; g < GROUP_COUNT; g += 1) {
+    for (let s = 0; s < GROUP_SIZE; s += 1) {
+      if (rosterState.roster.groups[g]?.[s]?.id === playerId) return { group: g, slot: s };
+    }
+  }
+  return null;
+}
+
+/** Back to the pool, sorted, so a returned player does not land at the bottom. */
+function returnToPool(player: Player): void {
+  if (!rosterState) return;
+  rosterState.pool.push(player);
+  rosterState.pool.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+const rosterHandlers: Partial<RaidHandlers> = {
+  onSeatFromPool: (userId, group, slot) => {
+    if (!rosterState?.permissions.canEdit) return;
+    const player = takeFromPoolOrCut(userId);
+    if (!player) return;
+    // Whoever was in that seat goes back to the pool rather than disappearing.
+    const displaced = rosterState.roster.groups[group]?.[slot] ?? null;
+    rosterState.roster.groups[group]![slot] = player;
+    if (displaced) returnToPool(displaced);
+    rosterChanged();
+  },
+
+  onReturnToPool: (playerId) => {
+    if (!rosterState?.permissions.canEdit) return;
+    const at = seatOf(playerId);
+    if (!at) return;
+    const player = rosterState.roster.groups[at.group]![at.slot]!;
+    rosterState.roster.groups[at.group]![at.slot] = null;
+    returnToPool(player);
+    rosterChanged();
+  },
+
+  onCut: (userId) => {
+    if (!rosterState?.permissions.canEdit) return;
+    const player = takeFromPoolOrCut(userId);
+    if (!player) return;
+    rosterState.cut.push(player);
+    rosterChanged();
+  },
+
+  onUncut: (userId) => {
+    if (!rosterState?.permissions.canEdit) return;
+    const player = takeFromPoolOrCut(userId);
+    if (!player) return;
+    returnToPool(player);
+    rosterChanged();
+  },
+
+  onAddGuest: () => {
+    if (!rosterState?.permissions.canEdit) return;
+    openGuestPicker();
+  },
+
+  onPublish: () => {
+    if (!rosterState?.permissions.canPublish) return;
+    openPublishConfirm();
+  },
+};
+
+Object.assign(handlers, rosterHandlers);
+
+/** A guest is seated by picking a spec, then named. They have no Discord account. */
+function openGuestPicker(): void {
+  closeOverlays();
+  const free = firstFreeSeat();
+  if (!free) {
+    toast('Every seat is full.');
+    return;
+  }
+  document.body.appendChild(
+    renderSpecPicker(
+      free.group,
+      free.slot,
+      (classId, specId) => {
+        if (!rosterState) return;
+        const taken = new Set(
+          allRosterPlayers().map((p) => p.discord?.userId).filter((id): id is string => !!id),
+        );
+        const name = window.prompt('What is the guest called?')?.trim();
+        if (!name) {
+          closeOverlays();
+          return;
+        }
+        const guest = makeGuest(classId, specId, name, taken);
+        rosterState.roster.groups[free.group]![free.slot] = guest;
+        closeOverlays();
+        rosterChanged();
+        toast(guest.name + ' seated. Guests are never messaged.');
+      },
+      closeOverlays,
+    ),
+  );
+}
+
+function firstFreeSeat(): { group: number; slot: number } | null {
+  if (!rosterState) return null;
+  const active = Math.ceil(rosterState.roster.size / GROUP_SIZE);
+  for (let g = 0; g < Math.min(active, GROUP_COUNT); g += 1) {
+    for (let s = 0; s < GROUP_SIZE; s += 1) {
+      if (!rosterState.roster.groups[g]?.[s]) return { group: g, slot: s };
+    }
+  }
+  return null;
+}
+
+function seatedCount(): number {
+  return rosterState ? rosterState.roster.groups.flat().filter(Boolean).length : 0;
+}
+
+/* ------------------------------------------------------------------ saving */
+
+function onSaveState(state: SaveState, failure?: ApiFailure): void {
+  saveState = state;
+  saveDetail = failure ? explain(failure) : undefined;
+  if (failure) handleFailure(failure);
+  else draw();
+}
+
+/**
+ * What to do when the bot refuses.
+ *
+ * A 409 is never retried. Retrying it with the revision the server just handed back is
+ * precisely the silent overwrite that the revision number exists to prevent, so the
+ * leader is told their copy is stale and shown the fresh one instead.
+ */
+function handleFailure(failure: ApiFailure): void {
+  const message = explain(failure);
+  if (failure.kind === 'conflict') {
+    toast(message);
+    saver?.dispose();
+    saver = null;
+    void reloadRoster('Reloaded. Somebody else had already saved.');
+    return;
+  }
+  if (failure.kind === 'auth' || failure.kind === 'forbidden') {
+    // Stop writing. Nothing this tab does from here on can succeed.
+    saver?.dispose();
+    saver = null;
+    if (rosterState) rosterState.permissions = { canEdit: false, canPublish: false };
+  }
+  toast(message);
+  draw();
+}
+
+async function reloadRoster(note?: string): Promise<void> {
+  if (!link) return;
+  try {
+    const payload = await fetchRoster(link);
+    rosterState = stateFromPayload(payload);
+    startSaver();
+    saveState = 'idle';
+    saveDetail = undefined;
+    draw();
+    if (note) toast(note);
+  } catch (err) {
+    if (err instanceof ApiError) handleFailure(err.failure);
+    else toast('Could not reload the roster.');
+  }
+}
+
+function startSaver(): void {
+  if (!link || !rosterState?.permissions.canEdit) return;
+  saver?.dispose();
+  saver = new Saver(
+    link,
+    () => ({ slots: slotsFrom(rosterState!), revision: rosterState!.revision }),
+    (revision, status) => {
+      if (!rosterState) return;
+      rosterState.revision = revision;
+      // A published roster stays published through later saves; do not force it back.
+      rosterState.status = status;
+    },
+    onSaveState,
+  );
+}
+
+/* --------------------------------------------------------------- publishing */
+
+let publishing = false;
+
+function openPublishConfirm(): void {
+  if (!rosterState) return;
+  closeOverlays();
+  document.body.appendChild(
+    renderPublishConfirm(
+      {
+        seated: seatedCount(),
+        standby: rosterState.pool.length,
+        cut: rosterState.cut.length,
+        republish: rosterState.status === 'published',
+      },
+      () => {
+        closeOverlays();
+        void doPublish();
+      },
+      closeOverlays,
+    ),
+  );
+}
+
+/** One publish per user action: the button cannot be made to fire twice. */
+async function doPublish(): Promise<void> {
+  if (!link || !rosterState || publishing) return;
+  publishing = true;
+  draw();
+  try {
+    // Land any pending edit first, so what is published is what is on screen.
+    saver?.flush();
+    const result = await publishRoster(link, rosterState.revision);
+    rosterState.revision = result.revision;
+    rosterState.status = 'published';
+    draw();
+    document.body.appendChild(renderPublishResult(result, closeOverlays));
+  } catch (err) {
+    if (err instanceof ApiError) handleFailure(err.failure);
+    else toast('Publishing failed.');
+  } finally {
+    publishing = false;
+    draw();
+  }
+}
+
+/* ---------------------------------------------------------------- drawing it */
+
+function drawRoster(): void {
+  if (!app || !rosterState) return;
+  const scrollY = window.scrollY;
+  app.replaceChildren();
+
+  roster = rosterState.roster;
+  const coverage = computeCoverage(roster);
+  const suggestions = suggestSwaps(roster, coverage);
+  const canEdit = rosterState.permissions.canEdit;
+
+  renderHeader({ page: 'roster' });
+
+  app.appendChild(
+    renderRosterBar(
+      {
+        title: rosterState.event.title,
+        startTime: rosterState.event.startTime,
+        size: rosterState.event.size,
+        seated: seatedCount(),
+        standby: rosterState.pool.length,
+        cut: rosterState.cut.length,
+        saveState,
+        saveDetail,
+        status: rosterState.status,
+        canEdit,
+        canPublish: rosterState.permissions.canPublish && !publishing,
+      },
+      handlers,
+    ),
+  );
+
+  const alerts = renderAlertBar(coverage);
+  if (alerts) app.appendChild(alerts);
+
+  const main = el('div', 'rmain rmain--roster');
+
+  const left = el('div', 'rcol rcol--overview');
+  left.appendChild(
+    renderPool(
+      {
+        pool: rosterState.pool,
+        cut: rosterState.cut,
+        canEdit,
+        unmapped: rosterState.unmapped.map((s) => ({
+          name: s.name,
+          classKey: s.classKey,
+          specKey: s.specKey,
+        })),
+      },
+      handlers,
+    ),
+  );
+  left.appendChild(renderOverview(roster, handlers));
+  main.appendChild(left);
+
+  const centre = el('div', 'rcol rcol--centre');
+  centre.appendChild(renderGroups(roster, coverage, handlers));
+  centre.appendChild(renderWarnings(coverage));
+  centre.appendChild(renderSuggestions(suggestions, handlers));
+  const notes = renderNotes(coverage);
+  if (notes) centre.appendChild(notes);
+  main.appendChild(centre);
+
+  const buffs = el('div', 'rcol rcol--buffs');
+  buffs.appendChild(renderBuffsPanel(roster, coverage, draw));
+  main.appendChild(buffs);
+
+  const debuffs = el('div', 'rcol rcol--debuffs');
+  debuffs.appendChild(renderDebuffsPanel(roster, coverage, draw));
+  main.appendChild(debuffs);
+
+  const utility = el('div', 'rcol rcol--utility');
+  utility.appendChild(renderUtilityPanel(roster, coverage));
+  main.appendChild(utility);
+
+  app.appendChild(main);
+  app.appendChild(renderFooter());
+  window.scrollTo({ top: scrollY });
+}
+
+/** Something went wrong before there is any roster to show. */
+function drawRosterError(message: string): void {
+  if (!app) return;
+  app.replaceChildren();
+  renderHeader({ page: 'roster' });
+  const panel = el('section', 'panel');
+  panel.appendChild(el('div', 'panel__head', 'This roster did not open'));
+  const body = el('div', 'panel__body');
+  body.appendChild(el('p', '', message));
+  body.appendChild(
+    el(
+      'p',
+      'drawer__hint',
+      'Roster mode is opened from Discord. Run /roster on the event and use the link the bot sends you.',
+    ),
+  );
+  panel.appendChild(body);
+  app.appendChild(panel);
+  app.appendChild(renderFooter());
+}
+
+/** Enter roster mode. Only ever called when the hash carried a signed link. */
+async function enterRosterMode(found: RosterLink): Promise<void> {
+  mode = 'roster';
+  link = found;
+  if (app) {
+    app.replaceChildren();
+    renderHeader({ page: 'roster' });
+    app.appendChild(el('p', 'drawer__hint', 'Opening the roster…'));
+  }
+  try {
+    const payload = await fetchRoster(found);
+    rosterState = stateFromPayload(payload);
+    startSaver();
+    draw();
+    if (!payload.permissions.canEdit) {
+      toast('You can look at this roster but not change it.');
+    }
+  } catch (err) {
+    if (err instanceof ApiError) drawRosterError(explain(err.failure));
+    else drawRosterError('Something went wrong opening this roster.');
+  }
+}
+
+/* A tab closing must not lose the last drag. A debounced save would, so the pending one
+   is flushed with keepalive, which lets the request outlive the page. */
+window.addEventListener('pagehide', () => saver?.flush(true));
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') saver?.flush(true);
+});

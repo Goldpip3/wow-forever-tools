@@ -41,6 +41,13 @@ export interface RaidHandlers {
   onFillSample: () => void;
   onApplySuggestion: (s: Suggestion) => void;
   onFocusPlayer: (playerId: string) => void;
+  /* Roster mode only. Planner mode leaves these unset and never shows a pool. */
+  onSeatFromPool?: (userId: string, group: number, slot: number) => void;
+  onReturnToPool?: (playerId: string) => void;
+  onCut?: (userId: string) => void;
+  onUncut?: (userId: string) => void;
+  onPublish?: () => void;
+  onAddGuest?: () => void;
 }
 
 /* ------------------------------------------------------------------ toolbar */
@@ -132,8 +139,10 @@ function seatCard(
     try {
       const data = JSON.parse(raw) as
         | { kind: 'spec'; classId: ClassId; specId: number }
-        | { kind: 'player'; playerId: string };
+        | { kind: 'player'; playerId: string }
+        | { kind: 'pool'; userId: string };
       if (data.kind === 'spec') h.onDropSpec(data.classId, data.specId, group, slot);
+      else if (data.kind === 'pool') h.onSeatFromPool?.(data.userId, group, slot);
       else h.onMovePlayer(data.playerId, group, slot);
     } catch {
       /* ignore malformed drags */
@@ -181,7 +190,21 @@ function seatCard(
   nameInput.addEventListener('blur', () => h.onRename(player.id, nameInput.value));
   nameInput.addEventListener('dragstart', (ev) => ev.preventDefault());
   body.appendChild(nameInput);
-  body.appendChild(el('div', 'seat__spec', spec?.short ?? ''));
+
+  /* In roster mode the seat holds a real person, so the spec line also carries what that
+     person said when they signed up. That is the member speaking, not the leader's
+     decision about them, which is why it sits next to their name and not in place of it. */
+  const specLine = el('div', 'seat__spec');
+  specLine.appendChild(el('span', '', spec?.short ?? ''));
+  if (player.discord && player.discord.signupStatus !== 'primary') {
+    const mark = el('span', 'seat__signup', SIGNUP_LABEL[player.discord.signupStatus] ??
+      player.discord.signupStatus);
+    mark.title = SIGNUP_TITLE[player.discord.signupStatus] ??
+      'Signed up as ' + player.discord.signupStatus;
+    mark.dataset.status = player.discord.signupStatus;
+    specLine.appendChild(mark);
+  }
+  body.appendChild(specLine);
   cell.appendChild(body);
 
   const btns = el('div', 'seat__btns');
@@ -984,4 +1007,387 @@ export function renderSpecPicker(
 
 export function playerLabel(player: Player): string {
   return player.name + ' — ' + specLabel(player);
+}
+
+/* ===========================================================================
+   Roster mode
+   ===========================================================================
+   None of this renders unless main.ts is in roster mode, and every handler it uses is
+   optional on RaidHandlers, so planner mode is untouched by all of it. */
+
+/** What the member said when they signed up, short enough to sit on a seat. */
+const SIGNUP_LABEL: Record<string, string> = {
+  primary: 'in',
+  late: 'late',
+  tentative: 'maybe',
+  bench: 'benched self',
+  absence: 'absent',
+  queued: 'queued',
+  guest: 'guest',
+  withdrawn: 'withdrew',
+};
+
+const SIGNUP_TITLE: Record<string, string> = {
+  primary: 'Signed up to play',
+  late: 'Signed up, arriving late',
+  tentative: 'Signed up as a maybe',
+  bench: 'Asked to be benched',
+  absence: 'Said they cannot come',
+  queued: 'In the queue',
+  guest: 'Added by the leader, never signed up, and cannot be messaged',
+  withdrawn: 'On this roster but their signup is gone. Check with them.',
+};
+
+export interface PoolView {
+  pool: Player[];
+  cut: Player[];
+  canEdit: boolean;
+  /** Signups whose class or spec the planner could not read. */
+  unmapped: Array<{ name: string; classKey: string; specKey: string | null }>;
+}
+
+function poolRow(player: Player, h: RaidHandlers, canEdit: boolean, cut: boolean): HTMLElement {
+  const info = CLASSES[player.classId];
+  const spec = specById(player.specId);
+  const row = el('div', 'poolrow' + (cut ? ' poolrow--cut' : ''));
+  row.style.setProperty('--class-color', info.color);
+
+  if (canEdit) {
+    row.draggable = true;
+    row.addEventListener('dragstart', (ev) => {
+      const userId = player.discord?.userId;
+      if (!userId) return;
+      ev.dataTransfer?.setData('text/plain', JSON.stringify({ kind: 'pool', userId }));
+      if (ev.dataTransfer) ev.dataTransfer.effectAllowed = 'move';
+    });
+  }
+
+  row.appendChild(iconImg(spec?.icon ?? info.icon, '', 'poolrow__icon'));
+
+  const body = el('div', 'poolrow__body');
+  const name = el('div', 'poolrow__name', player.name);
+  name.style.color = info.color;
+  body.appendChild(name);
+
+  const sub = el('div', 'poolrow__sub');
+  sub.appendChild(el('span', '', spec?.short ?? ''));
+  const status = player.discord?.signupStatus;
+  if (status && status !== 'primary') {
+    const mark = el('span', 'poolrow__signup', SIGNUP_LABEL[status] ?? status);
+    mark.title = SIGNUP_TITLE[status] ?? status;
+    mark.dataset.status = status;
+    sub.appendChild(mark);
+  }
+  body.appendChild(sub);
+  row.appendChild(body);
+
+  if (canEdit) {
+    const btn = el('button', 'poolrow__btn', cut ? 'Put back' : 'Cut');
+    btn.title = cut
+      ? 'Put ' + player.name + ' back in the pool as standby'
+      : 'Cut ' + player.name + '. They hear nothing at all, not even standby.';
+    btn.setAttribute('aria-label', btn.title);
+    btn.addEventListener('click', () => {
+      const userId = player.discord?.userId;
+      if (!userId) return;
+      if (cut) h.onUncut?.(userId);
+      else h.onCut?.(userId);
+    });
+    row.appendChild(btn);
+  }
+
+  return row;
+}
+
+/**
+ * The pool: everyone who signed up and is not in a seat.
+ *
+ * Anyone still here at publish time is standby, which is a real outcome for a real
+ * person, so the panel says it rather than leaving it to be inferred. Cut is separate and
+ * has to be chosen deliberately, because it is the one state where somebody hears
+ * nothing at all.
+ */
+export function renderPool(view: PoolView, h: RaidHandlers): HTMLElement {
+  const panel = el('section', 'panel pool-panel');
+  const head = el('div', 'panel__head');
+  head.appendChild(el('span', '', 'Not seated'));
+  head.appendChild(el('span', 'panel__count', String(view.pool.length)));
+  panel.appendChild(head);
+
+  const body = el('div', 'panel__body pool');
+
+  if (view.canEdit) {
+    body.addEventListener('dragover', (ev) => {
+      ev.preventDefault();
+      body.classList.add('pool--drop');
+    });
+    body.addEventListener('dragleave', () => body.classList.remove('pool--drop'));
+    body.addEventListener('drop', (ev) => {
+      ev.preventDefault();
+      body.classList.remove('pool--drop');
+      const raw = ev.dataTransfer?.getData('text/plain');
+      if (!raw) return;
+      try {
+        const data = JSON.parse(raw) as { kind: string; playerId?: string };
+        if (data.kind === 'player' && data.playerId) h.onReturnToPool?.(data.playerId);
+      } catch {
+        /* ignore malformed drags */
+      }
+    });
+  }
+
+  body.appendChild(
+    el(
+      'p',
+      'drawer__hint',
+      view.pool.length
+        ? 'Everyone left here when you publish is told they are standby.'
+        : 'Everyone who signed up has a seat.',
+    ),
+  );
+
+  for (const player of view.pool) body.appendChild(poolRow(player, h, view.canEdit, false));
+
+  if (view.cut.length) {
+    body.appendChild(el('div', 'section-label', 'Cut'));
+    body.appendChild(
+      el('p', 'drawer__hint', 'Cut players are not messaged at all, not even as standby.'),
+    );
+    for (const player of view.cut) body.appendChild(poolRow(player, h, view.canEdit, true));
+  }
+
+  if (view.unmapped.length) {
+    body.appendChild(el('div', 'section-label', 'Could not read'));
+    for (const s of view.unmapped) {
+      body.appendChild(
+        el(
+          'p',
+          'drawer__hint',
+          s.name + ' signed up as ' + s.classKey + (s.specKey ? ' / ' + s.specKey : '') +
+            ', which this planner does not recognise, so they are not on the roster.',
+        ),
+      );
+    }
+  }
+
+  panel.appendChild(body);
+  return panel;
+}
+
+export interface RosterBarView {
+  title: string;
+  /** Unix seconds, exactly as the API sends it. */
+  startTime: number;
+  size: number;
+  seated: number;
+  standby: number;
+  cut: number;
+  saveState: 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
+  saveDetail?: string;
+  status: string;
+  canEdit: boolean;
+  canPublish: boolean;
+}
+
+const SAVE_TEXT: Record<RosterBarView['saveState'], string> = {
+  idle: 'No changes',
+  dirty: 'Unsaved changes',
+  saving: 'Saving',
+  saved: 'Saved',
+  error: 'Not saved',
+};
+
+/**
+ * The roster-mode toolbar.
+ *
+ * Deliberately missing the raid-size select, Sample raid and Clear. Those three exist to
+ * throw a hypothetical roster away and start again; here they would wipe a real one that
+ * people are relying on.
+ */
+export function renderRosterBar(view: RosterBarView, h: RaidHandlers): HTMLElement {
+  const bar = el('div', 'rtoolbar rtoolbar--roster');
+
+  const left = el('div', 'rtoolbar__group');
+  const titles = el('div', 'rbar__titles');
+  titles.appendChild(el('div', 'rbar__title', view.title));
+  const when = new Date(view.startTime * 1000);
+  titles.appendChild(
+    el(
+      'div',
+      'rbar__when',
+      when.toLocaleString(undefined, {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+    ),
+  );
+  left.appendChild(titles);
+  bar.appendChild(left);
+
+  const mid = el('div', 'rtoolbar__group');
+  mid.appendChild(
+    el(
+      'span',
+      'rbar__tally',
+      view.seated + ' of ' + view.size + ' seated, ' + view.standby + ' standby' +
+        (view.cut ? ', ' + view.cut + ' cut' : ''),
+    ),
+  );
+  if (view.status === 'published') {
+    const pill = el('span', 'pill pill--new', 'published');
+    pill.title = 'Already posted to Discord. Saving again does not unpublish it.';
+    mid.appendChild(pill);
+  }
+  if (!view.canEdit) {
+    const ro = el('span', 'pill pill--unverified', 'read only');
+    ro.title = 'You can look at this roster but not change it.';
+    mid.appendChild(ro);
+  }
+  bar.appendChild(mid);
+
+  const right = el('div', 'rtoolbar__group');
+  const save = el('span', 'rbar__save', SAVE_TEXT[view.saveState]);
+  save.dataset.state = view.saveState;
+  if (view.saveDetail) save.title = view.saveDetail;
+  right.appendChild(save);
+
+  if (view.canEdit && h.onAddGuest) {
+    const guest = el('button', 'btn', 'Add a guest');
+    guest.title = 'Seat someone who never signed up. They cannot be messaged.';
+    guest.addEventListener('click', () => h.onAddGuest?.());
+    right.appendChild(guest);
+  }
+
+  const publish = document.createElement('button');
+  publish.className = 'btn btn--gold';
+  publish.textContent = 'Publish to Discord';
+  publish.disabled = !view.canPublish || view.seated === 0;
+  publish.title = view.seated === 0
+    ? 'Seat somebody first'
+    : 'Post the roster and message everyone on it';
+  publish.addEventListener('click', () => h.onPublish?.());
+  right.appendChild(publish);
+
+  bar.appendChild(right);
+  return bar;
+}
+
+/** Publishing posts to a channel and messages people. It is not undoable, so it is asked. */
+export function renderPublishConfirm(
+  view: { seated: number; standby: number; cut: number; republish: boolean },
+  onConfirm: () => void,
+  onCancel: () => void,
+): HTMLElement {
+  const overlay = el('div', 'modal');
+  const box = el('div', 'modal__box');
+
+  const head = el('div', 'modal__head');
+  head.appendChild(
+    el('h2', 'modal__title', view.republish ? 'Publish again?' : 'Publish this roster?'),
+  );
+  const close = el('button', 'btn btn--sm', 'Cancel');
+  close.addEventListener('click', onCancel);
+  head.appendChild(close);
+  box.appendChild(head);
+
+  const body = el('div', 'modal__body');
+  body.appendChild(
+    el(
+      'p',
+      '',
+      'This posts the roster in the event channel and sends direct messages. It cannot be undone.',
+    ),
+  );
+
+  const list = document.createElement('ul');
+  const line = (text: string) => {
+    const li = document.createElement('li');
+    li.textContent = text;
+    list.appendChild(li);
+  };
+  line(view.seated + ' selected, each of them messaged.');
+  line(view.standby + ' standby, told to stay reachable.');
+  if (view.cut) line(view.cut + ' cut, who hear nothing.');
+  if (view.republish) line('Only people whose position changed are messaged again.');
+  body.appendChild(list);
+
+  const row = el('div', 'spec-picker');
+  const go = el('button', 'btn btn--gold', 'Publish');
+  go.addEventListener('click', onConfirm);
+  const cancel = el('button', 'btn', 'Not yet');
+  cancel.addEventListener('click', onCancel);
+  row.append(go, cancel);
+  body.appendChild(row);
+
+  box.appendChild(body);
+  overlay.appendChild(box);
+  overlay.addEventListener('click', (ev) => {
+    if (ev.target === overlay) onCancel();
+  });
+  return overlay;
+}
+
+/** What came back from a publish, including everyone the bot could not reach. */
+export function renderPublishResult(
+  result: {
+    selected: number;
+    standby: number;
+    notified: number;
+    couldNotDm: Array<{ userId: string; displayName: string }>;
+    messageUrl: string;
+    dmMode: string;
+  },
+  onClose: () => void,
+): HTMLElement {
+  const overlay = el('div', 'modal');
+  const box = el('div', 'modal__box');
+
+  const head = el('div', 'modal__head');
+  head.appendChild(el('h2', 'modal__title', 'Published'));
+  const close = el('button', 'btn btn--sm', 'Done');
+  close.addEventListener('click', onClose);
+  head.appendChild(close);
+  box.appendChild(head);
+
+  const body = el('div', 'modal__body');
+  body.appendChild(
+    el(
+      'p',
+      '',
+      result.selected + ' selected and ' + result.standby + ' standby. ' +
+        result.notified + ' were messaged.',
+    ),
+  );
+
+  const link = document.createElement('a');
+  link.href = result.messageUrl;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  link.textContent = 'Open the post in Discord';
+  body.appendChild(link);
+
+  /* Never hidden and never summarised away. These people have direct messages closed, so
+     they heard nothing at all, and the leader is the only one who can chase them. */
+  if (result.couldNotDm.length) {
+    body.appendChild(
+      el('div', 'section-label', 'Could not message ' + result.couldNotDm.length),
+    );
+    body.appendChild(
+      el(
+        'p',
+        '',
+        'These people have direct messages closed, so they have not been told anything. You will have to reach them yourself.',
+      ),
+    );
+    body.appendChild(
+      el('p', 'rbar__nodm', result.couldNotDm.map((p) => p.displayName).join(', ')),
+    );
+  }
+
+  box.appendChild(body);
+  overlay.appendChild(box);
+  return overlay;
 }

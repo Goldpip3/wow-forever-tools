@@ -73,6 +73,20 @@ export interface Player {
   loadout: Record<string, string[]>;
   /** Manual overrides for talent gates: effectId -> has it. */
   talentToggles: Record<string, boolean>;
+  /**
+   * Set only in roster mode, where a seat holds a real person who signed up in
+   * Discord and will be messaged when the roster is published. Its absence is what
+   * makes a seat hypothetical, so planner mode never sets it.
+   *
+   * `signupStatus` is what the member said — primary, late, tentative, bench,
+   * absence, queued — and is not the leader's decision about them. The two
+   * vocabularies are deliberately separate; never map one onto the other.
+   */
+  discord?: {
+    userId: string;
+    signupId: number | null;
+    signupStatus: string;
+  };
 }
 
 export const GROUP_COUNT = 8;

@@ -3,7 +3,7 @@ import { GROUP_SIZE } from './types';
 import { emptyRoster } from './engine';
 import { createPlayer } from './loadout';
 import type { Archetype, ClassId } from '../shared/classes';
-import { CLASS_IDS } from '../shared/classes';
+import { CLASS_IDS, CLASSES } from '../shared/classes';
 
 /**
  * Bridge to Group Builder, the Discord signup bot.
@@ -248,4 +248,46 @@ export function looksLikeGroupBuilder(value: unknown): boolean {
     return Array.isArray(obj.signUps) || Array.isArray(obj.signups);
   }
   return false;
+}
+
+/* ------------------------------------------------- lookups for roster mode */
+
+/**
+ * Resolve a signup's class and spec keys to a planner spec.
+ *
+ * Roster mode needs the same mapping the paste importer uses, but from two plain strings
+ * rather than from a whole signup row. Both go through the table above, so the two paths
+ * can never drift apart.
+ */
+export function specFromSignup(
+  classKey: string,
+  specKey: string | null,
+): { classId: ClassId; specId: number; role?: Archetype } | null {
+  const classId = classOf({ classKey } as GroupBuilderSignup);
+  if (!classId) return null;
+  const mapped = specOf(classId, { classKey, specKey: specKey ?? undefined } as GroupBuilderSignup);
+  if (!mapped) {
+    // A signup with no spec chosen still belongs in the pool; give it the class's first.
+    const first = CLASSES[classId]?.specs[0]?.id;
+    return first ? { classId, specId: first } : null;
+  }
+  return { classId, specId: mapped.specId, role: mapped.role };
+}
+
+/**
+ * The signup spec key for a planner spec id, which is what gets written back.
+ *
+ * Feral and Guardian are the reason `role` is a parameter: Group Builder splits the one
+ * Feral Combat tree into a cat and a bear, so spec id 281 alone does not say which key
+ * to send.
+ */
+export function specKeyForSpecId(specId: number, role?: Archetype): string | null {
+  let fallback: string | null = null;
+  for (const [key, mapping] of Object.entries(BY_SPEC_KEY)) {
+    if (mapping.specId !== specId) continue;
+    if (mapping.role === undefined && role === undefined) return key;
+    if (mapping.role !== undefined && mapping.role === role) return key;
+    if (fallback === null) fallback = key;
+  }
+  return fallback;
 }

@@ -1,0 +1,6 @@
+# Authorized sellers for wowforever.us.
+# https://iabtechlab.com/ads-txt/ — one line per seller authorised to sell this
+# site's inventory. AdSense reads it from the domain root and flags the site as
+# "Ads.txt not found" until it is served as plain text, so it lives in public/
+# and Vite copies it to dist/ verbatim.
+google.com, pub-7658713831499963, DIRECT, f08c47fec0942fa0
