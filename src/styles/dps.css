@@ -47,12 +47,12 @@
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
 }
+/* The path wraps instead of growing a horizontal scrollbar inside a one-line box. */
 .dcopy__text {
   font-family: var(--font-narrow);
   font-size: 12.5px;
   color: var(--ink);
-  overflow-x: auto;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
   flex: 1;
   min-width: 0;
 }
@@ -209,3 +209,31 @@
   border-top: 1px solid var(--line);
   padding-top: 4px;
 }
+
+/* ---------- pasting an export ----------
+   A full-width field that looks like somewhere text goes, with the buttons under it
+   rather than crowded beside it. */
+.dimport__box {
+  display: block;
+  width: 100%;
+  min-height: 92px;
+  resize: vertical;
+  padding: 9px 11px;
+  margin-bottom: 9px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  font-family: var(--font-narrow);
+  font-size: 12.5px;
+  line-height: 1.45;
+  /* The export is one very long line. Wrap it rather than growing a scrollbar. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.dimport__box:focus {
+  outline: none;
+  border-color: var(--gold2);
+  box-shadow: inset 0 0 0 1px var(--gold2);
+}
+.dimport__box::placeholder { color: var(--muted); }

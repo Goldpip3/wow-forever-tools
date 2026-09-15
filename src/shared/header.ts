@@ -39,9 +39,11 @@ export function renderHeader(opts: HeaderOptions): HTMLElement {
   header.className = 'site-header';
   header.replaceChildren();
 
-  // Contents line up with the page under the bar, which is why there is a wrap in here.
+  /* Its own container, not the page's .wrap. Three pages give .wrap three different
+     widths — 1180, 1320 and full bleed — so a bar built on it sat somewhere different on
+     every page and appeared to jump as you moved between tools. */
   const inner = document.createElement('div');
-  inner.className = 'wrap';
+  inner.className = 'site-header__inner';
 
   // The mark and title go home, so every page has a way back to the front.
   const home = document.createElement('a');

@@ -30,7 +30,6 @@ import {
 import { buildTalentTip } from './compare';
 import {
   collapsible,
-  renderChangelogModal,
   renderClassAbilities,
   renderLegacy,
   renderRacials,
@@ -145,15 +144,7 @@ function draw(): void {
   const scrollY = window.scrollY;
   app.replaceChildren();
 
-  const whatsNew = el('button', 'btn btn--gold', 'What changed');
-  whatsNew.addEventListener('click', () => {
-    document.body.appendChild(renderChangelogModal(data!.changelog ?? []));
-  });
-
-  renderHeader({
-    page: 'talents',
-    nav: [whatsNew],
-  });
+  renderHeader({ page: 'talents' });
 
   app.appendChild(renderClassTabs(build.classKey));
 

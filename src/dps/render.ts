@@ -245,12 +245,12 @@ export function renderImportPanel(handlers: DpsHandlers, hasCharacter: boolean):
   panel.appendChild(el('div', 'panel__head', hasCharacter ? 'Import another character' : 'Paste your export'));
   const body = el('div', 'panel__body');
 
+  // A textarea wearing .btn inherited button padding and nowrap and came out as a narrow
+  // box with a scrollbar. It is a field, so it is styled as one.
   const box = document.createElement('textarea');
-  box.className = 'btn drawer__input';
-  box.rows = 3;
+  box.className = 'dimport__box';
+  box.rows = 4;
   box.placeholder = 'Paste the box from /wfsync here';
-  box.style.fontFamily = 'var(--font-narrow)';
-  box.style.resize = 'vertical';
   body.appendChild(box);
 
   const row = el('div', 'spec-picker');
