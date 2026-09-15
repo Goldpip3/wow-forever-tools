@@ -4,5 +4,3 @@ dist
 *.log
 scripts/missing-assets.txt
 
-# Commercial typeface: keep your own copy locally, never in the repo.
-public/assets/fonts/FRIZQT__.TTF
