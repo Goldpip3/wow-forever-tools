@@ -34,7 +34,7 @@ change.
 | A seat holds | a spec | **a person** |
 | Names | generated, "Warrior 3" | the member's Discord display name |
 | Source of players | you invent them | the event's signups |
-| Can invent a player | yes | only as a *guest* (no Discord id, cannot be notified) |
+| Can invent a player | yes | **no** — every seat is a real signup (see note below) |
 | Output | a shareable link | a published roster + notifications |
 | Purpose | hypothetical: "what if I ran four warlocks" | real: who is actually coming |
 
@@ -42,6 +42,11 @@ Roster mode adds a **pool** column: every signup not yet placed, showing name, c
 spec emote, their own signup status (`primary` / `late` / `tentative` / `bench` /
 `absence`), and signup position. Drag from pool to a seat, seat to seat, or seat back to
 pool. Anyone left in the pool when you publish is **standby** unless explicitly cut.
+
+**Guests are out of scope for v1**, by the owner's decision. A seat in roster mode always
+maps to a signup, which keeps the notification path simple: every selected seat has a
+Discord id to message. If a leader needs to seat someone who never signed up, the answer
+for now is to sign them up first. Revisit only if that becomes a real complaint.
 
 Planner mode must keep working with no network and no account. Do not make roster mode a
 prerequisite for anything that works today.
@@ -107,7 +112,7 @@ Discord token. Use a **signed, short-lived, single-event handoff token**.
 3. Bot mints an HMAC-signed token over
    `{ eventId, guildId, userId, scope: 'roster:write', exp: now + 2h }`.
 4. Bot replies **ephemerally** with
-   `https://foreverraid.gg/raid.html#roster=<eventId>&t=<token>`.
+   `https://wowforever.us/raid.html#roster=<eventId>&t=<token>`.
 5. Planner reads the token, calls the API with `Authorization: Bearer <token>`.
 
 Rules the implementation must follow:
@@ -119,7 +124,7 @@ Rules the implementation must follow:
   that they still hold the role. Roles change; a two-hour-old token must not outlive a
   demotion.
 - **CORS must name the exact origin**, e.g. `Access-Control-Allow-Origin:
-  https://foreverraid.gg`. A wildcard is rejected by browsers when an `Authorization`
+  https://wowforever.us`. A wildcard is rejected by browsers when an `Authorization`
   header is present. Handle the `OPTIONS` preflight that a JSON `POST` with that header
   will trigger.
 - **Expire fast (2h) and scope to one event.** A leaked link then costs you one raid, not
@@ -226,11 +231,18 @@ entirely in the URL hash with no network.
 Option C cannot work while the bot is only on a home PC with no address. SQLite means one
 machine, so serverless is out.
 
+A home PC is unreachable for three separate reasons: the ISP changes its IP address, the
+router blocks inbound connections, and there is no TLS certificate — and browsers refuse
+to send an `Authorization` header over plain HTTP. Cloudflare Tunnel solves all three by
+inverting the direction: `cloudflared` on the PC dials **out** to Cloudflare and holds the
+connection open, and Cloudflare pushes public traffic back down that pipe. Nothing ever
+connects inbound.
+
 **Path that avoids a migration later:**
 
-1. Buy the domain (see §9).
-2. Point `api.<domain>` at a **Cloudflare Tunnel** running on the PC. Free, about ten
-   minutes, no port forwarding, real TLS. Good enough to build and test against.
+1. Add `wowforever.us` to Cloudflare (done) and wait for the nameservers to delegate.
+2. Point `api.wowforever.us` at a **Cloudflare Tunnel** on the PC, forwarding to the bot's
+   local port. Free, about ten minutes, no port forwarding, real TLS.
 3. When friends actually depend on it, move the bot to a ~$5/month VPS (Hetzner CX22,
    DigitalOcean) and repoint the same hostname. **The URL never changes**, so nothing in
    the planner, the tokens or the CORS config has to be touched.
@@ -239,18 +251,26 @@ Caveat while on the tunnel: publishing only works when the PC is on.
 
 ---
 
-## 9. Domain
+## 9. Hostnames
 
-Recommended: **`foreverraid.gg`**, with `foreverraid.com` bought alongside and redirected.
-Neither resolves in DNS as of 15 Sept 2026, which is promising but not proof — confirm at
-a registrar. Buy at **Cloudflare Registrar** (at-cost, no renewal markup, already the host).
+One domain, bought and on Cloudflare: **`wowforever.us`**.
 
-Deliberately avoids "WoW" and "Warcraft". Blizzard's fan-site policy tolerates fan tools
-but is specifically unfriendly about trademarks in domain names — note that
-talentsforever.com does not use them either.
+| Hostname | Points at | Serves |
+|---|---|---|
+| `wowforever.us` | Cloudflare Pages | the static site: planner, talents, DPS |
+| `api.wowforever.us` | Cloudflare Tunnel → the bot's local port | the roster API |
 
-This name appears in exactly three places: the CORS origin, the tunnel hostname, and
-`API_BASE` in the planner. Changing it later is a three-line edit.
+The hostname appears in exactly three places: the CORS origin (§4), the tunnel
+configuration, and `API_BASE` in the planner build (§7.6). Changing it later is a
+three-line edit.
+
+Two notes the owner has already been told and has decided on, recorded here so the next
+reader does not re-open them:
+
+- The name contains "WoW". Blizzard's fan-site policy tolerates fan tools but is
+  unfriendly about trademarks in domain names. Accepted risk.
+- `.us` carries a **Nexus requirement**: the registrant must be a US citizen, US resident,
+  or an organization with a US presence. It is enforced. Verify before building on it.
 
 ---
 
