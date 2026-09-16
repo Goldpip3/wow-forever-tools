@@ -100,12 +100,29 @@
 }
 .seat__name:focus { outline: 1px solid var(--gold2); border-radius: 2px; }
 .seat__spec { font-family: var(--font-narrow); color: var(--muted); font-size: 11px; line-height: 1.1; }
-.seat__btns { display: flex; gap: 1px; }
+.seat__btns { display: flex; gap: 3px; }
+/*
+ * The cog and the × are hit with a finger as often as a mouse, so the box is sized rather
+ * than the glyph. At 11px with 4px of side padding these were about 19 by 17, which is
+ * under half the 44px a touch target is meant to be and was being hit by luck.
+ */
 .seat__btn {
-  background: none; border: 1px solid transparent; color: var(--muted);
-  border-radius: 3px; padding: 0 4px; font-size: 11px; line-height: 1.5;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px;
+  background: none; border: 1px solid transparent; color: var(--ink2);
+  border-radius: 3px; padding: 0; font-size: 15px; line-height: 1;
 }
-.seat__btn:hover { color: var(--gold); border-color: var(--line); }
+.seat__btn:hover {
+  color: var(--gold); border-color: var(--line); background: rgba(255, 255, 255, .06);
+}
+.seat__btn:focus-visible { outline: 1px solid var(--gold2); outline-offset: 1px; }
+
+/* A finger needs more room than a cursor, and there is room once the row can grow. */
+@media (pointer: coarse) {
+  .seat { min-height: 44px; }
+  .seat__btn { width: 34px; height: 34px; font-size: 17px; }
+  .seat__warn { min-width: 22px; font-size: 13px; }
+}
 
 .group__buffs {
   display: flex; gap: 2px; flex-wrap: wrap; align-items: center;

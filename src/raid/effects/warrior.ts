@@ -56,7 +56,8 @@ export const WARRIOR_EFFECTS: Effect[] = [
     scope: 'target',
     categories: ['reduced-armor'],
     providers: [{ classId: 'warrior', specs: ANY }],
-    exclusiveWith: ['expose-armor'],
+    // Nothing to be exclusive with any more: Expose Armor is no longer tracked, because no
+    // raid assigns it over the Sunder its warriors are already stacking.
     forever: { status: 'same', note: 'Improved Sunder Armor now only cuts the Rage cost.' },
   },
   {

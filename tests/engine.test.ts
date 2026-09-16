@@ -141,21 +141,22 @@ describe('exclusivity', () => {
     expect(warnings.find((w) => w.title.includes('Both crit auras'))).toBeDefined();
   });
 
-  it('counts Sunder and Expose as one armor debuff, not two', () => {
+  it('covers reduced armor from the warrior alone, and adding a rogue costs no slot', () => {
     const roster = emptyRoster(40);
     add(roster, 0, 0, 'warrior', 163);
     const warriorOnly = computeCoverage(roster).debuffSlotsUsed;
+    expect(computeCoverage(roster).byEffect.get('sunder-armor')!.covered).toBe(true);
 
-    // A rogue who brings nothing but Expose Armor: no poisons, no bleeds.
+    /* Expose Armor is not tracked, so a rogue with no poisons and no bleeds adds nothing
+       to the boss and cannot clash with Sunder over the one armor slot. */
     const rogue = add(roster, 0, 1, 'rogue', 181);
     rogue.loadout['rogue-poison'] = [];
 
     const cov = computeCoverage(roster);
-    expect(cov.byEffect.get('expose-armor')!.covered).toBe(true);
+    expect(cov.byEffect.get('expose-armor')).toBeUndefined();
     expect(cov.byEffect.get('sunder-armor')!.covered).toBe(true);
-    // Both are up, but they share the one armor slot.
     expect(cov.debuffSlotsUsed).toBe(warriorOnly);
-    expect(cov.warnings.find((w) => w.title.includes('do not stack'))).toBeDefined();
+    expect(cov.warnings.find((w) => w.title.includes('do not stack'))).toBeUndefined();
   });
 
   });

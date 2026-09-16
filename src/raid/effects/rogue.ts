@@ -9,20 +9,17 @@ const ANY = [ASSA, COMBAT, SUB];
 const POISON = { group: 'rogue-poison', limit: 2 };
 
 export const ROGUE_EFFECTS: Effect[] = [
-  {
-    id: 'expose-armor',
-    name: 'Expose Armor',
-    icon: 'ability_warrior_riposte',
-    kind: 'debuff',
-    scope: 'target',
-    categories: ['reduced-armor'],
-    providers: [{ classId: 'rogue', specs: ANY }],
-    exclusiveWith: ['sunder-armor'],
-    forever: {
-      status: 'changed',
-      note: 'Improved Expose Armor now only cuts the energy cost and refunds a combo point. It no longer adds armor reduction.',
-    },
-  },
+  /*
+   * Expose Armor is deliberately not tracked.
+   *
+   * It does not stack with Sunder Armor, it overwrites it, and any raid that has warriors
+   * tanking already has Sunder up. A rogue spending combo points and energy to replace a
+   * debuff that is already there loses damage for nothing, so no raid assigns it. Listing
+   * it as a debuff to cover put an empty slot on the page that implied the raid was
+   * missing something it was not.
+   *
+   * Sunder Armor still covers reduced-armor, so the category itself is unaffected.
+   */
   {
     id: 'kick',
     name: 'Kick',

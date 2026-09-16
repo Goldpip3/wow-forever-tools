@@ -132,7 +132,7 @@ describe('effect catalog', () => {
 
   it('tracks the major Classic raid debuffs', () => {
     const wanted = [
-      'sunder-armor', 'expose-armor', 'faerie-fire', 'curse-of-recklessness',
+      'sunder-armor', 'faerie-fire', 'curse-of-recklessness',
       'demoralizing-shout', 'demoralizing-roar', 'curse-of-weakness', 'scorpid-sting',
       'insect-swarm', 'hunters-mark', 'thunder-clap', 'curse-of-the-elements',
       'curse-of-shadow', 'vampiric-embrace',
@@ -150,9 +150,17 @@ describe('effect catalog', () => {
     }
   });
 
-  it('makes the armor debuffs mutually exclusive', () => {
-    expect(effectById('sunder-armor')!.exclusiveWith).toContain('expose-armor');
-    expect(effectById('expose-armor')!.exclusiveWith).toContain('sunder-armor');
+  it('does not track Expose Armor', () => {
+    /* It overwrites Sunder Armor rather than stacking with it, and a raid with warriors
+       tanking already has Sunder up, so no rogue is asked to spend combo points replacing
+       it. Tracking it showed an empty slot for something no raid assigns. */
+    expect(effectById('expose-armor')).toBeUndefined();
+    expect(effectById('sunder-armor')!.exclusiveWith ?? []).not.toContain('expose-armor');
+  });
+
+  it('still covers reduced armor without it', () => {
+    const sunder = effectById('sunder-armor')!;
+    expect(sunder.categories).toContain('reduced-armor');
   });
 
   it('makes the two crit auras mutually exclusive', () => {
