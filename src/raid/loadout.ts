@@ -123,16 +123,20 @@ export function createPlayer(classId: ClassId, specId: number, name?: string): P
 }
 
 /**
- * Whether a duplicate pick in this group is wasted.
+ * The options in this group where a duplicate pick would be wasted.
  *
  * Judged by scope rather than by a list of group names, so it stays right as the catalog
  * changes: a raid buff or a debuff on the boss lands once however many people cast it, so a
- * second Warlock on the curse the first already has adds nothing. Party-scope groups are
- * deliberately excluded — two Paladins running Devotion Aura in two different groups is two
+ * second Warlock on the curse the first already has adds nothing. Party-scope options are
+ * deliberately left out — two Paladins running Devotion Aura in two different groups is two
  * groups covered, not a mistake, and every totem works the same way.
+ *
+ * Filtered rather than all-or-nothing. Curse of Exhaustion sits in the curse group but is
+ * utility rather than something the raid covers, and requiring every option to qualify let
+ * that one entry switch spreading off for Warlocks entirely.
  */
-function wastedWhenDuplicated(options: Array<{ id: string }>): boolean {
-  return options.every((o) => {
+function spreadableOptions<T extends { id: string }>(options: T[]): T[] {
+  return options.filter((o) => {
     const scope = effectById(o.id)?.scope;
     return scope === 'raid' || scope === 'target';
   });
@@ -164,7 +168,9 @@ export function spreadChoices(player: Player, existing: Iterable<Player>): Playe
 
   for (const choice of choicesFor(player)) {
     if (choice.limit !== 1) continue;
-    if (!wastedWhenDuplicated(choice.options)) continue;
+    const spreadable = spreadableOptions(choice.options);
+    // One option that reaches the raid is nothing to spread across.
+    if (spreadable.length < 2) continue;
 
     const taken = new Set<string>();
     for (const mate of classmates) {
@@ -177,7 +183,7 @@ export function spreadChoices(player: Player, existing: Iterable<Player>): Playe
     /* Catalog order, so the second Warlock takes the next curse that actually matters
        rather than the next one alphabetically. Talent-gated options are skipped: handing
        someone a curse they may not have talented is a worse guess than leaving it be. */
-    const free = choice.options.find((o) => !taken.has(o.id) && !needsTalent(player.classId, o.id));
+    const free = spreadable.find((o) => !taken.has(o.id) && !needsTalent(player.classId, o.id));
     if (free) player.loadout[choice.group] = [free.id];
   }
   return player;

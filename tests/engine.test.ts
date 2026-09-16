@@ -472,7 +472,7 @@ describe('available versus missing', () => {
     expect(cov.byEffect.get('curse-of-the-elements')!.covered).toBe(true);
 
     // The rest are a setting away, not absent from the raid.
-    for (const id of ['curse-of-recklessness', 'curse-of-weakness', 'curse-of-shadow', 'curse-of-tongues']) {
+    for (const id of ['curse-of-shadow', 'curse-of-tongues']) {
       const c = cov.byEffect.get(id)!;
       expect(c.covered, id).toBe(false);
       expect(c.possibleBy.map((p) => p.name), id).toEqual(['Gul']);
@@ -548,11 +548,13 @@ describe('spreading choices across classmates', () => {
     return out;
   }
 
-  it('gives four Warlocks four different curses', () => {
+  it('moves each Warlock onto a different curse while there are curses left', () => {
     const roster = emptyRoster(40);
     const picks = fill(roster, 'warlock', 302, 4).map((p) => p.loadout['warlock-curse']?.[0]);
-    expect(new Set(picks).size).toBe(4);
     expect(picks[0]).toBe('curse-of-the-elements');
+    /* Three curses reach the boss now that Recklessness and Weakness are gone, so the
+       fourth Warlock repeats rather than being pushed onto something no raid casts. */
+    expect(new Set(picks.slice(0, 3)).size).toBe(3);
   });
 
   it('gives four Paladins four different blessings', () => {

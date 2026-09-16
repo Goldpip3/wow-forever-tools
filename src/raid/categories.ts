@@ -51,7 +51,6 @@ export const CATEGORIES: Category[] = [
   { id: 'reduced-arcane-resistance', name: 'Reduced Arcane Resistance', meta: 'Debuffs' },
   { id: 'increased-chance-to-be-crit-by-frost', name: 'Increased Chance to be Crit by Frost Spell', meta: 'Debuffs' },
   { id: 'reduced-casting-speed', name: 'Reduced Casting Speed', meta: 'Debuffs' },
-  { id: 'reduced-movement-speed', name: 'Reduced Movement Speed', meta: 'Debuffs' },
 
   /* -------------------------------------------------------------- Other */
   { id: 'interrupts', name: 'Interrupts', meta: 'Other' },

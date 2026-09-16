@@ -132,8 +132,8 @@ describe('effect catalog', () => {
 
   it('tracks the major Classic raid debuffs', () => {
     const wanted = [
-      'sunder-armor', 'faerie-fire', 'curse-of-recklessness',
-      'demoralizing-shout', 'demoralizing-roar', 'curse-of-weakness', 'scorpid-sting',
+      'sunder-armor', 'faerie-fire',
+      'demoralizing-shout', 'demoralizing-roar', 'scorpid-sting',
       'insect-swarm', 'hunters-mark', 'thunder-clap', 'curse-of-the-elements',
       'curse-of-shadow', 'vampiric-embrace',
     ];
@@ -161,6 +161,30 @@ describe('effect catalog', () => {
   it('still covers reduced armor without it', () => {
     const sunder = effectById('sunder-armor')!;
     expect(sunder.categories).toContain('reduced-armor');
+  });
+
+  it('does not track the curses no raid casts', () => {
+    /* Same test as Expose Armor. Curse of Weakness does not stack with Demoralizing Shout
+       and every raid has warriors shouting; Curse of Recklessness raises the boss's attack
+       power. Either one costs the Warlock the curse slot that Elements or Shadow wants, so
+       nobody casts them and listing them put gaps on the page for nothing. */
+    expect(effectById('curse-of-weakness')).toBeUndefined();
+    expect(effectById('curse-of-recklessness')).toBeUndefined();
+    // Reduced melee attack power is still covered by the shout itself.
+    expect(effectById('demoralizing-shout')!.categories).toContain('reduced-melee-attack-power');
+  });
+
+  it('does not call a movement slow a boss debuff', () => {
+    /* A raid boss cannot be slowed, so Reduced Movement Speed was a Debuffs row that could
+       never mean anything. The abilities are still listed as utility, which is what they
+       are for. */
+    for (const id of ['piercing-howl', 'crippling-poison', 'curse-of-exhaustion']) {
+      const e = effectById(id)!;
+      expect(e, id).toBeDefined();
+      expect(e.scope, id).toBe('self');
+      expect(e.categories, id).toContain('misc-utility');
+    }
+    expect(CATEGORIES.find((c) => c.id === 'reduced-movement-speed')).toBeUndefined();
   });
 
   it('makes the two crit auras mutually exclusive', () => {
