@@ -1,4 +1,4 @@
-import type { ChangelogEntry, LegacyTree, RaceInfo, Spellbook, TalentData } from './types';
+import type { ChangelogEntry, LegacyTree, RaceInfo, TalentData } from './types';
 import { iconImg } from '../shared/icons';
 import { dataKeyFor } from './codec';
 
@@ -150,43 +150,6 @@ export function renderRacials(data: TalentData, className: string): HTMLElement 
   draw();
 
   return collapsible('Racials', 'Two actives and two passives per race, including both Skyborne lines.', body);
-}
-
-/* ------------------------------------------------------------------ spellbook */
-
-export function renderSpellbook(book: Spellbook | undefined, className: string): HTMLElement | null {
-  if (!book) return null;
-  const body = el('div');
-
-  const cols = el('div', 'book');
-  const addTab = (name: string, spells: Array<[string, string]>) => {
-    if (!spells.length) return;
-    const col = el('div');
-    col.appendChild(el('div', 'book__tab-name', name));
-    const ul = el('ul', 'book__list');
-    for (const [spell, rank] of spells) {
-      const li = document.createElement('li');
-      li.appendChild(el('span', '', spell));
-      li.appendChild(el('span', 'book__rank', rank || ''));
-      ul.appendChild(li);
-    }
-    col.appendChild(ul);
-    cols.appendChild(col);
-  };
-
-  addTab('General', book.general ?? []);
-  for (const tab of book.tabs ?? []) addTab(tab.name, tab.spells);
-  body.appendChild(cols);
-
-  if (book.missing?.length) {
-    body.appendChild(el('p', 'hint', 'Not seen on screen: ' + book.missing.join(', ')));
-  }
-
-  return collapsible(
-    className + ' spellbook at level ' + book.level,
-    'Every spell a ' + (book.race ?? '') + ' ' + className + ' had in the demo, tab by tab, with ranks.',
-    body,
-  );
 }
 
 /* --------------------------------------------------------------- legacy perks */

@@ -45,10 +45,6 @@ export function classTalents(data: TalentData, classKey: string): ClassTalents |
   return data.talents[dataKeyFor(classKey)];
 }
 
-export function spellbookFor(data: TalentData, classKey: string) {
-  return data.spellbooks?.[dataKeyFor(classKey)];
-}
-
 export function classAbilities(data: TalentData, classKey: string) {
   return data.class_abilities?.[dataKeyFor(classKey)] ?? [];
 }

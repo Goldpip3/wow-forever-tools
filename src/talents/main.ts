@@ -4,7 +4,7 @@ import { CLASSES, type ClassId } from '../shared/classes';
 import { copyText, toast } from '../shared/toast';
 import { KEY_BUILDS, KEY_PREFS, readJson, writeJson } from '../shared/storage';
 import { attachTooltips, refreshTip } from '../shared/tooltip';
-import { loadTalentData, classTalents, spellbookFor } from './data';
+import { loadTalentData, classTalents } from './data';
 import type { ClassTalents, TalentData } from './types';
 import {
   addPoint,
@@ -34,7 +34,6 @@ import {
   renderClassAbilities,
   renderLegacy,
   renderRacials,
-  renderSpellbook,
 } from './sections';
 
 interface SavedBuild {
@@ -218,9 +217,6 @@ function draw(): void {
 
   app.appendChild(renderActions());
   app.appendChild(renderRacials(data, className()));
-
-  const book = renderSpellbook(spellbookFor(data, build.classKey), className());
-  if (book) app.appendChild(book);
 
   const abilities = renderClassAbilities(data, build.classKey, className());
   if (abilities) app.appendChild(abilities);

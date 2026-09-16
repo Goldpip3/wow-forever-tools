@@ -254,11 +254,9 @@
 .race__ability b { color: var(--ink); font-size: 12.5px; }
 .race__ability span { color: var(--ink2); font-size: 12px; }
 
-.book { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
-.book__tab-name { font-weight: 700; color: var(--gold); margin-bottom: 4px; }
+/* Borrowed by the saved-builds list; the spellbook that named it is gone. */
 .book__list { margin: 0; padding: 0; list-style: none; }
 .book__list li { display: flex; justify-content: space-between; gap: 8px; padding: 1px 0; color: var(--ink2); font-size: 12.5px; }
-.book__rank { color: var(--muted); font-size: 11.5px; }
 
 .perks { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
 .perk { display: flex; gap: 8px; align-items: flex-start; padding: 5px 0; }

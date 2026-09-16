@@ -105,7 +105,7 @@ function features(): HTMLElement {
       points: [
         'Turn on Compare to Classic and each talent shows its old version beside the new one, tagged changed, moved or new.',
         'Each tree lists what was cut from it entirely.',
-        'Racials for all ten races, including both Skyborne lines, plus spellbooks and the new abilities.',
+        'Racials for all ten races, including both Skyborne lines, and the new class abilities.',
         'Share a build with a link, or save it on this device.',
       ],
       cta: { label: 'Build a spec', url: href('talents.html') },
