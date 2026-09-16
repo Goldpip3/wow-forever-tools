@@ -162,6 +162,11 @@ export interface SpellMods {
   offhandRage: number;
   /** Extra maximum rage. */
   bonusRage: number;
+  /**
+   * Extra ticks on a spell's damage over time, by ability id. Each tick is worth
+   * what the others are, so the whole grows with them.
+   */
+  dotTicks: Record<string, number>;
   /** Anything that does not fit above; the spec module reads these itself. */
   flags: Record<string, number>;
 }
@@ -187,6 +192,7 @@ export function emptyMods(): SpellMods {
     rageFromDamage: 1,
     offhandRage: 1,
     bonusRage: 0,
+    dotTicks: {},
     flags: {},
   };
 }

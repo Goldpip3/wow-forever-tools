@@ -95,7 +95,22 @@ function resolveSpells(spec: SpecModule, mods: SpellMods): Map<string, ResolvedS
   const out = new Map<string, ResolvedSpell>();
   const specResource: ResourceKind = spec.resource ?? 'mana';
 
-  for (const def of spec.spells) {
+  for (const declared of spec.spells) {
+    // A talent that lengthens damage over time adds ticks worth what the others
+    // are, spell power included.
+    const extraTicks = mods.dotTicks[declared.id] ?? 0;
+    const def: AbilityDef = extraTicks && declared.dot
+      ? {
+        ...declared,
+        dot: {
+          ...declared.dot,
+          ticks: declared.dot.ticks + extraTicks,
+          damage: (declared.dot.damage * (declared.dot.ticks + extraTicks)) / declared.dot.ticks,
+          coefficient: (declared.dot.coefficient * (declared.dot.ticks + extraTicks)) / declared.dot.ticks,
+        },
+      }
+      : declared;
+
     // A cast shortened to nothing or less becomes instant, which is what a
     // talent like Instrument of Law says outright. Anything short of that is
     // held at the floor, the way Improved Frostbolt always has been.
