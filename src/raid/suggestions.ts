@@ -1,6 +1,7 @@
 import type { Coverage, Player, Roster } from './types';
 import { GROUP_SIZE } from './types';
 import { activeGroupCount, groupOf, specLabel } from './engine';
+import { effectsForSpec } from './effects/index';
 import {
   ARCHETYPE_LABEL,
   ARCHETYPE_ORDER,
@@ -348,4 +349,174 @@ export function overview(roster: Roster): RosterOverview {
     bench: roster.bench,
     emptySeats: active * GROUP_SIZE - filled,
   };
+}
+
+/* ---------------------------------------------------------------- seat everyone */
+
+/**
+ * What a player's own party buffs are worth to each kind of player around them.
+ *
+ * Derived from the catalog rather than from a list of specs, so an Enhancement Shaman
+ * counts as something melee want because Windfury and Strength of Earth are worth
+ * something to melee, not because anybody wrote "shamans go with melee" down.
+ */
+function givesTo(player: Player): Partial<Record<Archetype, number>> {
+  const out: Partial<Record<Archetype, number>> = {};
+  for (const effect of effectsForSpec(player.classId, player.specId)) {
+    if (effect.scope !== 'party') continue;
+    // Only what this player has actually got selected, so an unpicked totem counts for
+    // nothing and a Paladin is judged on the aura they are really running.
+    const chosen = Object.values(player.loadout).flat();
+    const gated = effect.providers.some(
+      (p) => p.classId === player.classId && (p.choice || p.talent || p.pet),
+    );
+    if (gated && !chosen.includes(effect.id) && !player.talentToggles[effect.id]) continue;
+    for (const cat of effect.categories) {
+      for (const [arch, worth] of Object.entries(VALUE[cat] ?? {})) {
+        out[arch as Archetype] = (out[arch as Archetype] ?? 0) + (worth ?? 0);
+      }
+    }
+  }
+  return out;
+}
+
+/** Whoever this player's party buffs help most, which is who they should sit with. */
+function servesArchetype(player: Player): Archetype | null {
+  let best: Archetype | null = null;
+  let most = 0;
+  for (const [arch, worth] of Object.entries(givesTo(player))) {
+    if ((worth ?? 0) > most) {
+      most = worth ?? 0;
+      best = arch as Archetype;
+    }
+  }
+  return best;
+}
+
+/**
+ * Seat everyone waiting, putting party buffs where they are worth something.
+ *
+ * Party buffs only reach the caster's own group, so the arrangement is the whole game: an
+ * Enhancement Shaman among five casters is a Windfury Totem nobody swings with. This sorts
+ * players into blocks of the same kind, gives each block a contiguous run of groups, and
+ * deals the buff carriers out first so two Shamans land in two different melee groups
+ * rather than both in the first.
+ *
+ * It is a starting arrangement, not an answer. The leader drags from here, which is why it
+ * fills seats in a legible order instead of chasing the last point of a score.
+ *
+ * Returns who was seated and who was left, since a pool can be larger than the raid.
+ */
+export function seatAll(
+  roster: Roster,
+  waiting: Player[],
+): { seated: Player[]; left: Player[] } {
+  const active = activeGroupCount(roster.size);
+
+  const free: Array<{ group: number; slot: number }> = [];
+  for (let g = 0; g < active; g += 1) {
+    for (let s = 0; s < GROUP_SIZE; s += 1) {
+      if (!roster.groups[g]?.[s]) free.push({ group: g, slot: s });
+    }
+  }
+  if (!free.length) return { seated: [], left: [...waiting] };
+
+  /* Whoever is already seated decides what each group is for, so Add all fills in around
+     a leader's existing arrangement instead of arguing with it. */
+  const claimed = new Map<number, Archetype>();
+  for (let g = 0; g < active; g += 1) {
+    const counts: Record<string, number> = {};
+    for (const player of roster.groups[g] ?? []) {
+      if (player) counts[archetypeFor(player)] = (counts[archetypeFor(player)] ?? 0) + 1;
+    }
+    let top: Archetype | null = null;
+    let most = 0;
+    for (const [arch, n] of Object.entries(counts)) {
+      if (n > most) {
+        most = n;
+        top = arch as Archetype;
+      }
+    }
+    if (top) claimed.set(g, top);
+  }
+
+  const take = waiting.slice(0, free.length);
+  const left = waiting.slice(free.length);
+
+  // Tanks sit with melee: they are hit by the same party buffs and there are never enough
+  // of them to fill a group of their own.
+  const blockOf = (arch: Archetype): Archetype => (arch === 'tank' ? 'melee' : arch);
+
+  const blocks = new Map<Archetype, Player[]>();
+  for (const player of take) {
+    const key = blockOf(archetypeFor(player));
+    if (!blocks.has(key)) blocks.set(key, []);
+    blocks.get(key)!.push(player);
+  }
+
+  /* Carriers first inside a block, so dealing round-robin spreads them one per group. A
+     player who buffs somebody else's block is sorted into that block instead. */
+  for (const [key, list] of blocks) {
+    list.sort((a, b) => {
+      const aFor = servesArchetype(a) === key ? 1 : 0;
+      const bFor = servesArchetype(b) === key ? 1 : 0;
+      if (aFor !== bFor) return bFor - aFor;
+      return archetypeFor(a).localeCompare(archetypeFor(b));
+    });
+  }
+
+  const seatsByGroup = new Map<number, Array<{ group: number; slot: number }>>();
+  for (const seat of free) {
+    if (!seatsByGroup.has(seat.group)) seatsByGroup.set(seat.group, []);
+    seatsByGroup.get(seat.group)!.push(seat);
+  }
+
+  const seated: Player[] = [];
+  const order = ARCHETYPE_ORDER.map(blockOf).filter((a, i, all) => all.indexOf(a) === i);
+
+  for (const key of order) {
+    const list = blocks.get(key) ?? [];
+    if (!list.length) continue;
+
+    /* Groups this block may use: ones already mostly this kind first, then whatever is
+       still free, so a block stays together rather than scattering. */
+    const mine = [...seatsByGroup.keys()]
+      .filter((g) => seatsByGroup.get(g)!.length)
+      .sort((a, b) => {
+        const aMine = claimed.get(a) === key ? 0 : 1;
+        const bMine = claimed.get(b) === key ? 0 : 1;
+        if (aMine !== bMine) return aMine - bMine;
+        return a - b;
+      });
+
+    const need = Math.ceil(list.length / GROUP_SIZE);
+    const using = mine.slice(0, Math.max(1, need));
+
+    // Round-robin, so the carriers at the front of the list land in different groups.
+    let i = 0;
+    for (const player of list) {
+      let placed = false;
+      for (let tries = 0; tries < using.length && !placed; tries += 1) {
+        const g = using[(i + tries) % using.length]!;
+        const seat = seatsByGroup.get(g)?.pop();
+        if (!seat) continue;
+        roster.groups[seat.group]![seat.slot] = player;
+        seated.push(player);
+        placed = true;
+      }
+      if (!placed) {
+        // The block's own groups filled up; take the next free seat anywhere.
+        const spare = [...seatsByGroup.values()].find((list2) => list2.length)?.pop();
+        if (!spare) {
+          left.push(player);
+          continue;
+        }
+        roster.groups[spare.group]![spare.slot] = player;
+        seated.push(player);
+      }
+      i += 1;
+    }
+  }
+
+  return { seated, left };
 }

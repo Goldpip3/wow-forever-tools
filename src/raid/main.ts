@@ -58,7 +58,7 @@ import {
 } from './roster-mode';
 import { renderDrawer } from './drawer';
 import { parseCode } from '../talents/codec';
-import { applySuggestion, suggestSwaps, type Suggestion } from './suggestions';
+import { applySuggestion, seatAll, suggestSwaps, type Suggestion } from './suggestions';
 import { asDiscordMessage, buildExport } from './export';
 import { looksLikeGroupBuilder, rosterFromSignups } from './groupbuilder';
 import { loadTalentData } from '../talents/data';
@@ -732,6 +732,31 @@ const rosterHandlers: Partial<RaidHandlers> = {
     rosterState.roster.groups[group]![slot] = player;
     if (displaced) returnToPool(displaced);
     rosterChanged();
+  },
+
+  /*
+   * Fill every empty seat in one go.
+   *
+   * Only people standing in the pool move; anyone the leader has already placed stays
+   * exactly where they put them, and whoever does not fit stays in the pool as standby
+   * rather than quietly vanishing.
+   */
+  onSeatAll: () => {
+    if (!rosterState?.permissions.canEdit) return;
+    const waiting = [...rosterState.pool];
+    if (!waiting.length) return;
+    const { seated, left } = seatAll(rosterState.roster, waiting);
+    if (!seated.length) {
+      toast('Every seat is taken already.');
+      return;
+    }
+    rosterState.pool = left;
+    rosterChanged();
+    toast(
+      left.length
+        ? 'Seated ' + seated.length + '. ' + left.length + ' left in the pool as standby.'
+        : 'Seated all ' + seated.length + '.',
+    );
   },
 
   onReturnToPool: (playerId) => {

@@ -48,6 +48,7 @@ export interface RaidHandlers {
   onUncut?: (userId: string) => void;
   onPublish?: () => void;
   onAddGuest?: () => void;
+  onSeatAll?: () => void;
 }
 
 /* ------------------------------------------------------------------ toolbar */
@@ -1186,6 +1187,24 @@ export function renderPool(view: PoolView, h: RaidHandlers): HTMLElement {
         /* ignore malformed drags */
       }
     });
+  }
+
+  /* Seat everyone in one go. The arrangement is a starting point the leader drags from,
+     which is why the button says what it does rather than claiming to be finished. */
+  if (view.canEdit && view.pool.length && h.onSeatAll) {
+    const row = el('div', 'pool__actions');
+    const all = el('button', 'btn btn--sm btn--gold', 'Seat everyone');
+    all.title = 'Fill the empty seats, keeping party buffs with the people they help';
+    all.addEventListener('click', () => h.onSeatAll?.());
+    row.appendChild(all);
+    body.appendChild(row);
+    body.appendChild(
+      el(
+        'p',
+        'drawer__hint',
+        'Fills the empty seats, putting party buffs with the people they help. Drag from there.',
+      ),
+    );
   }
 
   body.appendChild(
