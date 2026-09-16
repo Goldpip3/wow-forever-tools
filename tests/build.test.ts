@@ -506,7 +506,7 @@ describe('what actually ships in the data file', () => {
     /* It had one reader, the section under Talents, and that section is gone. 18 KB of a
        373 KB file that every visitor downloaded and nothing opened. This fails loudly if a
        re-import puts it back, because the importer is the only thing stopping it. */
-    expect((DATA as Record<string, unknown>).spellbooks).toBeUndefined();
+    expect('spellbooks' in (DATA as object)).toBe(false);
   });
 
   it('still carries what the raid tooltips read', () => {
