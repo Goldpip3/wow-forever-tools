@@ -168,6 +168,10 @@ async function request<T>(
   path: string,
   init?: { method: string; body: unknown; keepalive?: boolean },
 ): Promise<T> {
+  // The demo has no event behind it. Nothing it does may reach the bot, whatever calls this.
+  if (eventId === 'demo' || !eventId) {
+    throw new ApiError({ kind: 'forbidden', message: 'The demo is never saved.' }, 'demo');
+  }
   let res: Response;
   try {
     res = await fetch(API_BASE + '/api/v4/events/' + encodeURIComponent(eventId) + path, {
@@ -238,15 +242,52 @@ function toPlayer(
   player.id = playerIdFor(source.userId);
   player.name = name;
   if (mapped.role) player.role = mapped.role;
-  if (loadout && typeof loadout === 'object') {
-    player.loadout = { ...player.loadout, ...(loadout as Record<string, string[]>) };
-  }
+  if (loadout && typeof loadout === 'object') readSavedLoadout(player, loadout);
   player.discord = {
     userId: source.userId,
     signupId: source.signupId,
     signupStatus,
   };
   return player;
+}
+
+/**
+ * What slotsFrom stores in a slot's loadout, besides the choice groups.
+ *
+ * The bot keeps `loadout` as an object it does not read, so the talent toggles and a
+ * pasted build ride along under keys no choice group can have. Without them a toggle or a
+ * build saved, reloaded and quietly came back off.
+ */
+const LOADOUT_TALENTS = '_talents';
+const LOADOUT_BUILD = '_build';
+
+function storedLoadout(player: Player): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...(player.loadout ?? {}) };
+  if (Object.keys(player.talentToggles ?? {}).length) out[LOADOUT_TALENTS] = { ...player.talentToggles };
+  if (player.build) out[LOADOUT_BUILD] = player.build;
+  return out;
+}
+
+/** The reverse, keeping only values of the right shape, since the bot does not check them. */
+function readSavedLoadout(player: Player, saved: Record<string, unknown>): void {
+  for (const [key, value] of Object.entries(saved)) {
+    if (key === LOADOUT_TALENTS) {
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        for (const [id, on] of Object.entries(value)) {
+          if (typeof on === 'boolean') player.talentToggles[id] = on;
+        }
+      }
+    } else if (key === LOADOUT_BUILD) {
+      if (typeof value === 'string' && value) player.build = value.slice(0, 200);
+    } else if (Array.isArray(value) && value.every((v) => typeof v === 'string')) {
+      player.loadout[key] = value;
+    }
+  }
+}
+
+/** A guest's synthetic id, which no Discord account can have. */
+function isGuestId(userId: string): boolean {
+  return userId.startsWith('guest:');
 }
 
 /**
@@ -311,7 +352,9 @@ export function stateFromPayload(payload: RosterPayload): RosterState {
         signupId: slot.signupId,
       },
       slot.displayName,
-      signup?.status ?? 'withdrawn',
+      // What the member said, from their signup. A guest never signed up, and anyone else
+      // with no signup left has withdrawn; neither is the leader's decision about them.
+      signup?.status ?? (isGuestId(slot.userId) ? 'guest' : 'withdrawn'),
       slot.loadout,
       everyone,
     );
@@ -401,7 +444,7 @@ export function slotsFrom(state: RosterState): SlotRow[] {
       decision,
       groupIndex: decision === 'selected' ? g : null,
       slotIndex: decision === 'selected' ? s : null,
-      loadout: player.loadout ?? {},
+      loadout: storedLoadout(player),
     });
   };
 
@@ -487,6 +530,10 @@ export class Saver {
   private inFlight = false;
   private again = false;
   private disposed = false;
+  /** A change the server has not accepted: queued, or the save carrying it failed. */
+  private pending = false;
+  private failed = false;
+  private running: Promise<void> | null = null;
 
   constructor(
     private readonly access: RosterAccess,
@@ -499,9 +546,15 @@ export class Saver {
   /** Call after any change the leader made. */
   queue(): void {
     if (this.disposed) return;
+    this.pending = true;
     this.onState('dirty');
     if (this.timer !== null) window.clearTimeout(this.timer);
     this.timer = window.setTimeout(() => void this.run(), this.delayMs);
+  }
+
+  /** True while an edit has not been accepted: queued, in flight, or its save failed. */
+  hasUnsaved(): boolean {
+    return this.pending || this.inFlight;
   }
 
   /** Save now if anything is pending. Used when the tab is going away. */
@@ -512,38 +565,149 @@ export class Saver {
     void this.run(keepalive);
   }
 
+  /**
+   * Save anything pending and wait until the server holds what is on screen.
+   *
+   * True once nothing is queued or in flight and the last save landed. False if a save
+   * failed, which onState has already reported, or the saver was disposed. A save that
+   * failed earlier is tried once more; a 409 cannot come round twice, because the
+   * conflict handler disposes the saver.
+   */
+  async settle(): Promise<boolean> {
+    while (!this.disposed) {
+      if (this.running) {
+        await this.running;
+        if (this.failed) return false;
+        continue;
+      }
+      if (!this.pending) return true;
+      if (this.timer !== null) window.clearTimeout(this.timer);
+      this.timer = null;
+      await this.run();
+      if (this.failed) return false;
+    }
+    return false;
+  }
+
   dispose(): void {
     this.disposed = true;
     if (this.timer !== null) window.clearTimeout(this.timer);
     this.timer = null;
   }
 
-  private async run(keepalive = false): Promise<void> {
-    if (this.disposed) return;
+  private run(keepalive = false): Promise<void> {
+    if (this.disposed) return Promise.resolve();
     this.timer = null;
     if (this.inFlight) {
       this.again = true;
-      return;
+      return this.running ?? Promise.resolve();
     }
     this.inFlight = true;
+    this.pending = false;
+    this.failed = false;
+    this.running = this.save(keepalive);
+    return this.running;
+  }
+
+  private async save(keepalive: boolean): Promise<void> {
     this.onState('saving');
     const { slots, revision } = this.collect();
     try {
       const res = await saveRoster(this.access, slots, revision, keepalive);
       this.onRevision(res.revision, res.status);
-      this.onState('saved');
+      // An edit made while this one was in flight is not saved yet, and saying so would lie.
+      this.onState(this.pending || this.again ? 'dirty' : 'saved');
     } catch (err) {
+      this.pending = true;
+      this.failed = true;
       const failure = err instanceof ApiError
         ? err.failure
         : ({ kind: 'network', message: String(err) } as ApiFailure);
       this.onState('error', failure);
     } finally {
       this.inFlight = false;
+      this.running = null;
       if (this.again && !this.disposed) {
         this.again = false;
         this.queue();
       }
     }
+  }
+}
+
+/* ----------------------------------------------------------------- publishing */
+
+export interface PublishCounts {
+  seated: number;
+  standby: number;
+  cut: number;
+}
+
+/** What the confirmation says: seated, left in the pool as standby, and cut. */
+export function rosterCounts(state: RosterState): PublishCounts {
+  return {
+    seated: state.roster.groups.flat().filter(Boolean).length,
+    standby: state.pool.length,
+    cut: state.cut.length,
+  };
+}
+
+/** The roster exactly as it would be sent, to tell whether it moved after the leader confirmed. */
+export function snapshotOf(state: RosterState): string {
+  return JSON.stringify(slotsFrom(state));
+}
+
+export type PublishOutcome =
+  | { kind: 'published'; result: PublishResult }
+  /** A save failed. The saver has reported it; nothing was published. */
+  | { kind: 'not-saved' }
+  /** The roster is not what the leader confirmed. Nothing was published. */
+  | { kind: 'changed' }
+  /** A publish for this roster is already under way. */
+  | { kind: 'busy' }
+  | { kind: 'failed'; failure: ApiFailure };
+
+const publishingStates = new WeakSet<RosterState>();
+
+/**
+ * Publish a roster only once every edit to it has been saved, and only if it is still the
+ * roster the leader confirmed.
+ *
+ * In order: wait for the saver to land everything, an in-flight save and the edits queued
+ * behind it included; stop if any of that failed; stop if the rows now differ from the
+ * `confirmed` snapshot the counts on the confirmation came from; then publish at the
+ * revision the last save was acknowledged at. A 409 on either request comes back as a
+ * failure and is never retried here. The page freezes edits for the duration, so the
+ * snapshot cannot move once this has started.
+ */
+export async function publishWhenSaved(
+  access: RosterAccess,
+  state: RosterState,
+  saver: Saver | null,
+  confirmed: string,
+): Promise<PublishOutcome> {
+  if (isDemo(state)) {
+    return { kind: 'failed', failure: { kind: 'forbidden', message: 'The demo is never published.' } };
+  }
+  if (publishingStates.has(state)) return { kind: 'busy' };
+  publishingStates.add(state);
+  try {
+    if (saver && !(await saver.settle())) return { kind: 'not-saved' };
+    if (saver?.hasUnsaved()) return { kind: 'not-saved' };
+    if (snapshotOf(state) !== confirmed) return { kind: 'changed' };
+    try {
+      const result = await publishRoster(access, state.revision);
+      state.revision = result.revision;
+      state.status = 'published';
+      return { kind: 'published', result };
+    } catch (err) {
+      const failure = err instanceof ApiError
+        ? err.failure
+        : ({ kind: 'network', message: String(err) } as ApiFailure);
+      return { kind: 'failed', failure };
+    }
+  } finally {
+    publishingStates.delete(state);
   }
 }
 

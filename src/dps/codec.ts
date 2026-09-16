@@ -1,6 +1,13 @@
 import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from 'lz-string';
 import type { CharacterExport, ItemRef, Slot } from './export-format';
 import type { FightConfig, SimResult } from './sim/types';
+import type { RotationLine } from './sim/rotation';
+import { MAX_JSON_CHARS, MAX_LINK_CHARS, isCharacterShape, isReportShape } from './validate';
+
+declare const __SIM_REVISION__: string | undefined;
+
+/** Which simulator this build carries. Set at build time from the files that decide a result. */
+export const SIM_REVISION: string = typeof __SIM_REVISION__ === 'string' ? __SIM_REVISION__ : 'unknown';
 
 /**
  * Characters travel in the URL hash as compressed JSON, the same trick the raid
@@ -47,19 +54,41 @@ export function encodeCharacter(source: CharacterExport, opts: EncodeOptions = {
   return compressToEncodedURIComponent(JSON.stringify(payload));
 }
 
-export function decodeCharacter(text: string): CharacterExport | null {
+/**
+ * Undo a link's compression and parse it, within size limits, or null. Corrupt text,
+ * text too long to be a real link and JSON that does not parse all come back null, which
+ * every caller treats as a link that would not open, leaving the page as it was.
+ */
+function unpack(text: string): unknown {
   const clean = (text ?? '').replace(/^#/, '').trim();
-  if (!clean) return null;
+  if (!clean || clean.length > MAX_LINK_CHARS) return null;
   try {
     const json = decompressFromEncodedURIComponent(clean);
-    if (!json) return null;
-    const parsed = JSON.parse(json) as Packed;
-    if (!Array.isArray(parsed) || parsed[0] !== VERSION) return null;
-    const source = parsed[1];
-    return source && typeof source === 'object' ? source : null;
+    if (!json || json.length > MAX_JSON_CHARS) return null;
+    return JSON.parse(json) as unknown;
   } catch {
     return null;
   }
+}
+
+export function decodeCharacter(text: string): CharacterExport | null {
+  const parsed = unpack(text);
+  if (!Array.isArray(parsed) || parsed[0] !== VERSION) return null;
+  return isCharacterShape(parsed[1]) ? parsed[1] : null;
+}
+
+/**
+ * The whole character a trimmed link was cut from, if `fullCode` is that character.
+ *
+ * A link carries no bags or bank, so opening one on its own would quietly lose them. The
+ * device that imported the character keeps the full export, and it is used only when
+ * trimming it gives back exactly this link. Any other link opens as the link says.
+ */
+export function fullCharacterFor(linkCode: string, fullCode: string | null): CharacterExport | null {
+  if (!fullCode || !linkCode) return null;
+  const full = decodeCharacter(fullCode);
+  if (!full) return null;
+  return encodeCharacter(full, { trim: true }) === linkCode ? full : null;
 }
 
 /* -------------------------------------------------------- saved characters */
@@ -107,12 +136,21 @@ export interface Report {
   character: CharacterExport;
   fight: FightConfig;
   rotation?: string;
+  /** The rotation somebody wrote, when the run used one. Absent means the spec's own. */
+  apl?: RotationLine[];
+  /**
+   * The simulator that made the summary. Absent on a report from before it was recorded,
+   * which also did not record a written rotation, so neither can be known.
+   */
+  engine?: string;
   summary: ReportSummary;
 }
 
 type PackedReport = [number, Report];
 
-const REPORT_VERSION = 2;
+const REPORT_VERSION = 3;
+/** Still opened. It predates `apl` and `engine`, so it is shown but never replayed. */
+const REPORT_VERSION_BEFORE_ENGINE = 2;
 
 /** Everything on the way into a link is rounded to what the panel prints. */
 const round = (value: number, digits = 2): number => {
@@ -182,19 +220,23 @@ export function encodeReport(report: Report): string {
 }
 
 export function decodeReport(text: string): Report | null {
-  const clean = (text ?? '').replace(/^#/, '').trim();
-  if (!clean) return null;
-  try {
-    const json = decompressFromEncodedURIComponent(clean);
-    if (!json) return null;
-    const parsed = JSON.parse(json) as PackedReport;
-    if (!Array.isArray(parsed) || parsed[0] !== REPORT_VERSION) return null;
-    const report = parsed[1];
-    if (!report || typeof report !== 'object' || !report.character || !report.summary) return null;
-    return report;
-  } catch {
-    return null;
+  const parsed = unpack(text);
+  // An unsupported version is refused, not guessed at.
+  if (!Array.isArray(parsed)) return null;
+  if (parsed[0] !== REPORT_VERSION && parsed[0] !== REPORT_VERSION_BEFORE_ENGINE) return null;
+  // Validated first. Only a report of the right shape is then migrated.
+  if (!isReportShape(parsed[1])) return null;
+  const report = parsed[1] as Report;
+  if (parsed[0] === REPORT_VERSION_BEFORE_ENGINE) {
+    delete report.engine;
+    delete report.apl;
   }
+  return report;
+}
+
+/** Whether this build's simulator is the one that made the report, so it can replay it. */
+export function sameEngine(report: Report): boolean {
+  return !!report.engine && report.engine !== 'unknown' && report.engine === SIM_REVISION;
 }
 
 /* -------------------------------------------------------- saved reports */

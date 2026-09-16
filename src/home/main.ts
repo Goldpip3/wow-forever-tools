@@ -1,5 +1,6 @@
 import { renderHeader, renderFooter } from '../shared/header';
-import { accountView, loadUser } from '../shared/session';
+import { accountView, loadUser, SIGN_IN_MESSAGE, takeSignInOutcome } from '../shared/session';
+import { toast } from '../shared/toast';
 import { CLASS_LIST } from '../shared/classes';
 import { iconImg } from '../shared/icons';
 
@@ -216,7 +217,21 @@ function render(): void {
   app.appendChild(renderFooter());
 }
 
+/* Back from signing in: read the outcome and put back the fragment before anything reads it. */
+const signIn = takeSignInOutcome();
+if (signIn) window.setTimeout(() => toast(SIGN_IN_MESSAGE[signIn]), 0);
+
+/* How wide the page's vertical scrollbar is, for the full-bleed hero in home.css. Zero on a
+   phone, where scrollbars sit over the page. */
+function measureScrollbar(): void {
+  const width = window.innerWidth - document.documentElement.clientWidth;
+  document.documentElement.style.setProperty('--scrollbar', Math.max(0, width) + 'px');
+}
+measureScrollbar();
+window.addEventListener('resize', measureScrollbar);
+
 render();
+measureScrollbar();
 
 /* Ask once who is signed in, and repaint the header when the answer lands. */
 void loadUser(render);

@@ -6,7 +6,10 @@ import {
   MAX_POINTS,
   addPoint,
   canAdd,
+  buildLegal,
   canRemove,
+  legalize,
+  treeLegal,
   cellState,
   createBuild,
   levelNeeded,
@@ -21,7 +24,7 @@ import {
   totalSpent,
   treeTotal,
 } from '../src/talents/build';
-import { decode, encode, encodeTrees, parseCode } from '../src/talents/codec';
+import { decode, decodeChecked, encode, encodeTrees, legalCode, parseCode } from '../src/talents/codec';
 
 const DATA: TalentData = JSON.parse(
   readFileSync(resolve(__dirname, '../public/data/talents.generated.json'), 'utf8'),
@@ -151,40 +154,43 @@ describe('prerequisites', () => {
 });
 
 describe('removing points', () => {
-  /** 5 in row 1, 5 in row 2, 1 in row 3: exactly 11 points, with row 3 needing 10. */
-  function elevenPointArms() {
+  /** 6 in row 1, 5 in row 2, 1 in row 3: row 3 needs 10 above it, row 2 needs 5. */
+  function twelvePointArms() {
     const build = createBuild('warrior', WARRIOR, 60);
     const arms = treeIndex(WARRIOR, 'Arms');
     const tree = WARRIOR.trees[arms]!;
     const row1 = talentIndex(WARRIOR, 'Arms', 'Deflection');
+    const spare = talentIndex(WARRIOR, 'Arms', 'Improved Heroic Strike');
     for (let i = 0; i < 5; i += 1) addPoint(WARRIOR, build, arms, row1);
-    // Improved Tactical Mastery: row 2, max 5, and Anger Management above it depends on it.
+    addPoint(WARRIOR, build, arms, spare);
+    // Improved Tactical Mastery: row 2, max 5, and Anger Management below it depends on it.
     const row2 = talentIndex(WARRIOR, 'Arms', 'Improved Tactical Mastery');
     for (let i = 0; i < 5; i += 1) addPoint(WARRIOR, build, arms, row2);
-    expect(treeTotal(build.ranks, arms)).toBe(10);
+    expect(treeTotal(build.ranks, arms)).toBe(11);
     const row3 = tree.talents.findIndex(
       (t) => t.row === 3 && (!t.req || t.req === tree.talents[row2]!.name),
     );
     expect(addPoint(WARRIOR, build, arms, row3).ok).toBe(true);
-    expect(treeTotal(build.ranks, arms)).toBe(11);
-    return { build, arms, row1, row2, row3 };
+    expect(treeTotal(build.ranks, arms)).toBe(12);
+    return { build, arms, row1, spare, row2, row3 };
   }
 
-  it('refuses a removal that would strand points in a higher row', () => {
-    const { build, arms, row1 } = elevenPointArms();
-    // 11 -> 10 is fine, row 3 still needs 10.
-    expect(removePoint(WARRIOR, build, arms, row1).ok).toBe(true);
-    // 10 -> 9 would strand the row-3 point.
+  it('refuses a removal that would strand points in a lower row', () => {
+    const { build, arms, row1, spare } = twelvePointArms();
+    // The spare point goes: row 1 still holds 5, and rows 1 and 2 still hold the 10 row 3 needs.
+    expect(removePoint(WARRIOR, build, arms, spare).ok).toBe(true);
+    // One more from row 1 leaves row 2 with 4 above it. Row 2's own points do not count.
     const blocked = canRemove(WARRIOR, build, arms, row1);
     expect(blocked.ok).toBe(false);
-    expect(blocked.reason).toMatch(/needs 10 points/);
+    expect(blocked.reason).toMatch(/needs 5 points/);
   });
 
-  it('allows a removal once the higher row is empty again', () => {
-    const { build, arms, row1, row3 } = elevenPointArms();
-    removePoint(WARRIOR, build, arms, row1);
+  it('allows a removal once the rows below are empty again', () => {
+    const { build, arms, row1, spare, row2, row3 } = twelvePointArms();
+    removePoint(WARRIOR, build, arms, spare);
     expect(canRemove(WARRIOR, build, arms, row1).ok).toBe(false);
     removePoint(WARRIOR, build, arms, row3);
+    for (let i = 0; i < 5; i += 1) expect(removePoint(WARRIOR, build, arms, row2).ok).toBe(true);
     expect(canRemove(WARRIOR, build, arms, row1).ok).toBe(true);
   });
 
@@ -519,5 +525,178 @@ describe('what actually ships in the data file', () => {
     expect(DATA.racials).toBeTruthy();
     expect(DATA.class_abilities).toBeTruthy();
     expect(DATA.legacy?.trees?.length).toBeGreaterThan(0);
+  });
+});
+
+describe('talent legality', () => {
+  const arms = treeIndex(WARRIOR, 'Arms');
+  const deflection = talentIndex(WARRIOR, 'Arms', 'Deflection');
+  const charge = talentIndex(WARRIOR, 'Arms', 'Improved Charge');
+
+  it('a row-two point does not hold its own row open', () => {
+    const build = createBuild('warrior', WARRIOR, 60);
+    for (let i = 0; i < 5; i += 1) addPoint(WARRIOR, build, arms, deflection);
+    expect(addPoint(WARRIOR, build, arms, charge).ok).toBe(true);
+    const blocked = removePoint(WARRIOR, build, arms, deflection);
+    expect(blocked.ok).toBe(false);
+    expect(blocked.reason).toMatch(/Improved Charge needs 5 points/);
+    expect(build.ranks[arms]![deflection]).toBe(5);
+    expect(buildLegal(WARRIOR, build).ok).toBe(true);
+  });
+
+  it('a link at level 10 cannot spend five points', () => {
+    const { build, dropped } = decodeChecked(
+      WARRIOR,
+      'warrior/10/05000000000000000-000000000000000000-0000000000000000000',
+    )!;
+    expect(pointsLeft(build)).toBe(0);
+    expect(dropped).toBe(4);
+    expect(buildLegal(WARRIOR, build).ok).toBe(true);
+  });
+
+  it('a link that skips the first row loses the stranded talent', () => {
+    // One point in Improved Charge and nothing above it.
+    const { build, dropped } = decodeChecked(WARRIOR, 'warrior/60/00010000000000000-000000000000000000-0000000000000000000')!;
+    expect(build.ranks[arms]![charge]).toBe(0);
+    expect(dropped).toBe(1);
+  });
+
+  it('a link missing a prerequisite loses the talent that needs it', () => {
+    // 11 in row 1 and 3 in Improved Tactical Mastery: row 3 is open, but Anger Management
+    // needs Improved Tactical Mastery maxed.
+    const { build, dropped } = decodeChecked(WARRIOR, 'warrior/60/3530301')!;
+    expect(build.ranks[arms]![talentIndex(WARRIOR, 'Arms', 'Anger Management')]).toBe(0);
+    expect(build.ranks[arms]![talentIndex(WARRIOR, 'Arms', 'Improved Tactical Mastery')]).toBe(3);
+    expect(dropped).toBe(1);
+    expect(buildLegal(WARRIOR, build).ok).toBe(true);
+  });
+
+  it('leaves a legal link exactly as it was', () => {
+    const { build, dropped } = decodeChecked(WARRIOR, EXAMPLE)!;
+    expect(dropped).toBe(0);
+    expect(encode(build)).toBe(EXAMPLE);
+  });
+
+  it('lowering the level trims to a legal build', () => {
+    const build = decode(WARRIOR, EXAMPLE)!;
+    build.level = 20;
+    const trimmed = legalize(WARRIOR, build).build;
+    expect(pointsLeft(trimmed)).toBe(0);
+    expect(buildLegal(WARRIOR, trimmed).ok).toBe(true);
+  });
+});
+
+describe('one set of rules at every way in', () => {
+  const arms = treeIndex(WARRIOR, 'Arms');
+
+  it('refuses ranks that are not whole points', () => {
+    const tree = WARRIOR.trees[arms]!;
+    const ranks = tree.talents.map(() => 0);
+    ranks[talentIndex(WARRIOR, 'Arms', 'Deflection')] = 1.5;
+    expect(treeLegal(tree, ranks).ok).toBe(false);
+    ranks[talentIndex(WARRIOR, 'Arms', 'Deflection')] = -1;
+    expect(treeLegal(tree, ranks).ok).toBe(false);
+    const build = { classKey: 'warrior', level: 60, ranks: WARRIOR.trees.map((t) => t.talents.map(() => 0)) };
+    build.ranks[arms]![talentIndex(WARRIOR, 'Arms', 'Deflection')] = 2.7;
+    const fixed = legalize(WARRIOR, build).build;
+    expect(fixed.ranks[arms]![talentIndex(WARRIOR, 'Arms', 'Deflection')]).toBe(2);
+    expect(buildLegal(WARRIOR, fixed).ok).toBe(true);
+  });
+
+  it('counts a digit past a talent\'s maximum among the points left out', () => {
+    const first = WARRIOR.trees[arms]!.talents[0]!;
+    const checked = decodeChecked(WARRIOR, 'warrior/60/9')!;
+    expect(checked.build.ranks[arms]![0]).toBe(first.max);
+    expect(checked.dropped).toBe(9 - first.max);
+  });
+
+  /** Every talent whose prerequisite has a prerequisite of its own, in every class. */
+  function chains() {
+    const out: Array<{ cls: ClassTalents; key: string; tree: number; path: number[] }> = [];
+    for (const [key, cls] of Object.entries(DATA.talents)) {
+      cls.trees.forEach((tree, t) => {
+        const byName = new Map(tree.talents.map((x, i) => [x.name, i]));
+        tree.talents.forEach((talent, c) => {
+          const b = talent.req ? byName.get(talent.req) : undefined;
+          const a = b !== undefined && tree.talents[b]!.req ? byName.get(tree.talents[b]!.req!) : undefined;
+          if (a !== undefined && b !== undefined) out.push({ cls, key: key.toLowerCase(), tree: t, path: [a, b, c] });
+        });
+      });
+    }
+    return out;
+  }
+
+  /** The cheapest legal way to the end of a chain: fill rows top down, then the chain itself. */
+  function buildTo(cls: ClassTalents, key: string, t: number, target: number) {
+    const build = createBuild(key, cls, 60);
+    const tree = cls.trees[t]!;
+    for (let guard = 0; guard < 200 && (build.ranks[t]![target] ?? 0) < tree.talents[target]!.max; guard += 1) {
+      const next = tree.talents
+        .map((_, i) => i)
+        .sort((x, y) => tree.talents[x]!.row - tree.talents[y]!.row)
+        .find((i) => canAdd(cls, build, t, i).ok && (i === target || tree.talents[i]!.row <= tree.talents[target]!.row));
+      if (next === undefined) break;
+      addPoint(cls, build, t, next);
+    }
+    return build;
+  }
+
+  it('follows chained prerequisites, in a link and when the level drops', () => {
+    const found = chains();
+    expect(found.length).toBeGreaterThan(0);
+    let reached = 0;
+    for (const { cls, key, tree, path } of found) {
+      const [a, b, c] = path as [number, number, number];
+      const build = buildTo(cls, key, tree, c);
+      if ((build.ranks[tree]![c] ?? 0) === 0) continue;
+      reached += 1;
+      expect(buildLegal(cls, build).ok, key + ' ' + cls.trees[tree]!.talents[c]!.name).toBe(true);
+
+      // The first link of the chain missing from a link loses everything after it.
+      const broken = { ...build, ranks: build.ranks.map((r) => [...r]) };
+      broken.ranks[tree]![a] = 0;
+      const fixed = legalize(cls, broken).build;
+      expect(buildLegal(cls, fixed).ok).toBe(true);
+      expect(fixed.ranks[tree]![b]).toBe(0);
+      expect(fixed.ranks[tree]![c]).toBe(0);
+
+      // A level too low for the whole chain keeps a legal part of it.
+      const spent = build.ranks.flat().reduce((x, y) => x + y, 0);
+      for (let level = 10; level < 9 + spent; level += 3) {
+        const cut = legalize(cls, { ...build, level }).build;
+        expect(buildLegal(cls, cut).ok, key + ' at ' + level).toBe(true);
+        if (cut.ranks[tree]![c]) expect(cut.ranks[tree]![b]).toBe(cls.trees[tree]!.talents[b]!.max);
+      }
+    }
+    expect(reached).toBeGreaterThan(0);
+  });
+
+  it('round-trips a spread-out legal build from every class unchanged', () => {
+    for (const [key, cls] of Object.entries(DATA.talents)) {
+      const classKey = key.toLowerCase();
+      const build = createBuild(classKey, cls, 60);
+      // Deterministic but uneven: walk the trees in turn, taking the n-th open talent.
+      let n = 7;
+      for (let guard = 0; pointsLeft(build) > 0 && guard < 500; guard += 1) {
+        const t = guard % cls.trees.length;
+        const open = cls.trees[t]!.talents.map((_, i) => i).filter((i) => canAdd(cls, build, t, i).ok);
+        if (!open.length) continue;
+        n = (n * 31 + 17) % 97;
+        addPoint(cls, build, t, open[n % open.length]!);
+      }
+      expect(buildLegal(cls, build).ok, key).toBe(true);
+      const code = encode(build);
+      const checked = decodeChecked(cls, code)!;
+      expect(checked.dropped, key).toBe(0);
+      expect(checked.build.ranks, key).toEqual(build.ranks);
+      expect(legalCode(cls, code), key).toEqual({ code, dropped: 0 });
+    }
+  });
+
+  it('keeps a short valid link exactly as written, and rewrites an invalid one', () => {
+    expect(legalCode(WARRIOR, 'warrior/60/05')).toEqual({ code: 'warrior/60/05', dropped: 0 });
+    const fixed = legalCode(WARRIOR, 'warrior/10/05000000000000000-000000000000000000-0000000000000000000')!;
+    expect(fixed.dropped).toBe(4);
+    expect(fixed.code).toBe('warrior/10/01000000000000000-000000000000000000-0000000000000000000');
   });
 });

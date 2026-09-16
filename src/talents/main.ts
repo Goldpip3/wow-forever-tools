@@ -1,23 +1,25 @@
 import { renderFooter, renderHeader } from '../shared/header';
-import { accountView, loadUser } from '../shared/session';
+import { accountView, loadUser, SIGN_IN_MESSAGE, takeSignInOutcome } from '../shared/session';
 import { CLASSES, type ClassId } from '../shared/classes';
 import { copyText, toast } from '../shared/toast';
-import { KEY_BUILDS, KEY_PREFS, readJson, writeJson } from '../shared/storage';
+import {
+  KEY_BUILDS, hasStrings, patchPrefs, readList, readPrefs, writeJson,
+} from '../shared/storage';
 import { attachTooltips, refreshTip } from '../shared/tooltip';
+import { keepFocus } from '../shared/focus';
 import { loadTalentData, classTalents } from './data';
 import type { ClassTalents, TalentData } from './types';
 import {
   addPoint,
   createBuild,
-  pointsForLevel,
+  legalize,
   primaryTree,
   removePoint,
   resetAll,
   resetTree,
-  totalSpent,
   type BuildState,
 } from './build';
-import { decode, encode, hashFor, parseCode } from './codec';
+import { decodeChecked, encode, hashFor, parseCode } from './codec';
 import {
   blockedReason,
   renderBanner,
@@ -45,16 +47,14 @@ interface SavedBuild {
   savedAt: string;
 }
 
-interface Prefs {
-  compare?: boolean;
-}
-
 const app = document.getElementById('app');
 let data: TalentData | null = null;
 let cls: ClassTalents | null = null;
 let build: BuildState | null = null;
-let compare = readJson<Prefs>(KEY_PREFS, {}).compare ?? false;
+let compare = readPrefs().compare === true;
 let suppressHash = false;
+/** Tapping takes a point back instead of adding one. A touch screen has no right-click. */
+let removing = false;
 
 function el(tag: string, cls2?: string, text?: string): HTMLElement {
   const node = document.createElement(tag);
@@ -64,11 +64,12 @@ function el(tag: string, cls2?: string, text?: string): HTMLElement {
 }
 
 function savedBuilds(): SavedBuild[] {
-  return readJson<SavedBuild[]>(KEY_BUILDS, []);
+  return readList(KEY_BUILDS, (v): v is SavedBuild =>
+    hasStrings(v, ['id', 'name', 'classKey', 'code']) && typeof v.level === 'number');
 }
 
 function ctx(): RenderContext {
-  return { cls: cls!, build: build!, compare };
+  return { cls: cls!, build: build!, compare, removing };
 }
 
 function className(): string {
@@ -100,11 +101,19 @@ async function switchClass(classKey: string, level: number, code?: string): Prom
     return;
   }
   cls = next;
-  build = code ? decode(next, code) : null;
-  if (!build) build = createBuild(classKey, next, level);
-  build.classKey = classKey;
-  build.level = level;
+  const decoded = code ? decodeChecked(next, code) : null;
+  const fresh = decoded?.build ?? createBuild(classKey, next, level);
+  fresh.classKey = classKey;
+  fresh.level = level;
+  build = fresh;
   update();
+  if (decoded?.dropped) {
+    toast(
+      decoded.dropped + (decoded.dropped === 1 ? ' point' : ' points') +
+        ' in that link broke the talent rules and were left out.',
+      4000,
+    );
+  }
 }
 
 /* ------------------------------------------------------------------ drawing */
@@ -125,11 +134,26 @@ function tipFor(cell: HTMLElement): Node | null {
 
 function onCellPointer(ev: MouseEvent): void {
   const target = (ev.target as Element | null)?.closest('.cell') as HTMLElement | null;
+  const remove =
+    removing || ev.type === 'contextmenu' || ev.shiftKey || ('button' in ev && ev.button === 2);
+  changeCell(target, remove);
+}
+
+/* Enter and Space press the cell like any button. Delete, Backspace and minus take a point
+   back, which is the keyboard's right-click. */
+function onCellKey(ev: KeyboardEvent): void {
+  if (ev.key !== 'Delete' && ev.key !== 'Backspace' && ev.key !== '-') return;
+  const target = (ev.target as Element | null)?.closest('.cell') as HTMLElement | null;
+  if (!target) return;
+  ev.preventDefault();
+  changeCell(target, true);
+}
+
+function changeCell(target: HTMLElement | null, remove: boolean): void {
   if (!target || !cls || !build) return;
   const treeIdx = Number(target.dataset.tree);
   const talentIdx = Number(target.dataset.talent);
 
-  const remove = ev.type === 'contextmenu' || ev.shiftKey || ('button' in ev && ev.button === 2);
   const result = remove
     ? removePoint(cls, build, treeIdx, talentIdx)
     : addPoint(cls, build, treeIdx, talentIdx);
@@ -139,7 +163,12 @@ function onCellPointer(ev: MouseEvent): void {
   refreshTip(() => tipFor(target));
 }
 
+/** Redraw the page, keeping the keyboard on the talent it was on. */
 function draw(): void {
+  keepFocus(drawNow);
+}
+
+function drawNow(): void {
   if (!app || !data || !cls || !build) return;
   const scrollY = window.scrollY;
   app.replaceChildren();
@@ -155,18 +184,9 @@ function draw(): void {
         .map((b) => ({ id: b.id, name: b.name })),
       onLevel: (level) => {
         build!.level = level;
-        const max = pointsForLevel(level);
-        // Trim from the end of the last tree so the build stays legal.
-        let over = totalSpent(build!.ranks) - max;
-        for (let t = build!.ranks.length - 1; t >= 0 && over > 0; t -= 1) {
-          const tree = build!.ranks[t]!;
-          for (let i = tree.length - 1; i >= 0 && over > 0; i -= 1) {
-            while (tree[i]! > 0 && over > 0) {
-              if (!removePoint(cls!, build!, t, i).ok) break;
-              over -= 1;
-            }
-          }
-        }
+        // Fewer points: the same rules as a link decide what stays, so nothing is left
+        // stranded below a row it no longer opens.
+        build = legalize(cls!, build!).build;
         update();
       },
       onReset: () => {
@@ -178,9 +198,14 @@ function draw(): void {
         const url = location.origin + location.pathname + '#' + encode(build!);
         void copyText(url, 'Link copied');
       },
+      onToggleRemoving: () => {
+        removing = !removing;
+        draw();
+      },
       onToggleCompare: () => {
         compare = !compare;
-        writeJson(KEY_PREFS, { compare });
+        // Only this page's part of the shared preferences; the gear page's stay as they are.
+        if (!patchPrefs({ compare })) toast('This browser would not save that setting.');
         draw();
       },
       onPickBuild: (id) => {
@@ -202,6 +227,7 @@ function draw(): void {
     },
   });
   trees.addEventListener('click', onCellPointer);
+  trees.addEventListener('keydown', onCellKey);
   trees.addEventListener('contextmenu', (ev) => {
     if ((ev.target as Element | null)?.closest('.cell')) {
       ev.preventDefault();
@@ -356,6 +382,10 @@ async function start(): Promise<void> {
     readHash();
   });
 }
+
+/* Back from signing in: read the outcome and put back the fragment before anything reads it. */
+const signIn = takeSignInOutcome();
+if (signIn) window.setTimeout(() => toast(SIGN_IN_MESSAGE[signIn]), 0);
 
 void start();
 

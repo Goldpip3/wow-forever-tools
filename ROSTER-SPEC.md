@@ -113,7 +113,10 @@ Four decisions in there that are load-bearing:
    leader knows there is a hole. Cascading the delete would silently shrink the raid.
 3. **`loadout` on the slot.** The leader's planner choices — which curse that warlock
    brings, which aura that paladin runs — round-trip, so reopening a draft preserves the
-   buff analysis.
+   buff analysis. The bot stores the object without reading it. Choice groups are keys
+   holding a list of effect ids; the planner also keeps the talent toggles under
+   `_talents` (effect id to true or false) and a pasted talent link under `_build`, and
+   drops any value of the wrong shape when it reads a slot back.
 4. **`revision`** drives both optimistic concurrency and notification diffing. See §6.
 
 ---
@@ -183,6 +186,12 @@ the planner refetches and tells the user rather than clobbering.
 
 **`POST …/publish`** writes `status='published'`, bumps `revision`, posts the embed and
 sends the notifications. Returns the list of users it could not reach.
+
+The planner publishes only after every edit has been saved and acknowledged: it waits
+for a save in flight and any queued behind it, publishes at the revision the last save
+returned, and does not publish if a save failed or the roster changed after the leader
+confirmed the counts. Edits are frozen while that runs. A 409 on either request reloads
+the roster and is never retried.
 
 `classKey` / `specKey` are Group Builder's own keys; `src/raid/groupbuilder.ts` already
 maps all 28 of them to planner spec ids. That mapping is done and needs no work.

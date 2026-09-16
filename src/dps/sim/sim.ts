@@ -41,6 +41,23 @@ import { targetStateFor } from './target';
 /** Mana ticks on a two second heartbeat, the way the game does it. */
 const MANA_TICK = 2;
 
+/**
+ * Mana back on one regeneration tick, every MANA_TICK seconds.
+ *
+ * Spirit pays its full rate outside the five-second rule and only the casting fraction
+ * inside it. Mana per five pays the same either way, a fifth of it per second, so ten mana
+ * per five is four mana a tick whether or not anything was cast.
+ */
+export function manaPerTick(
+  regen: { per2s: number; castingFraction: number },
+  mp5: number,
+  casting: boolean,
+): number {
+  const fromSpirit = regen.per2s * (MANA_TICK / 2) * (casting ? regen.castingFraction : 1);
+  const fromGear = (Math.max(0, mp5) * MANA_TICK) / 5;
+  return fromSpirit + fromGear;
+}
+
 /** How long to wait before looking again when there is nothing worth casting. */
 const IDLE_POLL = 0.1;
 
@@ -638,10 +655,7 @@ export function runIteration(
     const data = event.data;
 
     if (data.kind === 'mana-tick') {
-      const casting = now - actor.lastSpendAt < 5;
-      const fromSpirit = regen.per2s * (casting ? regen.castingFraction : 1);
-      const fromGear = (stats.mp5 * MANA_TICK) / 5;
-      actor.restore(fromSpirit + fromGear);
+      actor.restore(manaPerTick(regen, stats.mp5, now - actor.lastSpendAt < 5));
       if (trace && (spec.resource ?? 'mana') === 'mana') {
         trace.push({ t: now, kind: 'resource', id: 'mana', value: actor.mana });
       }

@@ -4,3 +4,5 @@ dist
 *.log
 scripts/missing-assets.txt
 
+test-results
+playwright-report

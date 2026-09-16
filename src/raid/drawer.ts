@@ -18,6 +18,10 @@ function el(tag: string, cls?: string, text?: string): HTMLElement {
 export interface DrawerHandlers {
   onChange: () => void;
   onClose: () => void;
+  /** Show the loadout without letting it change: a roster the viewer may not edit. */
+  readOnly?: boolean;
+  /** A link to the gear page carrying this player and the buffs the raid gives them. */
+  simulateHref?: string;
 }
 
 function section(title: string, hint?: string): { wrap: HTMLElement; body: HTMLElement } {
@@ -58,7 +62,9 @@ function optionRow(
   return label;
 }
 
-export function renderDrawer(player: Player, h: DrawerHandlers): HTMLElement {
+export function renderDrawer(shown: Player, h: DrawerHandlers): HTMLElement {
+  // Read-only works on a copy, so even a control forced back on cannot change the real player.
+  const player: Player = h.readOnly ? structuredClone(shown) : shown;
   const overlay = el('div', 'drawer');
   const panel = el('div', 'drawer__panel');
 
@@ -77,6 +83,26 @@ export function renderDrawer(player: Player, h: DrawerHandlers): HTMLElement {
   panel.appendChild(head);
 
   const body = el('div', 'drawer__body');
+
+  /* Over to the gear page. A link the person follows, and the page there ticks nothing until
+     they say so. */
+  if (h.simulateHref) {
+    const sim = el('section', 'drawer__section');
+    const go = document.createElement('a');
+    go.className = 'btn';
+    go.href = h.simulateHref;
+    go.textContent = 'Simulate with this raid\u2019s buffs';
+    sim.appendChild(go);
+    sim.appendChild(
+      el(
+        'p',
+        'drawer__hint',
+        'Opens the gear page with the raid and party buffs and the boss debuffs this player gets here. ' +
+          'You load the character there, and choose whether to tick them.',
+      ),
+    );
+    body.appendChild(sim);
+  }
 
   /* name */
   const nameSec = section('Name');
@@ -213,6 +239,16 @@ export function renderDrawer(player: Player, h: DrawerHandlers): HTMLElement {
   }
 
   panel.appendChild(body);
+
+  /* Read-only: everything stays visible and hoverable, and nothing can be changed. The
+     handlers refuse too; this is so the controls do not pretend otherwise. */
+  if (h.readOnly) {
+    for (const control of panel.querySelectorAll<HTMLInputElement | HTMLButtonElement>('input, .spec-picker button')) {
+      control.disabled = true;
+    }
+    panel.querySelector('input[placeholder^="Paste a talent link"]')?.remove();
+    sub.textContent = sub.textContent + '. You can look at this loadout but not change it.';
+  }
 
   /* Hovering a buff shows the spell's own text, the same tooltip the coverage lists use.
      Picking between six blessings means nothing if you have to already know what they do. */

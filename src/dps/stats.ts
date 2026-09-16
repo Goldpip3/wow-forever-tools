@@ -68,6 +68,35 @@ export function wornItems(
 }
 
 /**
+ * The stats the exported character sheet actually measured.
+ *
+ * A measured total already holds the gear and any buff that was up, so gear is taken off it
+ * to find the baseline. A stat not measured is built from the gear and buffs alone. The
+ * sheet has no line at all for mana per five, haste, feral attack power or weapon DPS. Hit
+ * and spell hit are measured only when the client had the API: absent is not measured, and
+ * an explicit zero is a measured zero that stays authoritative. Spell power and spell crit
+ * are measured when the sheet lists any school.
+ */
+export function sheetReports(source: CharacterExport): Set<StatKey> {
+  const sheet = source.stats;
+  const reported = new Set<StatKey>([
+    'strength', 'agility', 'stamina', 'intellect', 'spirit',
+    'attackPower', 'rangedAttackPower', 'crit', 'armor', 'healing',
+  ]);
+  if (sheet.hit !== undefined) reported.add('hit');
+  if (sheet.spellHit !== undefined) reported.add('spellHit');
+  if (Object.values(sheet.spellPower).some((n) => typeof n === 'number')) {
+    reported.add('spellPower');
+    for (const school of Object.keys(sheet.spellPower) as School[]) {
+      const key = SCHOOL_POWER[school];
+      if (key) reported.add(key);
+    }
+  }
+  if (Object.values(sheet.spellCrit).some((n) => typeof n === 'number')) reported.add('spellCrit');
+  return reported;
+}
+
+/**
  * The character with nothing on: the sheet minus the gear.
  *
  * Percentage effects land here rather than being modelled. A gnome's five per
@@ -108,9 +137,15 @@ export function baselineStats(source: CharacterExport): StatBlock {
   base.spellCrit = crits.length ? Math.max(...crits) : 0;
 
   base.healing = sheet.healing;
-  base.mp5 = 0;
 
-  addInto(base, gear, -1);
+  // Gear comes off only what the sheet counted it in. Taking it off a stat the sheet never
+  // measured left a character wearing 10 mana per five with none, and with -10 once the
+  // item came off.
+  const reported = sheetReports(source);
+  for (const key of STAT_KEYS) {
+    if (!reported.has(key)) base[key] = 0;
+    else if (gear[key]) base[key] = (base[key] ?? 0) - gear[key]!;
+  }
   return base;
 }
 
@@ -148,6 +183,11 @@ export interface BuffTotals {
    * be applied to what you already have, not to each other.
    */
   multipliers: Partial<Record<StatKey, number>>;
+  /**
+   * Flat stats of the buffs that were already up. The sheet holds them only for the stats
+   * it measures; for the rest, mana per five from a totem say, they still have to be added.
+   */
+  skippedStats: StatBlock;
   /** Names of buffs that were already up when the export ran. */
   skipped: string[];
 }
@@ -155,6 +195,7 @@ export interface BuffTotals {
 /** Stats from the fight's ticked buffs, skipping anything already on the sheet. */
 export function buffStats(ids: string[], activeBuffs: string[] = []): BuffTotals {
   const stats: StatBlock = {};
+  const skippedStats: StatBlock = {};
   const multipliers: Partial<Record<StatKey, number>> = {};
   const skipped: string[] = [];
   const already = new Set(activeBuffs.map((b) => b.trim().toLowerCase()));
@@ -165,6 +206,7 @@ export function buffStats(ids: string[], activeBuffs: string[] = []): BuffTotals
     if (!buff) continue;
     if (already.has(buff.name.toLowerCase())) {
       skipped.push(buff.name);
+      addInto(skippedStats, buff.stats);
       continue;
     }
     // Two buffs that overwrite each other only pay out once.
@@ -176,7 +218,7 @@ export function buffStats(ids: string[], activeBuffs: string[] = []): BuffTotals
     }
   }
 
-  return { stats, multipliers, skipped };
+  return { stats, skippedStats, multipliers, skipped };
 }
 
 /* -------------------------------------------------------------- conversions */
@@ -239,11 +281,19 @@ export function deriveStatSheet(
   const currentGear = equippedStats(source.equipped);
   const newGear = equippedStats(source.equipped, opts.gearOverride);
 
-  const { stats: buffs, multipliers, skipped } = buffStats(
+  const { stats: ticked, skippedStats, multipliers, skipped } = buffStats(
     [...fight.buffs, ...fight.consumables, ...fight.debuffs],
     source.activeBuffs,
   );
   if (skipped.length) opts.onSkippedBuff?.(skipped);
+
+  // A buff already up is in the sheet only where the sheet measures. Elsewhere it is added
+  // once here, so it is neither counted twice nor lost.
+  const buffs: StatBlock = { ...ticked };
+  const reported = sheetReports(source);
+  for (const [key, value] of Object.entries(skippedStats) as Array<[StatKey, number]>) {
+    if (!reported.has(key)) buffs[key] = (buffs[key] ?? 0) + value;
+  }
 
   // Everything that was not on the sheet goes through the class conversions.
   const added: StatBlock = {};

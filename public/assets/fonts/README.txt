@@ -3,7 +3,8 @@ stand-ins. The site looks for these exact names:
 
   FRIZQT__.TTF    Friz Quadrata TT   the main UI font
   MORPHEUS.TTF    Morpheus           large titles
-  ARIALN.TTF      Arial Narrow       chat and numbers
+
+Counters use Arial Narrow only if it is installed; there is no file for it here.
 
 These ship with World of Warcraft and are licensed by Blizzard, so they are not
 included here. If the files are missing, the site falls back to Alegreya and

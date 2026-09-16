@@ -45,13 +45,15 @@
   font-display: swap;
 }
 
-/* Chat and damage numbers in game. Handy for the tabular bits here. */
+/* Chat and damage numbers in game. Handy for the tabular bits here. Only an installed Arial
+   Narrow is used: the site ships no copy, and a file reference to one that was never there
+   cost every visitor a failed request and every build a warning. Without it, --font-narrow
+   falls through to Alegreya. */
 @font-face {
   font-family: 'WoW Narrow';
   src:
     local('Arial Narrow'),
-    local('ArialNarrow'),
-    url('/assets/fonts/ARIALN.TTF') format('truetype');
+    local('ArialNarrow');
   font-weight: 400 700;
   font-style: normal;
   font-display: swap;

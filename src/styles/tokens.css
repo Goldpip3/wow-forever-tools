@@ -6,7 +6,9 @@
   --line: #3a3a3a;
   --ink: #e8e8e8;
   --ink2: #bdbdbd;
-  --muted: #8a8a8a;
+  /* 4.83:1 on #333, 5.79:1 on --panel2 and 7.16:1 on --bg, so small hints pass WCAG AA
+     on every panel. #8a8a8a measured 4.38:1 on --panel2. */
+  --muted: #a0a0a0;
   --gold: #ffd100;
   --gold2: #c89b1a;
   --green: #1eff00;

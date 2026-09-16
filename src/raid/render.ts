@@ -33,6 +33,8 @@ export interface RaidHandlers {
   onRemove: (group: number, slot: number) => void;
   onRename: (playerId: string, name: string) => void;
   onOpenLoadout: (playerId: string) => void;
+  /** Move a seated player to another group without dragging. */
+  onChooseGroup?: (playerId: string) => void;
   onSize: (size: 40 | 20 | 10) => void;
   onCap: (cap: number) => void;
   onReset: () => void;
@@ -43,6 +45,8 @@ export interface RaidHandlers {
   onFocusPlayer: (playerId: string) => void;
   /* Roster mode only. Planner mode leaves these unset and never shows a pool. */
   onSeatFromPool?: (userId: string, group: number, slot: number) => void;
+  /** Seat someone from the pool in the first free seat of a group, without dragging. */
+  onSeatInGroup?: (userId: string, group: number) => void;
   onReturnToPool?: (playerId: string) => void;
   onCut?: (userId: string) => void;
   onUncut?: (userId: string) => void;
@@ -121,18 +125,19 @@ function seatCard(
   slot: number,
   profile: GroupProfile | undefined,
   h: RaidHandlers,
+  canEdit: boolean,
 ): HTMLElement {
   const player = roster.groups[group]?.[slot] ?? null;
   const cell = el('div', 'seat' + (player ? ' seat--filled' : ' seat--empty'));
   cell.dataset.group = String(group);
   cell.dataset.slot = String(slot);
 
-  cell.addEventListener('dragover', (ev) => {
+  if (canEdit) cell.addEventListener('dragover', (ev) => {
     ev.preventDefault();
     cell.classList.add('seat--drop');
   });
-  cell.addEventListener('dragleave', () => cell.classList.remove('seat--drop'));
-  cell.addEventListener('drop', (ev) => {
+  if (canEdit) cell.addEventListener('dragleave', () => cell.classList.remove('seat--drop'));
+  if (canEdit) cell.addEventListener('drop', (ev) => {
     ev.preventDefault();
     cell.classList.remove('seat--drop');
     const raw = ev.dataTransfer?.getData('text/plain');
@@ -151,7 +156,10 @@ function seatCard(
   });
 
   if (!player) {
+    if (!canEdit) return cell;
     const add = el('button', 'seat__add', '+');
+    // The same key as the × on a filled seat, so focus stays on this seat either way.
+    add.dataset.focusKey = 'seat-' + group + '-' + slot;
     add.title = 'Add a player to group ' + (group + 1);
     add.setAttribute('aria-label', 'Add a player to group ' + (group + 1));
     add.addEventListener('click', () => h.onPickSeat(group, slot));
@@ -163,9 +171,9 @@ function seatCard(
   const spec = specById(player.specId);
   const arch = archetypeFor(player);
 
-  cell.draggable = true;
+  cell.draggable = canEdit;
   cell.style.setProperty('--class-color', info.color);
-  cell.addEventListener('dragstart', (ev) => {
+  if (canEdit) cell.addEventListener('dragstart', (ev) => {
     ev.dataTransfer?.setData('text/plain', JSON.stringify({ kind: 'player', playerId: player.id }));
     if (ev.dataTransfer) ev.dataTransfer.effectAllowed = 'move';
   });
@@ -184,11 +192,15 @@ function seatCard(
   const body = el('div', 'seat__body');
   const nameInput = document.createElement('input');
   nameInput.className = 'seat__name';
+  nameInput.dataset.focusKey = 'name-' + player.id;
   nameInput.value = player.name;
   nameInput.setAttribute('aria-label', 'Player name');
   nameInput.style.color = info.color;
-  nameInput.addEventListener('change', () => h.onRename(player.id, nameInput.value));
-  nameInput.addEventListener('blur', () => h.onRename(player.id, nameInput.value));
+  nameInput.readOnly = !canEdit;
+  if (canEdit) {
+    nameInput.addEventListener('change', () => h.onRename(player.id, nameInput.value));
+    nameInput.addEventListener('blur', () => h.onRename(player.id, nameInput.value));
+  }
   nameInput.addEventListener('dragstart', (ev) => ev.preventDefault());
   body.appendChild(nameInput);
 
@@ -222,13 +234,37 @@ function seatCard(
     btns.appendChild(warn);
   }
 
+  if (!canEdit) {
+    // Looking is still allowed: the cog opens the loadout read-only.
+    const look = el('button', 'seat__btn', '⚙');
+    look.title = 'Buffs and loadout for ' + player.name;
+    look.setAttribute('aria-label', 'Loadout for ' + player.name);
+    look.dataset.focusKey = 'gear-' + player.id;
+    look.addEventListener('click', () => h.onOpenLoadout(player.id));
+    btns.appendChild(look);
+    cell.appendChild(btns);
+    return cell;
+  }
+
   const gear = el('button', 'seat__btn', '⚙');
   gear.title = 'Buffs and loadout for ' + player.name;
   gear.setAttribute('aria-label', 'Loadout for ' + player.name);
+  gear.dataset.focusKey = 'gear-' + player.id;
   gear.addEventListener('click', () => h.onOpenLoadout(player.id));
+  /* Dragging a seat needs a mouse held down. This is the same move from a keyboard or a
+     phone: pick the group. */
+  if (h.onChooseGroup) {
+    const move = el('button', 'seat__btn', '⇄');
+    move.title = 'Move ' + player.name + ' to another group';
+    move.setAttribute('aria-label', 'Move ' + player.name + ' to another group');
+    move.dataset.focusKey = 'move-' + player.id;
+    move.addEventListener('click', () => h.onChooseGroup?.(player.id));
+    btns.appendChild(move);
+  }
   const remove = el('button', 'seat__btn', '×');
   remove.title = 'Remove ' + player.name;
   remove.setAttribute('aria-label', 'Remove ' + player.name);
+  remove.dataset.focusKey = 'seat-' + group + '-' + slot;
   remove.addEventListener('click', () => h.onRemove(group, slot));
   btns.append(gear, remove);
   cell.appendChild(btns);
@@ -236,7 +272,14 @@ function seatCard(
   return cell;
 }
 
-export function renderGroups(roster: Roster, coverage: Coverage, h: RaidHandlers): HTMLElement {
+export function renderGroups(
+  roster: Roster,
+  coverage: Coverage,
+  h: RaidHandlers,
+  canEdit = true,
+  /** A real roster seats nobody in a group its raid size does not use. */
+  onlyInRaid = false,
+): HTMLElement {
   const panel = el('section', 'panel groups-panel');
   const head = el('div', 'panel__head');
   head.appendChild(el('span', '', 'Groups'));
@@ -265,7 +308,7 @@ export function renderGroups(roster: Roster, coverage: Coverage, h: RaidHandlers
 
     const slots = el('div', 'group__seats');
     for (let s = 0; s < GROUP_SIZE; s += 1) {
-      slots.appendChild(seatCard(roster, g, s, profile, h));
+      slots.appendChild(seatCard(roster, g, s, profile, h, canEdit && (inRaid || !onlyInRaid)));
     }
     group.appendChild(slots);
 
@@ -363,7 +406,13 @@ export function renderOverview(roster: Roster, h: RaidHandlers): HTMLElement {
 
 /* --------------------------------------------------- suggestions and warnings */
 
-export function renderSuggestions(suggestions: Suggestion[], h: RaidHandlers): HTMLElement {
+export function renderSuggestions(
+  suggestions: Suggestion[],
+  h: RaidHandlers,
+  canEdit = true,
+  /** How many are seated. Nothing to suggest in an empty raid is not the same as a good one. */
+  seated = Infinity,
+): HTMLElement {
   const panel = el('section', 'panel');
   const head = el('div', 'panel__head');
   head.appendChild(el('span', '', 'Suggested moves'));
@@ -376,7 +425,9 @@ export function renderSuggestions(suggestions: Suggestion[], h: RaidHandlers): H
       el(
         'p',
         'empty-note',
-        'No seat changes would help. Every player is in a group whose buffs they actually use.',
+        seated < 2
+          ? 'Seat at least two players and this suggests swaps between groups.'
+          : 'No seat changes would help. Every player is in a group whose buffs they actually use.',
       ),
     );
   } else {
@@ -388,9 +439,11 @@ export function renderSuggestions(suggestions: Suggestion[], h: RaidHandlers): H
       top.appendChild(el('span', 'sugg__gain', '+' + s.gain));
       item.appendChild(top);
       item.appendChild(el('div', 'sugg__detail', s.detail));
-      const apply = el('button', 'btn btn--sm', s.kind === 'move' ? 'Move them' : 'Swap them');
-      apply.addEventListener('click', () => h.onApplySuggestion(s));
-      item.appendChild(apply);
+      if (canEdit) {
+        const apply = el('button', 'btn btn--sm', s.kind === 'move' ? 'Move them' : 'Swap them');
+        apply.addEventListener('click', () => h.onApplySuggestion(s));
+        item.appendChild(apply);
+      }
       list.appendChild(item);
     }
     body.appendChild(list);
@@ -462,7 +515,9 @@ export function renderWarnings(coverage: Coverage): HTMLElement {
       el(
         'p',
         'empty-note',
-        'No problems and no warnings. Anything else worth reading is in Notes below.',
+        coverage.playerCount === 0
+          ? 'Nobody is seated yet, so there is nothing to check.'
+          : 'No problems and no warnings. Anything else worth reading is in Notes below.',
       ),
     );
     panel.appendChild(body);
@@ -1007,6 +1062,121 @@ export function renderUtilityPanel(roster: Roster, coverage: Coverage): HTMLElem
 
 /* -------------------------------------------------------------- the seat picker */
 
+/**
+ * Where a seated player should go instead: a group with a free seat, or back to the pool.
+ */
+export function renderGroupChooser(
+  name: string,
+  current: number,
+  groups: Array<{ index: number; free: number }>,
+  onPick: (group: number) => void,
+  onPool: (() => void) | null,
+  onClose: () => void,
+): HTMLElement {
+  const overlay = el('div', 'modal');
+  const box = el('div', 'modal__box');
+  box.setAttribute('role', 'dialog');
+  box.setAttribute('aria-label', 'Move ' + name);
+  const head = el('div', 'modal__head');
+  head.appendChild(el('h2', 'modal__title', 'Move ' + name));
+  const close = el('button', 'btn btn--sm', 'Cancel');
+  close.addEventListener('click', onClose);
+  head.appendChild(close);
+  box.appendChild(head);
+
+  const body = el('div', 'modal__body');
+  const list = el('div', 'spec-picker');
+  const open = groups.filter((g) => g.index !== current && g.free > 0);
+  for (const g of open) {
+    const b = el('button', 'btn', 'Group ' + (g.index + 1) + ' (' + g.free + ' free)');
+    b.addEventListener('click', () => onPick(g.index));
+    list.appendChild(b);
+  }
+  if (!open.length) body.appendChild(el('p', 'drawer__hint', 'Every other group is full. Drag onto a seat to swap two players.'));
+  body.appendChild(list);
+  if (onPool) {
+    const pool = el('button', 'btn', 'Back to the pool');
+    pool.title = 'Unseat ' + name + '. Anyone in the pool at publish time is standby.';
+    pool.addEventListener('click', onPool);
+    const actions = el('div', 'spec-picker');
+    actions.style.marginTop = '8px';
+    actions.appendChild(pool);
+    body.appendChild(actions);
+  }
+  box.appendChild(body);
+  overlay.appendChild(box);
+  overlay.addEventListener('click', (ev) => {
+    if (ev.target === overlay) onClose();
+  });
+  return overlay;
+}
+
+/**
+ * What goes in an empty seat of a real roster: someone who signed up, or a named guest.
+ *
+ * Never a made-up spec. A seat in roster mode is a person who will be told where they
+ * stand, so the choices are the people in the pool and the cut list, and adding a guest is
+ * a separate, deliberate button.
+ */
+export function renderSeatChooser(
+  group: number,
+  slot: number,
+  waiting: Array<{ player: Player; cut: boolean }>,
+  onPick: (userId: string) => void,
+  onGuest: () => void,
+  onClose: () => void,
+): HTMLElement {
+  const overlay = el('div', 'modal');
+  const box = el('div', 'modal__box');
+
+  const head = el('div', 'modal__head');
+  head.appendChild(el('h2', 'modal__title', 'Group ' + (group + 1) + ', seat ' + (slot + 1)));
+  const close = el('button', 'btn btn--sm', 'Cancel');
+  close.addEventListener('click', onClose);
+  head.appendChild(close);
+  box.appendChild(head);
+
+  const body = el('div', 'modal__body');
+  if (!waiting.length) {
+    body.appendChild(el('p', 'drawer__hint', 'Everyone who signed up has a seat.'));
+  }
+  const list = el('div', 'pool');
+  for (const { player, cut } of waiting) {
+    const info = CLASSES[player.classId];
+    const spec = specById(player.specId);
+    const row = el('button', 'poolrow poolrow--pick' + (cut ? ' poolrow--cut' : ''));
+    row.style.setProperty('--class-color', info.color);
+    row.appendChild(iconImg(spec?.icon ?? info.icon, '', 'poolrow__icon'));
+    const text = el('div', 'poolrow__body');
+    const name = el('div', 'poolrow__name', player.name);
+    name.style.color = info.color;
+    text.appendChild(name);
+    text.appendChild(el('div', 'poolrow__sub', (spec?.short ?? '') + (cut ? ' · cut' : '')));
+    row.appendChild(text);
+    row.addEventListener('click', () => {
+      const userId = player.discord?.userId;
+      if (userId) onPick(userId);
+    });
+    list.appendChild(row);
+  }
+  body.appendChild(list);
+
+  const guest = el('button', 'btn', 'Add a guest instead');
+  guest.title = 'Seat someone who never signed up. They cannot be messaged.';
+  guest.addEventListener('click', onGuest);
+  const actions = el('div', 'spec-picker');
+  actions.style.marginTop = '8px';
+  actions.appendChild(guest);
+  body.appendChild(actions);
+
+  box.appendChild(body);
+  overlay.appendChild(box);
+  overlay.addEventListener('click', (ev) => {
+    if (ev.target === overlay) onClose();
+  });
+  return overlay;
+}
+
 export function renderSpecPicker(
   group: number,
   slot: number,
@@ -1097,9 +1267,18 @@ export interface PoolView {
   unmapped: Array<{ name: string; classKey: string; specKey: string | null }>;
   /** Signed up with no class at all, e.g. by pressing Bench. Nothing to seat. */
   statusOnly: Array<{ name: string; status: string }>;
+  /** Empty seats in each group in the raid, so a row can offer a place without a drag. */
+  freeSeats?: number[];
 }
 
-function poolRow(player: Player, h: RaidHandlers, canEdit: boolean, cut: boolean): HTMLElement {
+function poolRow(
+  player: Player,
+  h: RaidHandlers,
+  canEdit: boolean,
+  cut: boolean,
+  freeSeats: number[] = [],
+  position = 0,
+): HTMLElement {
   const info = CLASSES[player.classId];
   const spec = specById(player.specId);
   const row = el('div', 'poolrow' + (cut ? ' poolrow--cut' : ''));
@@ -1133,6 +1312,33 @@ function poolRow(player: Player, h: RaidHandlers, canEdit: boolean, cut: boolean
   }
   body.appendChild(sub);
   row.appendChild(body);
+
+  /* Dragging needs a mouse held down. The same move from a keyboard or a phone is picking
+     the group here. */
+  if (canEdit && !cut && h.onSeatInGroup && freeSeats.some((n) => n > 0)) {
+    const seat = document.createElement('select');
+    seat.className = 'poolrow__seat';
+    // By position, so seating one person leaves focus on the next one down.
+    seat.dataset.focusKey = 'pool-seat-' + position;
+    seat.setAttribute('aria-label', 'Seat ' + player.name + ' in a group');
+    const none = document.createElement('option');
+    none.value = '';
+    none.textContent = 'Seat in…';
+    seat.appendChild(none);
+    freeSeats.forEach((free, g) => {
+      if (free <= 0) return;
+      const option = document.createElement('option');
+      option.value = String(g);
+      option.textContent = 'Group ' + (g + 1) + ' (' + free + ' free)';
+      seat.appendChild(option);
+    });
+    seat.addEventListener('change', () => {
+      const userId = player.discord?.userId;
+      if (!userId || seat.value === '') return;
+      h.onSeatInGroup?.(userId, Number(seat.value));
+    });
+    row.appendChild(seat);
+  }
 
   if (canEdit) {
     const btn = el('button', 'poolrow__btn', cut ? 'Put back' : 'Cut');
@@ -1217,7 +1423,9 @@ export function renderPool(view: PoolView, h: RaidHandlers): HTMLElement {
     ),
   );
 
-  for (const player of view.pool) body.appendChild(poolRow(player, h, view.canEdit, false));
+  view.pool.forEach((player, i) => {
+    body.appendChild(poolRow(player, h, view.canEdit, false, view.freeSeats, i));
+  });
 
   if (view.cut.length) {
     body.appendChild(el('div', 'section-label', 'Cut'));

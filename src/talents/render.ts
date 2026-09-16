@@ -24,6 +24,8 @@ export interface RenderContext {
   cls: ClassTalents;
   build: BuildState;
   compare: boolean;
+  /** A tap takes a point back rather than adding one. */
+  removing?: boolean;
 }
 
 function el(tag: string, cls?: string, text?: string): HTMLElement {
@@ -58,6 +60,7 @@ export interface ToolbarHandlers {
   onReset: () => void;
   onCopyLink: () => void;
   onToggleCompare: () => void;
+  onToggleRemoving: () => void;
   onPickBuild: (id: string) => void;
   savedBuilds: Array<{ id: string; name: string }>;
 }
@@ -110,6 +113,11 @@ export function renderToolbar(ctx: RenderContext, h: ToolbarHandlers): HTMLEleme
   bar.appendChild(left);
 
   const right = el('div', 'toolbar__group');
+  const take = el('button', 'btn' + (ctx.removing ? ' btn--on' : ''), 'Take points back');
+  take.setAttribute('aria-pressed', String(!!ctx.removing));
+  take.title = 'While this is on, a tap or click takes a point back';
+  take.addEventListener('click', h.onToggleRemoving);
+  right.appendChild(take);
   const cmp = el('button', 'btn' + (ctx.compare ? ' btn--on' : ''), 'Compare to Classic');
   cmp.addEventListener('click', h.onToggleCompare);
   right.appendChild(cmp);
@@ -294,10 +302,13 @@ export function renderTree(
     cell.dataset.tree = String(treeIdx);
     cell.dataset.talent = String(idx);
     cell.dataset.name = talent.name;
+    cell.dataset.focusKey = 'cell-' + treeIdx + '-' + idx;
     cell.setAttribute(
       'aria-label',
-      talent.name + ', rank ' + rank + ' of ' + talent.max + ', ' + state,
+      talent.name + ', rank ' + rank + ' of ' + talent.max + ', ' + state +
+        '. Enter adds a point, Delete takes one back.',
     );
+    cell.setAttribute('aria-keyshortcuts', 'Enter Delete');
 
     const frame = el('span', 'cell__frame');
     const img = iconImg(talent.icon, '', 'cell__icon');
@@ -380,7 +391,7 @@ export function renderLegend(): HTMLElement {
 
   const notes = el('ul', 'legend__notes');
   for (const note of [
-    'Left-click adds a point. Right-click or Shift+click takes one back.',
+    'Click or tap adds a point. Right-click, Shift+click or Delete takes one back, and so does a tap while Take points back is on.',
     'Rows open every 5 points in that tree. An arrow means the talent it comes from has to be maxed first.',
     'Estimated in a tooltip means the demo only showed some ranks and the rest were scaled from those.',
     'Turn on Compare to Classic to see each talent beside its Classic version, plus what was cut from each tree.',

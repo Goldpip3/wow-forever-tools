@@ -23,11 +23,14 @@
   justify-content: flex-end;
   padding: clamp(90px, 22vh, 260px) 0 clamp(28px, 4vw, 56px);
   background: var(--bg) url(/assets/video/hero-poster.jpg) center / cover no-repeat;
-  /* The section runs full-bleed while its contents stay in the column. */
-  margin-left: calc(50% - 50vw);
-  margin-right: calc(50% - 50vw);
-  padding-left: max(12px, calc(50vw - 590px));
-  padding-right: max(12px, calc(50vw - 590px));
+  /* The section runs full-bleed while its contents stay in the column. vw counts a desktop
+     scrollbar, which made the page scroll sideways by its width, so --scrollbar (set by
+     home/main.ts) takes it back off. */
+  --bleed: calc(50vw - var(--scrollbar, 0px) / 2);
+  margin-left: calc(50% - var(--bleed));
+  margin-right: calc(50% - var(--bleed));
+  padding-left: max(12px, calc(var(--bleed) - 590px));
+  padding-right: max(12px, calc(var(--bleed) - 590px));
 }
 .hero__video {
   position: absolute;

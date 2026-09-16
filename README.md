@@ -1,16 +1,20 @@
 # WoW Forever Tools
 
-Three tools for World of Warcraft: Forever, the Classic+ line announced at BlizzCon 2026.
+Tools for World of Warcraft: Forever, the Classic+ line announced at BlizzCon 2026.
 
 1. **Talent calculator** for all nine classes, with a side-by-side Classic comparison.
 2. **Raid planner** that takes a roster by name and spec and tells you which buffs,
    debuffs, dispels and cooldowns it actually covers, which ones overwrite each
    other, and how many debuff slots are left on the boss.
-3. **Gear and DPS**, which reads your character out of the game, simulates the
+3. **Roster mode**, the same page pointed at a real Discord event: the people who
+   signed up, seated by the raid leader and told where they stand when it is published.
+4. **Gear and DPS**, which reads your character out of the game, simulates the
    fight thousands of times, measures what each stat is worth to you, and ranks
    everything you already own slot by slot.
 
-Static site. No server, no database, no build-time API calls.
+A static site with no backend of its own. Roster mode and signing in talk to the
+Group Builder bot's API; nothing else makes a network call beyond loading the page's
+own data files. See [ROSTER-SPEC.md](ROSTER-SPEC.md) and [AUTH-SPEC.md](AUTH-SPEC.md).
 
 ## Getting started
 
@@ -22,13 +26,15 @@ npm install
 npm run dev
 ```
 
-Then open http://localhost:5273. Four pages: `/`, `/talents.html`, `/raid.html`, `/dps.html`.
+Then open http://localhost:5273. The pages are `/`, `/talents.html`, `/raid.html`
+(planner and roster mode), `/dps.html` and `/privacy.html`.
 
-## The three commands that matter
+## Commands
 
 | Command | What it does |
 |---|---|
-| `npm run import` | Fetches `talentsforever.com/data.json` into `public/data/` and rebuilds the asset manifest |
+| `npm test` | Runs the test suite |
+| `npm run import` | Fetches `talentsforever.com/data.json` into `public/data/`, rebuilds the asset manifest and scrubs source notes |
 | `npm run assets` | Downloads any icon or tree background the manifest names but `public/assets/` does not have |
 | `npm run addon` | Packs `addon/WoWForeverSync` into the zip the gear page hands out |
 | `npm run build` | Packs the addon, typechecks, then writes the static site to `dist/` |
@@ -56,8 +62,9 @@ typeface: fine to use from a copy you own, but check your licence before publish
 site anywhere public. Delete the file and the site falls back to **Alegreya** from
 Google Fonts, which is close and still looks right.
 
-`ARIALN.TTF` is optional and only affects counters. A font installed in Windows is
-picked up too, since each rule tries `local()` before the file.
+Counters use Arial Narrow when it is installed on the visitor's machine, and Alegreya when
+it is not. No copy ships and there is no file to drop in. An installed Friz Quadrata or
+Morpheus is picked up too, since those rules try `local()` before the file.
 
 The rules live in `src/styles/fonts.css`. It loads files by absolute path
 (`/assets/fonts/...`), so a deploy into a subdirectory needs those paths adjusted.
@@ -77,23 +84,31 @@ game. When the source site rebuilds from the beta client:
 ## Layout
 
 ```
-index.html / talents.html / raid.html   the four pages
-dps.html
+index.html / talents.html / raid.html   the pages
+dps.html / privacy.html
+public/data/items.json                  optional item list for the drop finder; not shipped
 public/data/talents.generated.json      imported talent data
 public/assets/icons, public/assets/bg   Blizzard icons and tree backgrounds
 scripts/                                import, asset fetch, icon collection
-src/shared/                             classes and specs, icons, tooltip, storage, header
+src/shared/                             classes and specs, icons, tooltip, storage, header, session, focus
 src/talents/                            build rules, URL codec, rendering, sections
 src/raid/                               types, categories, effects, engine, suggestions, export, UI
 src/raid/groupbuilder.ts                reads signups from the Discord bot
+src/raid/roster-mode.ts                 roster mode's API calls, saver and publish; the only raid file that uses the network
+src/raid/handoff.ts                     one planned player's raid buffs, as a link to the gear page
 src/raid/effects/                       one file per class, the hand-maintained catalog
 src/dps/                                export format, importer, stat model, gear ranking, UI
+src/dps/config.ts                       the one builder every simulation config goes through
+src/dps/validate.ts, fight.ts           what links and saved settings must look like, and fight migration
+src/dps/draft.ts                        the character kept whole on this device, bags and bank included
+src/dps/handoff.ts                      a player from the planner: which buffs apply, which are not simulated
 src/dps/sim/                            the simulator: rolls, event queue, auras, the fight
-src/dps/sim/specs/                      one file per spec; frost mage and both warrior trees
+src/dps/sim/specs/                      one file per spec, registered in index.ts
 src/dps/data/                           the editable numbers: spells, buffs, conversions
 addon/WoWForeverSync/                   the in-game addon that exports your character
 addon/RELEASING.md                      how to publish it, and the CurseForge caveat
-tests/                                  build, catalog, engine and suggestion tests
+tests/                                  vitest suite for every page and the addon
+.github/workflows/                      site tests and build on push; addon release on tag
 ```
 
 ## How the raid engine decides things
@@ -110,8 +125,8 @@ tests/                                  build, catalog, engine and suggestion te
   overwrite each other share a slot. Damage-over-time effects only count when the player
   says they will keep them up.
 
-The cap defaults to 16, the Classic number. Forever has not confirmed its own limit, so
-the toolbar lets you change it.
+There is no cap by default. Classic's was 16, but Forever has not confirmed its own, so
+the toolbar lets you set one and the planner then warns when the raid goes over it.
 
 ## Spell text
 
@@ -212,9 +227,10 @@ A new spec is one file in `src/dps/sim/specs`, registered in the index beside it
 It declares its abilities, a hook per talent keyed by the name the talent data
 uses, a rotation as a priority list, and which stats the weight pass should
 measure. Nothing in the engine needs to change unless the spec needs a mechanic it
-has never seen. Energy ticks and combo points are built and tested against a spec
-invented for the purpose; what the remaining classes will still bring is
-snapshotting damage over time, ranged swing timers and weapon procs.
+has never seen.
+
+The index is the list of what is written. The gear page reads it to say which specs
+it can run, so that sentence cannot fall behind; this file does not repeat it.
 
 ### Where the numbers came from
 
@@ -229,12 +245,20 @@ All of it lives in `src/dps/data`. Every entry carries a status, the results pan
 repeats the warning, and when the beta contradicts something the tag changes rather
 than the number quietly moving.
 
-**What is not modelled yet:** use and proc effects on trinkets and weapons, and
-anything a frozen target would change, since a boss cannot be frozen. The boss also
-loses health evenly over the fight rather than at the rate a real pull goes down,
-which is what decides when Execute becomes available. Each of those is listed in
-the panel that would otherwise overstate your damage, along with every talent in
-your build that has no hook behind it.
+**Trinkets and weapon procs** are read off the tooltip the addon scanned, by a
+handful of patterns in `src/dps/data/item-effects.ts`. A line none of them
+recognises is named in the results notes, and the figure leaves it out rather than
+guessing.
+
+**What is not modelled yet:** anything a frozen target would change, since a boss
+cannot be frozen. The boss also loses health evenly over the fight rather than at the
+rate a real pull goes down, which is what decides when Execute becomes available.
+Each of those is listed in the panel that would otherwise overstate your damage,
+along with every talent in your build that has no hook behind it.
+
+**Saved runs record the simulator that made them.** A report link carries a
+fingerprint of the simulator files. Opened by a build whose simulator has changed
+since, it shows the figures as they were and leaves out the fight replay.
 
 ## Talking to a Discord bot
 
@@ -257,6 +281,19 @@ A bot can do all of this without a browser: the roster travels entirely in the U
 so `decodeRoster(hash)` turns a pasted link back into a roster and `encodeRoster` turns
 one into a link. None of those modules touch the DOM.
 
+## From the planner to the gear page
+
+A seated player's loadout drawer has a link to the gear page carrying the raid buffs, party
+buffs and boss debuffs that player gets in that raid. The gear page lists them in three
+groups: what the simulator would tick, what it has but does nothing for that kind of
+character, and what it does not model at all. Nothing is ticked until the person presses
+the button, and consumables are left alone.
+
+Talents are not carried over. The addon's export was measured with the character's own
+talents, and the stat baseline comes from that sheet, so simulating a different build on
+top of it would describe a character that does not exist. A buff that was up at export is
+already in the sheet and is not added again.
+
 ## Sharing
 
 Both tools put their whole state in the URL.
@@ -265,7 +302,10 @@ Both tools put their whole state in the URL.
   This is the same shape talentsforever.com uses, so links paste in either direction.
 - Raid: the roster is compressed into the hash, names and loadouts included.
 - Gear: the character sheet, talents and worn gear are compressed into the hash. Bags
-  and the bank stay on the device, because a full bank does not fit in a link.
+  and the bank stay on the device, because a full bank does not fit in a link; reloading
+  the same link on that device gets them back.
+- Roster mode is never shared this way. Its link is signed by the bot and its token stays
+  in the fragment.
 
 Saved builds, rosters and characters also live in `localStorage` on that one device.
 
@@ -274,7 +314,8 @@ Saved builds, rosters and characters also live in `localStorage` on that one dev
 `npm run build` writes a static `dist/`. It uses relative paths, so it works from any
 subdirectory.
 
-- **Cloudflare Pages**: build command `npm run build`, output directory `dist`.
+- **Cloudflare Pages**: build command `npm run build`, output directory `dist`. The live
+  site at https://wowforever.us deploys from `master`.
 - **GitHub Pages**: push `dist/` to the `gh-pages` branch, or point Pages at it.
 - **Anywhere else**: copy `dist/` to any static host.
 
@@ -284,15 +325,18 @@ subdirectory.
 npm test
 ```
 
-Covers the talent point rules and URL round trip, the effect catalog's integrity
+`.github/workflows/site.yml` runs the tests and the build on every push and pull request.
+
+Covers the talent point rules, legality and URL round trip, the effect catalog's integrity
 (unique ids, real categories, real spec ids, two-way exclusivity, a downloaded icon
 for every effect), and the raid engine's scope, exclusivity, choice and debuff-slot
 behaviour, plus the swap suggestions and the Discord export.
 
 For the gear tools it covers the export format and its importer, the random number
 generator and the event queue, the combat tables against their known values, the
-stat model, and the frost mage against damage figures worked out by hand rather
-than recorded from an earlier run. The addon is covered too: there is no Forever
+stat model, gear search and report links, and every written spec, with the frost mage
+checked against damage figures worked out by hand rather than recorded from an earlier
+run. Roster mode's saving and publishing are tested against a mocked network. The addon is covered too: there is no Forever
 client to install it in, so the suite loads its Lua into a Lua virtual machine,
 stubs the game around it, and checks that what comes out is something the importer
 reads.

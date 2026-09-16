@@ -67,6 +67,17 @@ const waiting = new Map<number, { resolve: (shard: Shard) => void; reject: (err:
  * progress bar moves straight away.
  */
 let msPerIteration = 5;
+/** Whether msPerIteration has been measured yet, or is still the opening guess. */
+let measured = false;
+
+/**
+ * How fast one worker gets through an iteration, and how many work at once. The rate is
+ * per worker, so an estimate divides the work by the count. Before any slice has come
+ * back the rate is only the opening guess, and says so.
+ */
+export function poolTiming(): { msPerIteration: number; workers: number; measured: boolean } {
+  return { msPerIteration, workers: workersAvailable() ? poolSize() : 1, measured };
+}
 
 function chunkSize(): number {
   const size = Math.round(TARGET_MS / Math.max(0.01, msPerIteration));
@@ -196,7 +207,10 @@ export async function runJobs(jobs: Job[], opts: RunOptions = {}): Promise<JobRe
         // the next one is sized to take about as long as intended.
         const count = next.end - next.start;
         const elapsed = Date.now() - began;
-        if (count > 0 && elapsed > 0) msPerIteration = elapsed / count;
+        if (count > 0 && elapsed > 0) {
+          msPerIteration = elapsed / count;
+          measured = true;
+        }
 
         record(next.job.jobId, shard, count);
       }

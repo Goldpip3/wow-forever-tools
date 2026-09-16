@@ -95,6 +95,94 @@ export function prereqMet(tree: Tree, ranks: number[], talentIdx: number): RuleR
   return { ok: true };
 }
 
+/** Points spent in the rows above this one. Only those open it; its own points do not. */
+export function pointsAboveRow(tree: Tree, ranks: number[], row: number): number {
+  let sum = 0;
+  tree.talents.forEach((t, i) => {
+    if (t.row < row) sum += ranks[i] ?? 0;
+  });
+  return sum;
+}
+
+/**
+ * Whether one tree's ranks could exist in the game: no rank past its maximum, every talent
+ * with points has enough spent in the rows above it, and every prerequisite is maxed.
+ *
+ * The one statement of the rules. Adding, removing, decoding a link and lowering the level
+ * all answer to it, so none of them can let through what another refuses.
+ */
+export function treeLegal(tree: Tree, ranks: number[]): RuleResult {
+  for (let i = 0; i < tree.talents.length; i += 1) {
+    const rank = ranks[i] ?? 0;
+    const t = tree.talents[i]!;
+    if (!Number.isInteger(rank) || rank < 0) {
+      return { ok: false, reason: t.name + ' has a rank that is not a whole number of points' };
+    }
+    if (rank === 0) continue;
+    if (rank > t.max) return { ok: false, reason: t.name + ' has ' + t.max + ' ranks at most' };
+    const needed = rowRequirement(t.row);
+    if (pointsAboveRow(tree, ranks, t.row) < needed) {
+      return { ok: false, reason: t.name + ' needs ' + needed + ' points in the rows above it' };
+    }
+    const prereq = prereqMet(tree, ranks, i);
+    if (!prereq.ok) return { ok: false, reason: t.name + ': ' + prereq.reason };
+  }
+  return { ok: true };
+}
+
+/** Whether the whole build could exist: every tree legal and no more spent than the level gives. */
+export function buildLegal(cls: ClassTalents, build: BuildState): RuleResult {
+  if (totalSpent(build.ranks) > pointsForLevel(build.level)) {
+    return { ok: false, reason: 'More points spent than level ' + build.level + ' gives' };
+  }
+  for (let t = 0; t < cls.trees.length; t += 1) {
+    const check = treeLegal(cls.trees[t]!, build.ranks[t] ?? []);
+    if (!check.ok) return check;
+  }
+  return { ok: true };
+}
+
+/**
+ * The nearest legal build to the one given, and how many points it had to leave out.
+ *
+ * Talents are kept tree by tree, top row first, each only as far as the rules above and the
+ * level's points allow. A build that was already legal comes back unchanged. When the level
+ * is short, the points that go are the last ones: the lowest rows of the last tree.
+ */
+export function legalize(cls: ClassTalents, build: BuildState): { build: BuildState; dropped: number } {
+  const ranks = emptyRanks(cls);
+  let budget = pointsForLevel(build.level);
+  cls.trees.forEach((tree, t) => {
+    const order = tree.talents
+      .map((talent, i) => ({ talent, i }))
+      .sort((a, b) => a.talent.row - b.talent.row || a.talent.col - b.talent.col);
+    // Again until nothing changes, for a prerequisite that sits to the right in its own row.
+    for (let changed = true; changed; ) {
+      changed = false;
+      for (const { talent, i } of order) {
+        if (ranks[t]![i]) continue;
+        const raw = build.ranks[t]?.[i] ?? 0;
+        const wanted = Number.isFinite(raw) ? Math.max(0, Math.min(talent.max, Math.floor(raw))) : 0;
+        if (!wanted || budget <= 0) continue;
+        if (pointsAboveRow(tree, ranks[t]!, talent.row) < rowRequirement(talent.row)) continue;
+        if (!prereqMet(tree, ranks[t]!, i).ok) continue;
+        const take = Math.min(wanted, budget);
+        ranks[t]![i] = take;
+        budget -= take;
+        changed = true;
+      }
+    }
+  });
+  const dropped = totalSpent(build.ranks) - totalSpent(ranks);
+  return { build: { ...build, ranks }, dropped: Math.max(0, dropped) };
+}
+
+function withRank(build: BuildState, treeIdx: number, talentIdx: number, delta: number): Ranks {
+  return build.ranks.map((tree, t) =>
+    t === treeIdx ? tree.map((r, i) => (i === talentIdx ? r + delta : r)) : tree,
+  );
+}
+
 export function canAdd(
   cls: ClassTalents,
   build: BuildState,
@@ -113,13 +201,14 @@ export function canAdd(
     return { ok: false, reason: 'All points are spent. Take one back first.' };
   }
 
-  const spentInTree = treeTotal(build.ranks, treeIdx);
   const needed = rowRequirement(talent.row);
-  if (spentInTree < needed) {
+  if (pointsAboveRow(tree, ranks, talent.row) < needed) {
     return { ok: false, reason: 'Requires ' + needed + ' points in ' + tree.name };
   }
 
-  return prereqMet(tree, ranks, talentIdx);
+  const prereq = prereqMet(tree, ranks, talentIdx);
+  if (!prereq.ok) return prereq;
+  return treeLegal(tree, withRank(build, treeIdx, talentIdx, 1)[treeIdx]!);
 }
 
 export function canRemove(
@@ -146,17 +235,9 @@ export function canRemove(
     }
   }
 
-  // Dropping below a row threshold would strand points spent in rows above.
-  const after = treeTotal(build.ranks, treeIdx) - 1;
-  for (let i = 0; i < tree.talents.length; i += 1) {
-    if (i === talentIdx) continue;
-    const t = tree.talents[i]!;
-    if ((ranks[i] ?? 0) > 0 && after < rowRequirement(t.row)) {
-      return { ok: false, reason: t.name + ' needs ' + rowRequirement(t.row) + ' points in ' + tree.name };
-    }
-  }
-
-  return { ok: true };
+  // Dropping below a row threshold would strand points spent further down the tree. Only
+  // the rows above a talent count toward it, so its own row's points cannot hold it open.
+  return treeLegal(tree, withRank(build, treeIdx, talentIdx, -1)[treeIdx]!);
 }
 
 export function addPoint(
@@ -210,7 +291,7 @@ export function cellState(
   const rank = build.ranks[treeIdx]?.[talentIdx] ?? 0;
   if (rank >= talent.max) return 'maxed';
   if (rank > 0) return 'learning';
-  const rowOpen = treeTotal(build.ranks, treeIdx) >= rowRequirement(talent.row);
+  const rowOpen = pointsAboveRow(tree, build.ranks[treeIdx] ?? [], talent.row) >= rowRequirement(talent.row);
   const prereq = prereqMet(tree, build.ranks[treeIdx] ?? [], talentIdx);
   return rowOpen && prereq.ok ? 'open' : 'locked';
 }

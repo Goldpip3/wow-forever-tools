@@ -1,0 +1,77 @@
+# Checks the site on every push and pull request. Separate from release.yml, which only
+# packages the addon when a tag is pushed.
+#
+# Cloudflare Pages builds and deploys master on its own. This is the check that says
+# whether that build should have happened. It deploys nothing and needs no secrets.
+
+name: Test and build the site
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Types, tests and build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone the project
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install from the lockfile
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Production build
+        run: npm run build
+
+  smoke:
+    name: Browser smoke tests
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - name: Clone the project
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install from the lockfile
+        run: npm ci
+
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Production build
+        run: npm run build
+
+      # Real simulation workers, storage across reloads, fresh-browser links and a mocked
+      # roster. Nothing reaches the network.
+      - name: Smoke tests
+        run: npm run e2e
+
+      - name: Keep the trace of a failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: test-results
+          retention-days: 7

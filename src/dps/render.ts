@@ -9,6 +9,7 @@ import { bgUrl, iconImg } from '../shared/icons';
 import { copyText } from '../shared/toast';
 import { ADDON_INFO } from './addon-info';
 import { SAMPLES, sampleByKey } from './samples';
+import { supportedSpecsSentence } from './support';
 import type { ItemRef, Slot } from './export-format';
 import { SLOT_LABEL, STAT_KEYS, STAT_LABEL } from './export-format';
 import type { Character, ImportIssue } from './types';
@@ -243,8 +244,20 @@ export function renderHowTo(collapsed = false): HTMLElement {
 
 export function renderImportPanel(handlers: DpsHandlers, hasCharacter: boolean): HTMLElement {
   const panel = el('section', 'panel');
-  panel.appendChild(el('div', 'panel__head', hasCharacter ? 'Import another character' : 'Paste your export'));
+  panel.appendChild(el('div', 'panel__head', hasCharacter ? 'Import another character' : 'Try a sample, or paste your export'));
   const body = el('div', 'panel__body');
+
+  /* First visit: what works and a way to see it, before anything to install. */
+  if (!hasCharacter) {
+    body.appendChild(
+      el(
+        'p',
+        '',
+        'The simulator runs ' + supportedSpecsSentence() + '. Any class can load a character to see ' +
+          'its sheet and rank its gear. Load a sample to try it with no addon and no account.',
+      ),
+    );
+  }
 
   // A textarea wearing .btn inherited button padding and nowrap and came out as a narrow
   // box with a scrollbar. It is a field, so it is styled as one.

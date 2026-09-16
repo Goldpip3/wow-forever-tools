@@ -1,5 +1,5 @@
 import type { ClassTalents } from './types';
-import { MAX_LEVEL, MIN_LEVEL, emptyRanks, type BuildState, type Ranks } from './build';
+import { MAX_LEVEL, MIN_LEVEL, emptyRanks, legalize, totalSpent, type BuildState, type Ranks } from './build';
 
 /**
  * Build codes match talentsforever.com so their links can be pasted here and back:
@@ -91,9 +91,47 @@ export function ranksFromCode(cls: ClassTalents, parsed: ParsedCode): Ranks {
 }
 
 export function decode(cls: ClassTalents, input: string): BuildState | null {
+  return decodeChecked(cls, input)?.build ?? null;
+}
+
+/**
+ * Decode a link into a build the game would allow, and say how many points it had to
+ * leave out. A link is typed or pasted by anyone, so it can skip a row, miss a
+ * prerequisite or spend more than its level gives; none of that reaches the calculator.
+ */
+export function decodeChecked(
+  cls: ClassTalents,
+  input: string,
+): { build: BuildState; dropped: number } | null {
   const parsed = parseCode(input);
   if (!parsed) return null;
-  return { classKey: parsed.classKey, level: parsed.level, ranks: ranksFromCode(cls, parsed) };
+  const legal = legalize(cls, { classKey: parsed.classKey, level: parsed.level, ranks: ranksFromCode(cls, parsed) });
+  // Counted against the digits as written, so a 9 on a three-rank talent counts as six
+  // points left out rather than disappearing in the clamp.
+  const written = parsed.trees.reduce((sum, segment, t) => {
+    const count = cls.trees[t]?.talents.length ?? 0;
+    return sum + [...segment.slice(0, count)].reduce((n, c) => n + (Number.parseInt(c, 10) || 0), 0);
+  }, 0);
+  const dropped = Math.max(legal.dropped, written - totalSpent(legal.build.ranks));
+  return { build: legal.build, dropped };
+}
+
+/**
+ * A talent link as another page stores it, made legal.
+ *
+ * The raid planner keeps a player's build as the link itself. A link that already obeys
+ * the rules comes back exactly as it was written, short form and all, so nothing that
+ * worked before changes; one that does not comes back rewritten, with the count of points
+ * that had to go so the page can say so.
+ */
+export function legalCode(
+  cls: ClassTalents,
+  input: string,
+): { code: string; dropped: number } | null {
+  const checked = decodeChecked(cls, input);
+  if (!checked) return null;
+  if (!checked.dropped) return { code: input.trim(), dropped: 0 };
+  return { code: encode(checked.build), dropped: checked.dropped };
 }
 
 /** Just the tree digits, e.g. '05305213030510201-000...-000...'. */

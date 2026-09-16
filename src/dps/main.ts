@@ -1,7 +1,20 @@
 import { renderFooter, renderHeader } from '../shared/header';
-import { accountView, loadUser } from '../shared/session';
+import { accountView, loadUser, SIGN_IN_MESSAGE, takeSignInOutcome } from '../shared/session';
 import { copyText, toast } from '../shared/toast';
-import { KEY_CHARACTERS, KEY_PREFS, KEY_REPORTS, readJson, writeJson } from '../shared/storage';
+import {
+  KEY_CHARACTERS,
+  KEY_REPORTS,
+  hasStrings,
+  patchPrefs,
+  readList,
+  readPrefs,
+  writeJson,
+} from '../shared/storage';
+import { clearDraft, openCharacterLink, readDraft, writeDraft } from './draft';
+import { applyHandoff, decodeHandoff, planHandoff, type PlannerHandoff } from './handoff';
+import { renderHandoffPanel, type HandoffHandlers } from './render-handoff';
+import { defaultFight, migrateFight } from './fight';
+import { readDpsPrefs, type DpsPrefs } from './validate';
 import { attachTooltips } from '../shared/tooltip';
 import { CLASSES, specById } from '../shared/classes';
 import type { TalentData } from '../talents/types';
@@ -14,11 +27,11 @@ import { parseCharacterExport, parseCharacterValue } from './importer';
 import { buildCodeFromExport } from './talents';
 import {
   MAX_REPORTS, MAX_SAVED, decodeCharacter, decodeReport, encodeCharacter, encodeReport,
-  summarise, type Report, type SavedCharacter, type SavedReport,
+  SIM_REVISION, sameEngine, summarise, type Report, type SavedCharacter, type SavedReport,
 } from './codec';
 import { sampleByKey } from './samples';
 import {
-  DEFAULT_BUFFS, DEFAULT_CONSUMABLES, defaultsFor, type BuffKind, type BuffRole,
+  defaultsFor, type BuffKind, type BuffRole,
 } from './data/buffs';
 import { rankAll, upgrades, type SlotRanking } from './gear';
 import { dpsPerPoint, weightTable, normalise, type WeightResult, type WeightTable } from './weights';
@@ -29,12 +42,12 @@ import { traceIteration } from './sim/sim';
 import { buildNotes } from './sim/notes';
 import { targetStateFor } from './sim/target';
 import type { TraceEvent } from './sim/trace';
-import { deriveStatSheet } from './stats';
 import {
-  runCompare, runDroptimizer, runSimulation, runTopGear, runWeights,
+  configFor, runCompare, runDroptimizer, runSimulation, runTopGear, runWeights,
   type DropResult, type TopGearResult,
 } from './client';
-import { estimate, planTopGear } from './topgear';
+import { estimate, planTopGear, type TopGearPlan } from './topgear';
+import { poolTiming } from './pool';
 import { renderTopGearPanel, type TopGearHandlers } from './render-topgear';
 import { renderRotationPanel, type RotationHandlers } from './render-rotation';
 import { renderDropPanel, type DropHandlers } from './render-droptimizer';
@@ -42,6 +55,7 @@ import { loadItemDatabase, type ItemDatabase } from './itemdb';
 import { planDrops } from './droptimizer';
 import { linesOf, type RotationLine } from './sim/rotation';
 import {
+  el,
   itemForCell,
   itemTip,
   renderCharacterPanel,
@@ -68,18 +82,24 @@ import {
 
 const app = document.getElementById('app');
 
-/**
- * Bumped when the shape of a fight changes in a way migrateFight has to know.
- *
- * Declared up here rather than beside defaultFight because the module state
- * below calls that during bootstrap, and a const read before its own line is a
- * dead-zone error. This repo has now been caught by that four times.
- */
-const FIGHT_VERSION = 2;
-
 /* -------------------------------------------------------------------- state */
 
 let character: Character | null = null;
+/**
+ * Whether the character on screen belongs on this device: imported, loaded from a save, or
+ * recovered from the draft. Only then is it kept as the draft. A character opened from
+ * somebody's link or report is shown, and never written over the owner's draft.
+ */
+let characterOwned = false;
+/** A player sent over from the raid planner, shown until dismissed. Nothing is applied on arrival. */
+let handoff: PlannerHandoff | null = null;
+let handoffApplied = false;
+/** Which simulator made the result on screen: this build's, a report's, or null if not recorded. */
+let resultEngine: string | null = null;
+/** Set once the page has said this browser would not keep the draft, so it says it once. */
+let draftRefused = false;
+/** The same, for preferences. */
+let prefsRefused = false;
 let skipped: ImportIssue[] = [];
 let warnings: string[] = [];
 let talentData: TalentData | null = null;
@@ -94,8 +114,26 @@ const confirmed = new Map<string, SwapResult>();
 let busy: Busy | null = null;
 /** One fight from the last run, replayed for the timeline. */
 let trace: TraceEvent[] | null = null;
+/**
+ * What the result on screen was run with. Kept apart from the live settings, which can
+ * change after the run, so the replay and a shared report describe that run and no other.
+ */
+let resultInputs: RunInputs | null = null;
+/**
+ * Which set of inputs the results on screen belong to: character, fight, buffs, rotation.
+ * Every change to them goes through clearResults, which moves this on. A run remembers the
+ * number it started under and its answer is dropped if the number has moved, even if the
+ * run itself was not cancelled in time.
+ */
+let inputsVersion = 0;
+const startedUnder = new WeakMap<AbortController, number>();
 let topGear: TopGearResult | null = null;
 let topGearPerSlot = 3;
+/**
+ * The top-gear plan for the inputs it was made from. Drawing asks for it on every redraw,
+ * so it is made once per character, weight table and shortlist size rather than each time.
+ */
+let topGearPlanCache: { character: Character; perSlot: number; table: string; plan: TopGearPlan } | null = null;
 /** A rotation somebody wrote themselves, per spec. Empty means the spec's own. */
 let apl: RotationLine[] | null = null;
 /** How fast this machine turned out to be, so an estimate can be given. */
@@ -110,56 +148,21 @@ let running: AbortController | null = null;
 /** The slot whose other items are showing under the character sheet. */
 let openSlot: Slot | null = null;
 
-function defaultFight(): FightConfig {
-  return {
-    v: FIGHT_VERSION,
-    style: { kind: 'patchwerk' },
-    duration: 300,
-    iterations: 1000,
-    seed: 20260915,
-    target: { level: 63, armor: 0, resistance: 0, behind: true, canParry: false, canBlock: false },
-    buffs: [...DEFAULT_BUFFS],
-    debuffs: [],
-    consumables: [...DEFAULT_CONSUMABLES],
-  };
-}
-
 /* ------------------------------------------------------------------- prefs */
 
-interface DpsPrefs {
-  fight?: FightConfig;
-  overrides?: Record<number, WeightTable>;
-  rotation?: string;
-  /** Which kind of character the ticked buffs were picked for. */
-  role?: BuffRole;
-  /** Rotations somebody wrote themselves, by spec id. */
-  apl?: Record<number, RotationLine[]>;
-}
-
+/** This page's saved preferences, each part checked, and a wrong-shaped part left out. */
 function prefs(): DpsPrefs {
-  return readJson<{ dps?: DpsPrefs }>(KEY_PREFS, {}).dps ?? {};
+  return readDpsPrefs(readPrefs().dps);
 }
 
 function savePrefs(patch: DpsPrefs): void {
-  const all = readJson<Record<string, unknown>>(KEY_PREFS, {});
-  all.dps = { ...prefs(), ...patch };
-  writeJson(KEY_PREFS, all);
-}
-
-/**
- * Reads a fight that was written down earlier, whether in a link or in this
- * browser's preferences. Anything the shape has gained since is filled in from
- * the defaults rather than arriving undefined.
- */
-function migrateFight(saved: Partial<FightConfig> | undefined): FightConfig {
-  const base = defaultFight();
-  if (!saved) return base;
-  const merged: FightConfig = { ...base, ...saved, target: { ...base.target, ...saved.target } };
-  // A fight written before styles existed was a Patchwerk fight, because that
-  // was the only thing the engine could do.
-  if (!merged.style) merged.style = { kind: 'patchwerk' };
-  merged.v = FIGHT_VERSION;
-  return merged;
+  if (patchPrefs({ dps: { ...prefs(), ...patch } as Record<string, unknown> })) return;
+  if (prefsRefused) return;
+  prefsRefused = true;
+  window.setTimeout(
+    () => toast('This browser would not save your settings, so they will reset when the page reloads.', 5000),
+    0,
+  );
 }
 
 function loadPrefs(): void {
@@ -169,7 +172,7 @@ function loadPrefs(): void {
 }
 
 function savedCharacters(): SavedCharacter[] {
-  return readJson<SavedCharacter[]>(KEY_CHARACTERS, []);
+  return readList(KEY_CHARACTERS, (v): v is SavedCharacter => hasStrings(v, ['id', 'name', 'code']));
 }
 
 /* ------------------------------------------------------------------ import */
@@ -180,6 +183,17 @@ function classTalentsFor(id: string) {
 
 function syncHash(): void {
   suppressHash = true;
+  // The link drops bags and bank. A character that belongs here is kept whole as the draft,
+  // so a reload of its link gets them back. See draft.ts for which one opens when.
+  if (!character) clearDraft();
+  else if (characterOwned && !writeDraft(character.source) && !draftRefused) {
+    draftRefused = true;
+    // After whatever the import says about itself, so this is the notice left on screen.
+    window.setTimeout(() => toast(
+      'This browser would not keep a copy of your bags and bank, so a reload will lose them.',
+      6000,
+    ), 0);
+  }
   const next = character ? '#c=' + encodeCharacter(character.source, { trim: true }) : '';
   history.replaceState(null, '', location.pathname + location.search + next);
   window.setTimeout(() => {
@@ -192,10 +206,24 @@ function update(): void {
   draw();
 }
 
-/** A new character invalidates everything that was worked out for the old one. */
+interface RunInputs {
+  fight: FightConfig;
+  rotation: string;
+  apl: RotationLine[] | null;
+}
+
+/**
+ * Everything worked out for the character: the run, its replay, the weights, the swaps
+ * checked, the best loadouts and the drops. They all rest on the fight, the rotation and
+ * the character, so a change to any of those clears all of them together. Clearing some
+ * left the rest to reappear once new weights arrived, still describing the old fight.
+ */
 function clearResults(): void {
+  inputsVersion += 1;
   cancelRun();
   result = null;
+  resultInputs = null;
+  resultEngine = null;
   trace = null;
   topGear = null;
   drops = null;
@@ -240,6 +268,7 @@ function guessClassKey(text: string): string {
 function importFromText(text: string): void {
   const imported = parseCharacterExport(text, classTalentsFor(guessClassKey(text)));
   if (!adopt(imported)) return;
+  characterOwned = true;
   update();
   const spec = specById(character!.specId);
   toast('Read ' + character!.source.name + ', ' + (spec ? spec.name + ' ' : '') + CLASSES[character!.classId].name);
@@ -271,16 +300,18 @@ function fail(err: unknown): void {
 function startRun(label: string, total: number): AbortController {
   running?.abort();
   running = new AbortController();
+  startedUnder.set(running, inputsVersion);
   busy = { label, done: 0, total };
   draw();
   return running;
 }
 
+/** Whether a run's answer may be shown: it is still the run, and the inputs have not moved. */
 function finished(controller: AbortController): boolean {
   if (running !== controller) return false;
   running = null;
   busy = null;
-  return true;
+  return startedUnder.get(controller) === inputsVersion;
 }
 
 /** Throws out whatever is running, for when the answer would be about the old character. */
@@ -303,8 +334,9 @@ function runSim(): void {
   const controller = startRun('Simulating', fight.iterations);
 
   const began = Date.now();
-  runSimulation(character, { ...fight }, rotation, {
-    ...(apl ? { apl } : {}),
+  const inputs: RunInputs = { fight: { ...fight }, rotation, apl };
+  runSimulation(character, inputs.fight, inputs.rotation, {
+    ...(inputs.apl ? { apl: inputs.apl } : {}),
     signal: controller.signal,
     onProgress: progressInto('Simulating', controller),
   })
@@ -312,7 +344,9 @@ function runSim(): void {
       msPerIteration = (Date.now() - began) / Math.max(1, fight.iterations);
       if (!finished(controller)) return;
       result = res;
-      trace = replayMiddle(res);
+      resultInputs = inputs;
+      resultEngine = SIM_REVISION;
+      trace = replayMiddle(res, inputs);
       rememberReport(res);
       draw();
     })
@@ -324,19 +358,19 @@ function runSim(): void {
  * kept this time. The seed is the whole of the randomness, so this is not a
  * similar fight, it is that fight.
  */
-function replayMiddle(res: SimResult): TraceEvent[] | null {
+function replayMiddle(res: SimResult, inputs: RunInputs): TraceEvent[] | null {
   if (!character) return null;
   const spec = specModule(character.specId);
   if (!spec) return null;
   try {
-    const single = { ...fight, iterations: 1 };
-    const config = {
-      specId: character.specId,
-      stats: deriveStatSheet(character, single),
-      talents: character.talentRanks,
-      fight: single,
-      ...(rotation ? { rotation } : {}),
-    };
+    // The same config the run was given, trinkets and written rotation included, or the
+    // replayed fight is a different fight wearing the same seed.
+    const config = configFor(
+      character,
+      { ...inputs.fight, iterations: 1 },
+      inputs.rotation,
+      inputs.apl ?? undefined,
+    );
     return traceIteration(config, spec, res.representative.seed);
   } catch {
     // A picture is worth having and never worth failing a run over.
@@ -347,15 +381,19 @@ function replayMiddle(res: SimResult): TraceEvent[] | null {
 /* ------------------------------------------------------------------ reports */
 
 function savedReports(): SavedReport[] {
-  return readJson<SavedReport[]>(KEY_REPORTS, []);
+  return readList(KEY_REPORTS, (v): v is SavedReport =>
+    hasStrings(v, ['id', 'name', 'code']) && typeof v.dps === 'number');
 }
 
 function reportFor(res: SimResult): Report | null {
-  if (!character) return null;
+  if (!character || !resultInputs) return null;
+  const { fight: ran, rotation: ranRotation, apl: ranApl } = resultInputs;
   return {
     character: character.source,
-    fight: { ...fight },
-    ...(rotation ? { rotation } : {}),
+    fight: { ...ran },
+    ...(ranRotation ? { rotation: ranRotation } : {}),
+    ...(ranApl?.length ? { apl: ranApl } : {}),
+    engine: SIM_REVISION,
     summary: summarise(res),
   };
 }
@@ -392,27 +430,42 @@ function openReport(code: string): boolean {
   if (!adopt(parseCharacterValue(report.character, classTalentsFor(report.character.classId)), true)) {
     return false;
   }
+  // A report opens what it holds. It is not this device's character.
+  characterOwned = false;
 
   fight = migrateFight(report.fight);
   if (report.rotation) rotation = report.rotation;
+  const current = sameEngine(report);
+  const recorded = !!report.engine;
+  // The report's own inputs, never this device's. A report that recorded a written rotation
+  // brings it. One from before that was recorded is shown with the spec's own, and says so
+  // below. The device's saved rotation is left as it was either way.
+  apl = recorded && report.apl?.length ? report.apl : null;
+  resultInputs = { fight: { ...fight }, rotation, apl };
 
   // The summary carries everything but the notes, which are rebuilt from the
   // spec and the fight so an old link picks up a caveat added since.
   const spec = specModule(character!.specId);
-  result = {
-    ...report.summary,
-    notes: spec ? buildNotes(
-      {
-        specId: character!.specId,
-        stats: deriveStatSheet(character!, fight),
-        talents: character!.talentRanks,
-        fight,
-      },
-      spec,
-      targetStateFor(fight),
-    ) : [],
-  };
-  trace = replayMiddle(result);
+  const notes = spec
+    ? buildNotes(configFor(character!, fight, rotation, apl ?? undefined), spec, targetStateFor(fight))
+    : [];
+  if (!recorded) {
+    notes.unshift(
+      'This link is from before the page recorded which simulator made a run and whether it used ' +
+        'a written rotation. The figures are what it gave then. The fight timeline is left out, and ' +
+        'the rotation shown is the spec’s own, which may not be what it ran. Simulate again for a ' +
+        'current figure.',
+    );
+  } else if (!current) {
+    notes.unshift(
+      'This run was made by an earlier version of the simulator. The figures are what it gave ' +
+        'then. The fight timeline is left out because this version would not replay the same ' +
+        'fight. Simulate again for a current figure.',
+    );
+  }
+  result = { ...report.summary, notes };
+  resultEngine = report.engine ?? null;
+  trace = current ? replayMiddle(result, resultInputs) : null;
   return true;
 }
 
@@ -509,6 +562,7 @@ const handlers: DpsHandlers = {
       return;
     }
     if (!adopt(parseCharacterValue(source, classTalentsFor(source.classId)))) return;
+    characterOwned = true;
     update();
     toast('Loaded ' + entry.name);
   },
@@ -545,10 +599,7 @@ const rotationHandlers: RotationHandlers = {
     if (!character) return;
     apl = lines;
     savePrefs({ apl: { ...prefs().apl, [character.specId]: lines } });
-    cancelRun();
-    result = null;
-    trace = null;
-    topGear = null;
+    clearResults();
     draw();
   },
 
@@ -558,22 +609,43 @@ const rotationHandlers: RotationHandlers = {
     const saved = { ...prefs().apl };
     delete saved[character.specId];
     savePrefs({ apl: saved });
-    cancelRun();
-    result = null;
-    trace = null;
-    topGear = null;
+    clearResults();
     draw();
   },
 };
 
+/** The plan for these inputs, made once and kept until one of them changes. */
+function topGearPlanFor(table: WeightTable, perSlot: number): TopGearPlan {
+  const key = JSON.stringify(table);
+  const cached = topGearPlanCache;
+  if (cached && cached.character === character && cached.perSlot === perSlot && cached.table === key) {
+    return cached.plan;
+  }
+  const plan = planTopGear(character!, table, perSlot);
+  topGearPlanCache = { character: character!, perSlot, table: key, plan };
+  return plan;
+}
+
+/** How fast this machine runs, per worker, and how many workers there are. */
+function speed(): { msPerIteration: number; workers: number } {
+  const pool = poolTiming();
+  // The pool's own rate is per worker once it has measured one. Before that, the last
+  // whole run's wall-clock rate already includes however many workers ran it.
+  return pool.measured
+    ? { msPerIteration: pool.msPerIteration, workers: pool.workers }
+    : { msPerIteration, workers: 1 };
+}
+
 function runTopGearNow(perSlot: number): void {
   if (!character || busy || !weights) return;
   const table = weightTable(weights, overrides);
-  const plan = planTopGear(character, table, perSlot);
-  const label = 'Trying ' + plan.combinations.toLocaleString() + ' combinations';
-  const controller = startRun(label, plan.combinations * 300);
+  const plan = topGearPlanFor(table, perSlot);
+  const label = (plan.capped ? 'Trying the best ' : 'Trying ') + plan.combinations.toLocaleString() + ' combinations';
+  // Replaced by the real total as soon as the run reports; this is only the opening bar.
+  const controller = startRun(label, (1 + plan.combinations) * 300 + (1 + Math.min(5, plan.combinations)) * fight.iterations);
 
   runTopGear(character, { ...fight }, table, {
+    plan,
     perSlot,
     rotation,
     ...(apl ? { apl } : {}),
@@ -632,11 +704,8 @@ const fightHandlers: FightHandlers = {
   onFightChange: (patch) => {
     fight = { ...fight, ...patch };
     savePrefs({ fight });
-    // The old answer belonged to the old fight.
-    cancelRun();
-    result = null;
-    weights = null;
-    confirmed.clear();
+    // The old answers belonged to the old fight.
+    clearResults();
     draw();
   },
 
@@ -645,19 +714,14 @@ const fightHandlers: FightHandlers = {
     const current = fight[key];
     fight = { ...fight, [key]: on ? [...current, id] : current.filter((b) => b !== id) };
     savePrefs({ fight });
-    cancelRun();
-    result = null;
-    weights = null;
-    confirmed.clear();
+    clearResults();
     draw();
   },
 
   onRotation: (name) => {
     rotation = name;
     savePrefs({ rotation });
-    cancelRun();
-    result = null;
-    weights = null;
+    clearResults();
     draw();
   },
 
@@ -675,7 +739,11 @@ const fightHandlers: FightHandlers = {
     if (character) {
       savePrefs({ overrides: { ...prefs().overrides, [character.specId]: overrides } });
     }
+    // Recommendations were ranked with the old weights, so they go with them. The damage
+    // figure and the weights measured by the simulator do not depend on an override.
     confirmed.clear();
+    topGear = null;
+    drops = null;
     draw();
   },
 
@@ -742,9 +810,12 @@ function draw(): void {
     account: accountView(draw),
   });
 
+  if (handoff) app.appendChild(renderHandoffPanel(handoffView(), handoffHandlers));
+
   if (!character) {
-    app.appendChild(renderHowTo());
+    // A sample first: seeing the tool work comes before installing anything for it.
     app.appendChild(renderImportPanel(handlers, false));
+    app.appendChild(renderHowTo());
     const saved = savedCharacters();
     if (saved.length) app.appendChild(renderSavedOnly(saved));
     const recent = renderRecentRuns();
@@ -776,11 +847,12 @@ function draw(): void {
     );
   }
   if (table && module) {
-    const plan = planTopGear(character, table, topGearPerSlot);
-    const guess = estimate(plan.combinations, 300, msPerIteration, 8);
+    const plan = topGearPlanFor(table, topGearPerSlot);
+    const guess = estimate({ combinations: plan.combinations, first: 300, final: fight.iterations, ...speed() });
     left.appendChild(
       renderTopGearPanel(
         plan.combinations,
+        plan.capped,
         guess.seconds,
         topGearPerSlot,
         topGear,
@@ -824,6 +896,16 @@ function draw(): void {
             : module.resource === 'energy' ? 'Energy, all the way through' : 'Mana, all the way through',
           onCopyReport: copyReportLink,
         }),
+      );
+      right.appendChild(
+        el(
+          'p',
+          'drawer__hint',
+          resultEngine
+            ? 'Simulator version ' + resultEngine + (resultEngine === SIM_REVISION ? ', this page\u2019s own' : '') +
+              '. Spell and combat numbers are Classic values, unverified for Forever.'
+            : 'The simulator version that made this run was not recorded.',
+        ),
       );
     }
     if (weights) right.appendChild(renderWeightsPanel(weights, overrides, fightHandlers));
@@ -957,8 +1039,62 @@ function renderSavedOnly(saved: SavedCharacter[]): HTMLElement {
 
 /* -------------------------------------------------------------------- hash */
 
+function handoffView() {
+  const role = character ? specModule(character.specId)?.buffRole ?? 'caster' : null;
+  return {
+    handoff: handoff!,
+    plan: character && role ? planHandoff(handoff!, role) : null,
+    loadedSpecId: character?.specId ?? null,
+    loadedClassId: character?.classId ?? null,
+    role,
+    applied: handoffApplied,
+    hasDraft: !character && !!readDraft(),
+  };
+}
+
+const handoffHandlers: HandoffHandlers = {
+  onApply: () => {
+    if (!character || !handoff) return;
+    const plan = planHandoff(handoff, specModule(character.specId)?.buffRole ?? 'caster');
+    fight = applyHandoff(fight, plan);
+    savePrefs({ fight });
+    clearResults();
+    handoffApplied = true;
+    draw();
+  },
+  onDismiss: () => {
+    handoff = null;
+    draw();
+  },
+  onUseDraft: () => {
+    const code = readDraft();
+    const source = code ? decodeCharacter(code) : null;
+    if (!source || !adopt(parseCharacterValue(source, classTalentsFor(source.classId)))) {
+      toast('That character would not load');
+      return;
+    }
+    characterOwned = true;
+    update();
+  },
+};
+
 function readHash(): void {
   const hash = location.hash.replace(/^#/, '');
+
+  // A player from the raid planner. Shown, not applied, and taken out of the address so a
+  // reload does not bring it back after it was dismissed.
+  if (hash.startsWith('h=')) {
+    const arrived = decodeHandoff(hash);
+    history.replaceState(null, '', location.pathname + location.search);
+    if (arrived) {
+      handoff = arrived;
+      handoffApplied = false;
+    } else {
+      toast('That link from the raid planner would not open');
+    }
+    draw();
+    return;
+  }
 
   if (hash.startsWith('r=')) {
     if (!openReport(hash.slice(2))) {
@@ -974,13 +1110,15 @@ function readHash(): void {
     draw();
     return;
   }
-  const source = decodeCharacter(hash.slice(2));
-  if (!source) {
+  const opened = openCharacterLink(hash.slice(2));
+  if (!opened) {
     draw();
     toast('That link would not open');
     return;
   }
-  adopt(parseCharacterValue(source, classTalentsFor(source.classId)), true);
+  if (adopt(parseCharacterValue(opened.source, classTalentsFor(opened.source.classId)), true)) {
+    characterOwned = opened.recovered;
+  }
   draw();
 }
 
@@ -988,6 +1126,10 @@ window.addEventListener('hashchange', () => {
   if (suppressHash) return;
   readHash();
 });
+
+/* Back from signing in: read the outcome and put back the fragment before anything reads it. */
+const signIn = takeSignInOutcome();
+if (signIn) window.setTimeout(() => toast(SIGN_IN_MESSAGE[signIn]), 0);
 
 loadPrefs();
 readHash();

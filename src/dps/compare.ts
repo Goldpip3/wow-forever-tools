@@ -14,7 +14,7 @@
 import type { ItemRef, Slot } from './export-format';
 import { isTwoHanded } from './export-format';
 import { pairedSlot } from './gear';
-import { deriveStatSheet, effectsOn } from './stats';
+import { simConfig } from './config';
 import type { RotationLine } from './sim/rotation';
 import { dpsSeries } from './sim/sim';
 import type { SpecModule } from './sim/spec';
@@ -89,15 +89,7 @@ export function planCompare(
   const count = Math.max(1, Math.round(iterations ?? fight.iterations));
   const runFight: FightConfig = { ...fight, iterations: count };
 
-  const base: SimConfig = {
-    specId: character.specId,
-    stats: deriveStatSheet(character, runFight),
-    talents: character.talentRanks,
-    fight: runFight,
-    ...(rotation ? { rotation } : {}),
-    ...(apl?.length ? { apl } : {}),
-    ...effectsOn(character),
-  };
+  const base = simConfig({ character, fight: runFight, rotation, apl });
 
   return {
     base,
@@ -106,11 +98,7 @@ export function planCompare(
       const override = overrideFor(swap);
       return {
         swap,
-        config: {
-          ...base,
-          stats: deriveStatSheet(character, runFight, { gearOverride: override }),
-          ...effectsOn(character, override),
-        },
+        config: simConfig({ character, fight: runFight, rotation, apl, loadout: override }),
         clearedOffhand: override.offhand === null && swap.slot === 'mainhand',
       };
     }),

@@ -33,10 +33,20 @@ export function itemKey(item: ItemRef): string {
   return [item.id, item.enchant ?? 0, item.suffix ?? 0].join(':');
 }
 
-function sameItem(a: ItemRef | undefined, b: ItemRef | undefined): boolean {
+/**
+ * Whether two refs are the one physical item. Two copies of a ring share a key and are
+ * still two rings; one ring seen from two places is one.
+ */
+export function sameItem(a: ItemRef | null | undefined, b: ItemRef | null | undefined): boolean {
   if (!a || !b) return false;
   if (a.location.where !== b.location.where) return false;
   if (a.location.where === 'equipped') return a.location.slot === b.location.slot;
+  // Nothing from a drop list is owned, so there is no copy of it to tell apart.
+  if (a.location.where === 'database') return itemKey(a) === itemKey(b);
+  // An export that gave no bag position cannot say where each copy sits, so only the very
+  // same record counts as the same item. Treating every unplaced item as one would forbid
+  // wearing any two of them together.
+  if (a.location.index === undefined || b.location.index === undefined) return a === b;
   return a.location.bag === b.location.bag && a.location.index === b.location.index;
 }
 
@@ -62,6 +72,8 @@ export function candidatesFor(character: Character, slot: Slot): ItemRef[] {
   for (const item of character.owned) {
     if (!slotsFor(item.equipLoc).includes(slot)) continue;
     if (sameItem(item, worn)) continue;
+    // Another copy of exactly what is in the slot changes nothing.
+    if (worn && itemKey(item) === itemKey(worn)) continue;
     // The item on the other hand is that same item, not a second one.
     if (pairWorn && sameItem(item, pairWorn)) continue;
     if (blockedUniqueId !== null && item.id === blockedUniqueId) continue;

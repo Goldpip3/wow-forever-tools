@@ -16,8 +16,11 @@ import type { Upgrade } from './gear';
 import type { SwapResult } from './compare';
 import type { FightConfig, FightStyle, SimResult } from './sim/types';
 import type { SpecModule } from './sim/spec';
+import { supportedSpecsSentence } from './support';
 import { isNoisy, type WeightResult, type WeightTable } from './weights';
 import { el, qualityColor } from './render';
+
+export { supportedSpecsSentence };
 import {
   renderHistogram, renderResourceLine, renderTimeline, renderUptimes,
 } from './render-report';
@@ -640,8 +643,8 @@ export function renderUnsupported(specLabel: string): HTMLElement {
     el(
       'p',
       'drawer__hint',
-      'Frost Mage, Arms Warrior and Fury Warrior are the specs that work today. The rest of this ' +
-        'page, your sheet and your gear list, reads correctly for any class.',
+      'The simulator runs ' + supportedSpecsSentence() + ' today. The rest of this page, your ' +
+        'sheet and your gear list, reads correctly for any class.',
     ),
   );
   panel.appendChild(body);

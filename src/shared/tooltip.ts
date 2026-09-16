@@ -96,6 +96,31 @@ export function attachTooltips(
     hideTip(el);
   });
 
+  // A keyboard reaches the same things a pointer hovers, so focus shows the tip too,
+  // beside the element rather than at a cursor that is not there.
+  container.addEventListener('focusin', (ev) => {
+    const target = ev.target as Element | null;
+    const el = target ? match(target) : null;
+    if (!el) return;
+    const content = build(el);
+    if (!content) return;
+    const rect = el.getBoundingClientRect();
+    showTip(content, rect.right, rect.top, el);
+  });
+
+  container.addEventListener('focusout', (ev) => {
+    const target = ev.target as Element | null;
+    const el = target ? match(target) : null;
+    if (!el) return;
+    const next = (ev as FocusEvent).relatedTarget as Element | null;
+    if (next && el.contains(next)) return;
+    hideTip(el);
+  });
+
+  container.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape') hideTip();
+  });
+
   // On touch, refresh the sheet after a tap so the new rank shows.
   container.addEventListener('click', (ev) => {
     if (!isTouchLayout()) return;

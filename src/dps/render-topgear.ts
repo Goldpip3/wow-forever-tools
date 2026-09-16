@@ -93,6 +93,7 @@ function loadoutRow(entry: TopGearEntry, best: boolean): HTMLElement {
 
 export function renderTopGearPanel(
   combinations: number,
+  capped: boolean,
   seconds: number,
   perSlot: number,
   result: TopGearResult | null,
@@ -133,7 +134,11 @@ export function renderTopGearPanel(
   row.appendChild(field);
   body.appendChild(row);
 
-  const go = el('button', 'btn btn--gold', busy ? 'Working…' : 'Try them all');
+  const go = el(
+    'button',
+    'btn btn--gold',
+    busy ? 'Working…' : capped ? 'Try the best ' + combinations.toLocaleString() : 'Try them all',
+  );
   if (busy) go.setAttribute('disabled', '');
   go.addEventListener('click', () => handlers.onRun(perSlot));
 
@@ -145,8 +150,14 @@ export function renderTopGearPanel(
     el(
       'p',
       'drawer__hint',
-      combinations.toLocaleString() + ' combinations, ' + howLong(seconds) + ' on this machine. ' +
-        'The best five are run again properly; the rest are only ranked.',
+      (capped
+        ? 'There are more than ' + combinations.toLocaleString() + ' combinations. The ' +
+          combinations.toLocaleString() + ' that score best on your stat weights are run, ' +
+          howLong(seconds) + ' on this machine. That score leaves out set bonuses. '
+        : combinations.toLocaleString() + ' combinations, ' + howLong(seconds) + ' on this machine. ') +
+        'The best five are run again properly; the rest are only ranked. Weapons are not part ' +
+        'of this search: every combination keeps what you are holding, and the weapon choice ' +
+        'is ranked on its own in the gear list.',
     ),
   );
 
@@ -154,6 +165,16 @@ export function renderTopGearPanel(
     body.appendChild(
       el('p', 'drawer__hint', 'What you are wearing comes out at ' + round(result.baseDps, 1) + '.'),
     );
+    if (result.capped) {
+      body.appendChild(
+        el(
+          'p',
+          'drawer__hint',
+          'These are the best of the ' + result.combinations.toLocaleString() + ' combinations tried. ' +
+            'More were possible, so one that was not tried could still do better.',
+        ),
+      );
+    }
     const list = el('div', 'dcombos');
     result.entries.slice(0, 12).forEach((entry, i) => {
       list.appendChild(loadoutRow(entry, i === 0 && entry.delta > 0));

@@ -11,9 +11,12 @@
     "test:watch": "vitest",
     "import": "node scripts/import-talentsforever.mjs && node scripts/scrub-sources.mjs",
     "assets": "node scripts/fetch-assets.mjs",
-    "addon": "node scripts/pack-addon.mjs"
+    "addon": "node scripts/pack-addon.mjs",
+    "typecheck": "tsc --noEmit",
+    "e2e": "playwright test"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/node": "^26.5.1",
     "fengari": "^0.1.4",
     "typescript": "^5.6.3",

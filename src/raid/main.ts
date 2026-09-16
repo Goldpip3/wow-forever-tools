@@ -7,10 +7,14 @@ import {
   beginSignIn,
   signOut,
   SIGN_IN_MESSAGE,
+  SIGN_OUT_FAILED,
+  beforeSignOut,
+  onSignedOut,
   type Me,
 } from '../shared/session';
 import { copyText, toast } from '../shared/toast';
-import { KEY_ROSTERS, readJson, writeJson } from '../shared/storage';
+import { focusIntoDialog, focusKey, keepFocus, restoreFocus } from '../shared/focus';
+import { KEY_ROSTERS, hasStrings, readList, writeJson } from '../shared/storage';
 import { CLASSES, type ClassId } from '../shared/classes';
 import { GROUP_COUNT, GROUP_SIZE, type Player, type Roster } from './types';
 import { computeCoverage, emptyRoster } from './engine';
@@ -32,6 +36,8 @@ import {
   renderRosterBar,
   renderPublishConfirm,
   renderPublishResult,
+  renderSeatChooser,
+  renderGroupChooser,
   type RaidHandlers,
 } from './render';
 import {
@@ -40,9 +46,11 @@ import {
   explain,
   fetchRoster,
   makeGuest,
-  publishRoster,
   readRosterLink,
   slotsFrom,
+  snapshotOf,
+  rosterCounts,
+  publishWhenSaved,
   stateFromPayload,
   demoPayload,
   isDemo,
@@ -57,11 +65,13 @@ import {
   type SaveState,
 } from './roster-mode';
 import { renderDrawer } from './drawer';
-import { parseCode } from '../talents/codec';
+import { handoffFor, handoffLink } from './handoff';
+import { legalCode, parseCode } from '../talents/codec';
 import { applySuggestion, seatAll, suggestSwaps, type Suggestion } from './suggestions';
 import { asDiscordMessage, buildExport } from './export';
 import { looksLikeGroupBuilder, rosterFromSignups } from './groupbuilder';
-import { loadTalentData } from '../talents/data';
+import { classTalents, loadTalentData } from '../talents/data';
+import type { TalentData } from '../talents/types';
 import { initSpellText } from './spelltext';
 
 interface SavedRoster {
@@ -96,9 +106,28 @@ let link: RosterLink | null = null;
  * a 409 could not refetch. What a raid leader saw was their seating quietly reverting,
  * because the roster had only ever been saved the once.
  */
-let access: RosterAccess | null = null;
+/**
+ * One opened roster: the event's access, its state, its saver, and whether it is still the
+ * one on screen.
+ *
+ * Every network callback holds the session it started in and checks it is still current,
+ * so an answer for event A that lands after the page moved to B or to the demo is dropped
+ * rather than written into B. The saver collects from its own session's state, never from
+ * the page, so a save for A can only ever carry A's rows.
+ */
+interface RosterSession {
+  readonly id: number;
+  /** How this event is authorised. Null for the demo, which never reaches the network. */
+  readonly access: RosterAccess | null;
+  state: RosterState | null;
+  saver: Saver | null;
+  publishing: boolean;
+  closed: boolean;
+}
+let session: RosterSession | null = null;
+let sessionsOpened = 0;
+/** The open session's state, kept here because nearly every roster handler reads it. */
 let rosterState: RosterState | null = null;
-let saver: Saver | null = null;
 let saveState: SaveState = 'idle';
 let saveDetail: string | undefined;
 /** Where the hash pointed last, so a same-document turn knows which way it travelled. */
@@ -110,6 +139,10 @@ let docsRequested = false;
 let cachedDocs: CommandDocs | null = null;
 /** Open events per guild, filled in only when somebody asks for them. */
 let guildEvents: Record<string, GuildEvent[]> = {};
+/** The control focus goes back to when the open dialog or drawer closes. */
+let dialogReturn: string | null = null;
+/** The talent data, once it has loaded. Until then a pasted build is kept as written. */
+let talentData: TalentData | null = null;
 
 function el(tag: string, cls?: string, text?: string): HTMLElement {
   const node = document.createElement(tag);
@@ -119,7 +152,7 @@ function el(tag: string, cls?: string, text?: string): HTMLElement {
 }
 
 function savedRosters(): SavedRoster[] {
-  return readJson<SavedRoster[]>(KEY_ROSTERS, []);
+  return readList(KEY_ROSTERS, (v): v is SavedRoster => hasStrings(v, ['id', 'name', 'code']));
 }
 
 /* ------------------------------------------------------------ roster helpers */
@@ -153,19 +186,29 @@ function syncHash(): void {
   }, 0);
 }
 
-function update(): void {
+/**
+ * The one way any edit is recorded, in either mode.
+ *
+ * The planner writes the hash. A real roster queues a save a second after the last edit,
+ * so a rename, a spec, a talent toggle, a loadout pick, a move, a removal and an applied
+ * suggestion all reach the bot the same way. `redraw: false` is for a name typed in place,
+ * where redrawing would take the caret away.
+ */
+function update(opts: { redraw?: boolean } = {}): void {
+  const redraw = opts.redraw ?? true;
   if (mode === 'roster') {
-    rosterChanged();
+    if (redraw) draw();
+    session?.saver?.queue();
     return;
   }
   syncHash();
-  draw();
+  if (redraw) draw();
 }
 
-/** Any edit to a real roster: redraw at once, and save a second after the last one. */
-function rosterChanged(): void {
-  draw();
-  saver?.queue();
+/** A seat the raid's size actually uses. A real roster never seats anyone outside it. */
+function seatInRaid(group: number): boolean {
+  const size = rosterState?.roster.size ?? roster.size;
+  return group >= 0 && group < Math.min(Math.ceil(size / GROUP_SIZE), GROUP_COUNT);
 }
 
 /* --------------------------------------------------------------- sample raid */
@@ -193,15 +236,43 @@ function fillSample(): void {
 
 /* ------------------------------------------------------------------ handlers */
 
+/**
+ * Whether this page may change the roster on screen. The planner always may. A real
+ * roster may only when the bot said so. The bot still checks every write; this only
+ * stops the page offering what it would refuse.
+ */
+function mayEdit(): boolean {
+  return mode !== 'roster' || rosterEditable();
+}
+
+/**
+ * Whether the real roster on screen can be changed right now: the bot allows it, and no
+ * publish is under way. Edits are frozen while publishing, so what goes out is what the
+ * leader confirmed.
+ */
+function rosterEditable(): boolean {
+  return !!rosterState?.permissions.canEdit && !session?.publishing;
+}
+
 const handlers: RaidHandlers = {
-  onPickSeat: (group, slot) => openPicker(group, slot),
+  onPickSeat: (group, slot) => {
+    // A real seat holds a signup or a named guest, never a made-up spec that would not save.
+    if (mode === 'roster') {
+      if (mayEdit() && seatInRaid(group)) openSeatChooser(group, slot);
+      return;
+    }
+    openPicker(group, slot);
+  },
 
   onDropSpec: (classId, specId, group, slot) => {
+    if (mode === 'roster') return;
     roster.groups[group]![slot] = spreadChoices(createPlayer(classId, specId), onRoster());
     update();
   },
 
   onMovePlayer: (playerId, group, slot) => {
+    if (!mayEdit()) return;
+    if (mode === 'roster' && !seatInRaid(group)) return;
     const found = findPlayer(playerId);
     if (!found) return;
     const target = roster.groups[group]![slot] ?? null;
@@ -211,13 +282,14 @@ const handlers: RaidHandlers = {
   },
 
   onRemove: (group, slot) => {
+    if (!mayEdit()) return;
     // A real person is never deleted by clearing their seat: they go back to the pool,
     // where they are standby rather than silently gone from the roster entirely.
     if (mode === 'roster' && rosterState) {
       const sitting = rosterState.roster.groups[group]?.[slot] ?? null;
       rosterState.roster.groups[group]![slot] = null;
       if (sitting) returnToPool(sitting);
-      rosterChanged();
+      update();
       return;
     }
     roster.groups[group]![slot] = null;
@@ -225,29 +297,34 @@ const handlers: RaidHandlers = {
   },
 
   onRename: (playerId, name) => {
+    if (!mayEdit()) return;
     const found = findPlayer(playerId);
     if (!found) return;
     const clean = name.trim();
     if (clean === found.player.name) return;
     found.player.name = clean || found.player.name;
-    syncHash();
+    update({ redraw: false });
   },
 
   onOpenLoadout: (playerId) => openLoadout(playerId),
+  onChooseGroup: (playerId) => openGroupChooser(playerId),
   onFocusPlayer: (playerId) => openLoadout(playerId),
 
   onSize: (size) => {
+    if (mode === 'roster') return;
     roster.size = size;
     update();
   },
 
   onCap: (cap) => {
+    if (mode === 'roster') return;
     // 0 turns the limit off, which is the default.
     roster.settings.debuffCap = Math.max(0, Math.min(99, Math.round(cap) || 0));
     update();
   },
 
   onReset: () => {
+    if (mode === 'roster') return;
     roster = emptyRoster(roster.size);
     update();
     toast('Roster cleared');
@@ -274,9 +351,12 @@ const handlers: RaidHandlers = {
     void copyText(text, 'Discord summary copied');
   },
 
-  onFillSample: fillSample,
+  onFillSample: () => {
+    if (mode !== 'roster') fillSample();
+  },
 
   onApplySuggestion: (s: Suggestion) => {
+    if (!mayEdit()) return;
     applySuggestion(roster, s);
     update();
     toast('Applied: ' + s.title);
@@ -287,7 +367,7 @@ const handlers: RaidHandlers = {
 
 function openPicker(group: number, slot: number): void {
   closeOverlays();
-  document.body.appendChild(
+  openOverlay(
     renderSpecPicker(
       group,
       slot,
@@ -306,12 +386,18 @@ function openLoadout(playerId: string): void {
   const found = findPlayer(playerId);
   if (!found) return;
   const specAtOpen = found.player.specId;
+  // Anyone may look. Only someone who may edit gets controls that do anything.
+  const readOnly = !mayEdit();
 
-  document.body.appendChild(
+  openOverlay(
     renderDrawer(found.player, {
+      ...simulateLinkFor(found.player),
+      readOnly,
       onChange: () => {
-        syncHash();
-        draw();
+        if (!mayEdit()) return;
+        // A pasted link is held to the talent rules before it is kept.
+        checkBuild(found.player);
+        update();
         if (found.player.specId !== specAtOpen) openLoadout(playerId);
       },
       onClose: closeOverlays,
@@ -319,9 +405,71 @@ function openLoadout(playerId: string): void {
   );
 }
 
+/**
+ * Show a dialog or the loadout drawer, with focus inside it. Focus goes back to whatever
+ * opened it on close, even when one dialog led to another on the way.
+ */
+function openOverlay(node: HTMLElement): void {
+  const back = dialogReturn ?? focusKey();
+  document.body.appendChild(node);
+  focusIntoDialog(node);
+  dialogReturn = back;
+}
+
+/** The gear-page link for a seated player, with what this raid gives them. */
+function simulateLinkFor(player: Player): { simulateHref?: string } {
+  const handoff = handoffFor(roster, computeCoverage(roster), player);
+  return handoff ? { simulateHref: handoffLink(handoff, href('dps.html')) } : {};
+}
+
 function closeOverlays(): void {
+  const had = document.querySelector('.drawer, .modal');
   document.querySelector('.drawer')?.remove();
   document.querySelector('.modal')?.remove();
+  if (!had) return;
+  const back = dialogReturn;
+  // After whatever the choice redraws, and only if no other dialog opened in its place.
+  window.setTimeout(() => {
+    if (document.querySelector('.drawer, .modal')) return;
+    dialogReturn = null;
+    restoreFocus(back);
+  }, 0);
+}
+
+/** Move a seated player to a group without dragging: the first free seat there. */
+function openGroupChooser(playerId: string): void {
+  if (!mayEdit()) return;
+  const found = findPlayer(playerId);
+  if (!found) return;
+  closeOverlays();
+  const active = Math.min(Math.ceil(roster.size / GROUP_SIZE), GROUP_COUNT);
+  const groups = Array.from({ length: active }, (_, index) => ({
+    index,
+    free: (roster.groups[index] ?? []).filter((p) => !p).length,
+  }));
+  // Focus follows the player to their new seat.
+  dialogReturn = 'key:move-' + playerId;
+  openOverlay(
+    renderGroupChooser(
+      found.player.name,
+      found.group,
+      groups,
+      (group) => {
+        const slot = roster.groups[group]?.findIndex((p) => !p) ?? -1;
+        closeOverlays();
+        if (slot >= 0) handlers.onMovePlayer(playerId, group, slot);
+      },
+      mode === 'roster'
+        ? () => {
+            // The seat's own key, so focus lands on the + that replaces them.
+            dialogReturn = 'key:seat-' + found.group + '-' + found.slot;
+            closeOverlays();
+            rosterHandlers.onReturnToPool?.(playerId);
+          }
+        : null,
+      closeOverlays,
+    ),
+  );
 }
 
 /* ------------------------------------------------- import from Group Builder */
@@ -476,7 +624,12 @@ function renderSaveBar(): HTMLElement {
 
 /* ------------------------------------------------------------------- drawing */
 
+/** Redraw the page, keeping the keyboard where it was. */
 function draw(): void {
+  keepFocus(drawNow);
+}
+
+function drawNow(): void {
   if (mode === 'roster') {
     drawRoster();
     return;
@@ -510,7 +663,7 @@ function draw(): void {
   const centre = el('div', 'rcol rcol--centre');
   centre.appendChild(renderGroups(roster, coverage, handlers));
   centre.appendChild(renderWarnings(coverage));
-  centre.appendChild(renderSuggestions(suggestions, handlers));
+  centre.appendChild(renderSuggestions(suggestions, handlers, true, coverage.playerCount));
   const notes = renderNotes(coverage);
   if (notes) centre.appendChild(notes);
   centre.appendChild(renderImportPanel());
@@ -554,8 +707,10 @@ function readHash(): void {
       const player = createPlayer(parsed.classKey as ClassId, guessSpec(parsed));
       player.build = code;
       roster.groups[0]![0] = player;
-      update();
       toast('Added your build as the first player');
+      // Checked now if the talent data is here, or when it lands.
+      checkBuild(player);
+      update();
       return;
     }
   }
@@ -582,6 +737,36 @@ function readHash(): void {
  * Picks the spec whose tree holds the most points in a pasted build code.
  * CLASSES lists specs in the same order as the talent data lists trees.
  */
+/**
+ * Hold a player's talent link to the same rules the calculator uses.
+ *
+ * A link that breaks them is rewritten to the nearest legal build and the leader is told
+ * how many points went. A link for another class is taken off the player, since it cannot
+ * describe them. Returns whether the player changed. Nothing happens until the talent data
+ * has loaded; then this runs again over everyone.
+ */
+function checkBuild(player: Player): boolean {
+  if (!player.build || !talentData) return false;
+  const parsed = parseCode(player.build);
+  if (!parsed || parsed.classKey !== player.classId) {
+    const was = CLASSES[player.classId].name;
+    delete player.build;
+    toast(player.name + '’s talent link was not for a ' + was.toLowerCase() + ', so it was taken off.', 5000);
+    return true;
+  }
+  const cls = classTalents(talentData, parsed.classKey);
+  if (!cls) return false;
+  const legal = legalCode(cls, player.build);
+  if (!legal || !legal.dropped) return false;
+  player.build = legal.code;
+  toast(
+    legal.dropped + (legal.dropped === 1 ? ' point' : ' points') + ' in ' + player.name +
+      '’s talent link broke the talent rules and were left out.',
+    5000,
+  );
+  return true;
+}
+
 function guessSpec(parsed: { classKey: string; trees: string[] }): number {
   const specs = (CLASSES[parsed.classKey as ClassId]?.specs ?? []).map((s) => s.id);
   let best = specs[0] ?? 161;
@@ -609,8 +794,10 @@ window.addEventListener('hashchange', () => {
   const arriving = readRosterLink();
   if (mode === 'roster' && arriving && link) {
     if (arriving.token !== link.token || arriving.eventId !== link.eventId) {
-      saver?.flush();
-      location.reload();
+      // Reload once the old link's last edit has landed or failed, not while it is in flight.
+      const pending = session?.saver;
+      if (pending?.hasUnsaved()) void pending.settle().finally(() => location.reload());
+      else location.reload();
     }
     return;
   }
@@ -639,11 +826,7 @@ window.addEventListener('hashchange', () => {
   // Back to the planner. Drop any roster state so its pool and bar do not linger.
   sameDocumentTurn(direction, () => {
     if (mode !== 'planner') {
-      saver?.flush();
-      saver?.dispose();
-      saver = null;
-      rosterState = null;
-      link = null;
+      leaveRoster();
       mode = 'planner';
       roster = emptyRoster(40);
     }
@@ -663,9 +846,38 @@ void loadUser(draw);
 const signIn = takeSignInOutcome();
 if (signIn) window.setTimeout(() => toast(SIGN_IN_MESSAGE[signIn]), 0);
 
+/* Signing in from a signed roster link comes back to #roster=<event> with the token left
+   behind. Having just signed in, the session opens that event; the bot says whether it may.
+   Without a fresh sign-in the same fragment is only the explainer. */
+const reopened = signIn === 'ok' ? /^#roster=(\d+)$/.exec(location.hash) : null;
+
+/* A save the session authorises lands before the session goes. After a confirmed sign-out
+   the account's lists go, and so does a roster the session alone opened. A roster opened
+   by a signed link stays: the link is its own authority, and the bot still checks it on
+   every save. */
+beforeSignOut(async () => {
+  const s = session;
+  if (s?.saver && s.access && !s.access.link) await s.saver.settle();
+});
+onSignedOut(() => {
+  guildEvents = {};
+  if (mode === 'roster' && session?.access && !session.access.link) {
+    leaveRoster();
+    history.replaceState(null, '', location.pathname + location.search + '#roster');
+    lastRail = railPosition(location.hash);
+    drawRosterIntro();
+    // After the plain 'Signed out.' the header shows, so this is the one left on screen.
+    window.setTimeout(
+      () => toast('Signed out. That roster was open under your sign-in, so it has closed.', 4000),
+      0,
+    );
+  }
+});
+
 lastRail = railPosition(location.hash);
 const rosterLink = readRosterLink();
 if (rosterLink) void enterRosterMode(rosterLink);
+else if (reopened) void enterRosterMode(null, reopened[1]);
 else if (/^#?roster=demo/.test(location.hash)) enterDemoMode();
 else if (/^#?roster/.test(location.hash)) drawRosterIntro();
 else readHash();
@@ -676,6 +888,20 @@ else readHash();
 void loadTalentData()
   .then((data) => {
     initSpellText(data);
+    talentData = data;
+    // Builds that arrived before the rules could be read are checked now. A roster the
+    // viewer cannot edit is left as the bot has it; nobody here can save a correction.
+    if (mode !== 'roster') {
+      if (onRoster().map(checkBuild).some(Boolean)) {
+        update();
+        return;
+      }
+    } else if (rosterState && rosterEditable()) {
+      if (allRosterPlayers().map(checkBuild).some(Boolean)) {
+        update();
+        return;
+      }
+    }
     draw();
   })
   .catch(() => {
@@ -724,14 +950,14 @@ function returnToPool(player: Player): void {
 
 const rosterHandlers: Partial<RaidHandlers> = {
   onSeatFromPool: (userId, group, slot) => {
-    if (!rosterState?.permissions.canEdit) return;
+    if (!rosterState || !rosterEditable() || !seatInRaid(group)) return;
     const player = takeFromPoolOrCut(userId);
     if (!player) return;
     // Whoever was in that seat goes back to the pool rather than disappearing.
     const displaced = rosterState.roster.groups[group]?.[slot] ?? null;
     rosterState.roster.groups[group]![slot] = player;
     if (displaced) returnToPool(displaced);
-    rosterChanged();
+    update();
   },
 
   /*
@@ -742,7 +968,7 @@ const rosterHandlers: Partial<RaidHandlers> = {
    * rather than quietly vanishing.
    */
   onSeatAll: () => {
-    if (!rosterState?.permissions.canEdit) return;
+    if (!rosterState || !rosterEditable()) return;
     const waiting = [...rosterState.pool];
     if (!waiting.length) return;
     const { seated, left } = seatAll(rosterState.roster, waiting);
@@ -751,7 +977,7 @@ const rosterHandlers: Partial<RaidHandlers> = {
       return;
     }
     rosterState.pool = left;
-    rosterChanged();
+    update();
     toast(
       left.length
         ? 'Seated ' + seated.length + '. ' + left.length + ' left in the pool as standby.'
@@ -759,34 +985,44 @@ const rosterHandlers: Partial<RaidHandlers> = {
     );
   },
 
+  onSeatInGroup: (userId, group) => {
+    if (!rosterState || !rosterEditable() || !seatInRaid(group)) return;
+    const slot = rosterState.roster.groups[group]?.findIndex((p) => !p) ?? -1;
+    if (slot < 0) {
+      toast('Group ' + (group + 1) + ' is full.');
+      return;
+    }
+    rosterHandlers.onSeatFromPool?.(userId, group, slot);
+  },
+
   onReturnToPool: (playerId) => {
-    if (!rosterState?.permissions.canEdit) return;
+    if (!rosterState || !rosterEditable()) return;
     const at = seatOf(playerId);
     if (!at) return;
     const player = rosterState.roster.groups[at.group]![at.slot]!;
     rosterState.roster.groups[at.group]![at.slot] = null;
     returnToPool(player);
-    rosterChanged();
+    update();
   },
 
   onCut: (userId) => {
-    if (!rosterState?.permissions.canEdit) return;
+    if (!rosterState || !rosterEditable()) return;
     const player = takeFromPoolOrCut(userId);
     if (!player) return;
     rosterState.cut.push(player);
-    rosterChanged();
+    update();
   },
 
   onUncut: (userId) => {
-    if (!rosterState?.permissions.canEdit) return;
+    if (!rosterState || !rosterEditable()) return;
     const player = takeFromPoolOrCut(userId);
     if (!player) return;
     returnToPool(player);
-    rosterChanged();
+    update();
   },
 
   onAddGuest: () => {
-    if (!rosterState?.permissions.canEdit) return;
+    if (!rosterState || !rosterEditable()) return;
     openGuestPicker();
   },
 
@@ -798,15 +1034,39 @@ const rosterHandlers: Partial<RaidHandlers> = {
 
 Object.assign(handlers, rosterHandlers);
 
-/** A guest is seated by picking a spec, then named. They have no Discord account. */
-function openGuestPicker(): void {
+/** An empty real seat: pick someone who signed up, or choose to add a guest. */
+function openSeatChooser(group: number, slot: number): void {
+  if (!rosterState) return;
   closeOverlays();
-  const free = firstFreeSeat();
+  const waiting = [
+    ...rosterState.pool.map((player) => ({ player, cut: false })),
+    ...rosterState.cut.map((player) => ({ player, cut: true })),
+  ];
+  openOverlay(
+    renderSeatChooser(
+      group,
+      slot,
+      waiting,
+      (userId) => {
+        closeOverlays();
+        rosterHandlers.onSeatFromPool?.(userId, group, slot);
+      },
+      () => openGuestPicker({ group, slot }),
+      closeOverlays,
+    ),
+  );
+}
+
+/** A guest is seated by picking a spec, then named. They have no Discord account. */
+function openGuestPicker(seat?: { group: number; slot: number }): void {
+  if (!rosterState || !rosterEditable()) return;
+  closeOverlays();
+  const free = seat ?? firstFreeSeat();
   if (!free) {
     toast('Every seat is full.');
     return;
   }
-  document.body.appendChild(
+  openOverlay(
     renderSpecPicker(
       free.group,
       free.slot,
@@ -820,15 +1080,37 @@ function openGuestPicker(): void {
           closeOverlays();
           return;
         }
-        const guest = makeGuest(classId, specId, name, taken);
+        if (!rosterEditable() || !seatInRaid(free.group)) {
+          closeOverlays();
+          return;
+        }
+        // Joins like anyone else: off the raid-wide picks their classmates already hold.
+        const guest = spreadChoices(makeGuest(classId, specId, name, taken), allRosterPlayers());
+        // The seat may have been filled while the prompt was open; whoever is there keeps it.
+        if (rosterState.roster.groups[free.group]?.[free.slot]) {
+          closeOverlays();
+          toast('That seat was taken. Pick another.');
+          return;
+        }
         rosterState.roster.groups[free.group]![free.slot] = guest;
         closeOverlays();
-        rosterChanged();
+        update();
         toast(guest.name + ' seated. Guests are never messaged.');
       },
       closeOverlays,
     ),
   );
+}
+
+/** Empty seats in each group that is in the raid. */
+function freeSeatsByGroup(): number[] {
+  if (!rosterState) return [];
+  const active = Math.min(Math.ceil(rosterState.roster.size / GROUP_SIZE), GROUP_COUNT);
+  const out: number[] = [];
+  for (let g = 0; g < active; g += 1) {
+    out.push((rosterState.roster.groups[g] ?? []).filter((p) => !p).length);
+  }
+  return out;
 }
 
 function firstFreeSeat(): { group: number; slot: number } | null {
@@ -866,15 +1148,15 @@ function handleFailure(failure: ApiFailure): void {
   const message = explain(failure);
   if (failure.kind === 'conflict') {
     toast(message);
-    saver?.dispose();
-    saver = null;
+    session?.saver?.dispose();
+    if (session) session.saver = null;
     void reloadRoster('Reloaded. Somebody else had already saved.');
     return;
   }
   if (failure.kind === 'auth' || failure.kind === 'forbidden') {
     // Stop writing. Nothing this tab does from here on can succeed.
-    saver?.dispose();
-    saver = null;
+    session?.saver?.dispose();
+    if (session) session.saver = null;
     if (rosterState) rosterState.permissions = { canEdit: false, canPublish: false };
   }
   toast(message);
@@ -882,55 +1164,115 @@ function handleFailure(failure: ApiFailure): void {
 }
 
 async function reloadRoster(note?: string): Promise<void> {
-  if (!access) return;
+  const s = session;
+  if (!s?.access) return;
   try {
-    const payload = await fetchRoster(access!);
-    rosterState = stateFromPayload(payload);
-    startSaver();
+    const payload = await fetchRoster(s.access);
+    if (!isCurrent(s)) return;
+    setSessionState(s, stateFromPayload(payload));
+    startSaver(s);
     saveState = 'idle';
     saveDetail = undefined;
     draw();
     if (note) toast(note);
   } catch (err) {
+    if (!isCurrent(s)) return;
     if (err instanceof ApiError) handleFailure(err.failure);
     else toast('Could not reload the roster.');
   }
 }
 
-function startSaver(): void {
-  if (!access || !rosterState?.permissions.canEdit) return;
-  saver?.dispose();
-  saver = new Saver(
-    access!,
-    () => ({ slots: slotsFrom(rosterState!), revision: rosterState!.revision }),
+function isCurrent(s: RosterSession): boolean {
+  return s === session && !s.closed;
+}
+
+function setSessionState(s: RosterSession, state: RosterState): void {
+  s.state = state;
+  if (isCurrent(s)) rosterState = state;
+}
+
+/** Start a roster session, closing whatever was open first. */
+function openSession(access: RosterAccess | null): RosterSession {
+  leaveRoster();
+  sessionsOpened += 1;
+  session = { id: sessionsOpened, access, state: null, saver: null, publishing: false, closed: false };
+  return session;
+}
+
+/**
+ * The one way out of a roster: to the explainer, the demo, another event or the planner.
+ *
+ * Nothing the closed session does afterwards reaches the page. An edit it has not saved is
+ * still finished, deliberately: its saver carries on against that event's own state, which
+ * nothing else can change now, and is disposed once it has landed or failed. A failure is
+ * said out loud, since the leader has already moved on. Closing the tab is different, and
+ * the keepalive flush there is a best effort a browser may still drop.
+ */
+function leaveRoster(): void {
+  // A dialog belongs to the roster it was opened on: a publish result or a seat chooser left
+  // over would sit on top of whatever opens next.
+  closeOverlays();
+  const s = session;
+  session = null;
+  rosterState = null;
+  link = null;
+  saveState = 'idle';
+  saveDetail = undefined;
+  if (!s) return;
+  s.closed = true;
+  const saver = s.saver;
+  s.saver = null;
+  if (!saver) return;
+  if (!saver.hasUnsaved()) {
+    saver.dispose();
+    return;
+  }
+  const title = s.state?.event.title ?? 'the roster you left';
+  void saver
+    .settle()
+    .then((ok) => {
+      if (!ok) toast('Your last change to ' + title + ' did not save.', 4000);
+    })
+    .finally(() => saver.dispose());
+}
+
+function startSaver(s: RosterSession): void {
+  s.saver?.dispose();
+  s.saver = null;
+  const state = s.state;
+  // The demo is never saved: no access, no saver, and request() refuses it besides.
+  if (!s.access || !state || isDemo(state) || !state.permissions.canEdit) return;
+  s.saver = new Saver(
+    s.access,
+    // This session's own state, captured here. Never the page's current roster.
+    () => ({ slots: slotsFrom(state), revision: state.revision }),
     (revision, status) => {
-      if (!rosterState) return;
-      rosterState.revision = revision;
+      state.revision = revision;
       // A published roster stays published through later saves; do not force it back.
-      rosterState.status = status;
+      state.status = status;
     },
-    onSaveState,
+    (saveStatus, failure) => {
+      if (isCurrent(s)) onSaveState(saveStatus, failure);
+    },
   );
 }
 
 /* --------------------------------------------------------------- publishing */
 
-let publishing = false;
-
 function openPublishConfirm(): void {
-  if (!rosterState) return;
+  if (!rosterState || session?.publishing) return;
   closeOverlays();
-  document.body.appendChild(
+  // The counts shown and the roster published are the same snapshot, taken now.
+  const confirmed = snapshotOf(rosterState);
+  openOverlay(
     renderPublishConfirm(
       {
-        seated: seatedCount(),
-        standby: rosterState.pool.length,
-        cut: rosterState.cut.length,
+        ...rosterCounts(rosterState),
         republish: rosterState.status === 'published',
       },
       () => {
         closeOverlays();
-        void doPublish();
+        void doPublish(confirmed);
       },
       closeOverlays,
     ),
@@ -938,24 +1280,35 @@ function openPublishConfirm(): void {
 }
 
 /** One publish per user action: the button cannot be made to fire twice. */
-async function doPublish(): Promise<void> {
-  if (!access || !rosterState || publishing) return;
-  publishing = true;
+async function doPublish(confirmed: string): Promise<void> {
+  const s = session;
+  const state = s?.state;
+  if (!s || !s.access || !state || s.publishing || isDemo(state)) return;
+  // Set before the first await, so a second press finds it already set.
+  s.publishing = true;
   draw();
   try {
-    // Land any pending edit first, so what is published is what is on screen.
-    saver?.flush();
-    const result = await publishRoster(access!, rosterState.revision);
-    rosterState.revision = result.revision;
-    rosterState.status = 'published';
-    draw();
-    document.body.appendChild(renderPublishResult(result, closeOverlays));
-  } catch (err) {
-    if (err instanceof ApiError) handleFailure(err.failure);
-    else toast('Publishing failed.');
+    const outcome = await publishWhenSaved(s.access, state, s.saver, confirmed);
+    if (!isCurrent(s)) return;
+    switch (outcome.kind) {
+      case 'published':
+        draw();
+        openOverlay(renderPublishResult(outcome.result, closeOverlays));
+        break;
+      case 'changed':
+        toast('The roster changed after you confirmed, so nothing was published. Check it and publish again.', 5000);
+        break;
+      case 'failed':
+        handleFailure(outcome.failure);
+        break;
+      case 'not-saved':
+      case 'busy':
+        // The saver has already said why. Publishing an older copy would bury it.
+        break;
+    }
   } finally {
-    publishing = false;
-    draw();
+    s.publishing = false;
+    if (isCurrent(s)) draw();
   }
 }
 
@@ -969,7 +1322,7 @@ function drawRoster(): void {
   roster = rosterState.roster;
   const coverage = computeCoverage(roster);
   const suggestions = suggestSwaps(roster, coverage);
-  const canEdit = rosterState.permissions.canEdit;
+  const canEdit = rosterEditable();
 
   renderHeader({ page: 'roster', account: accountView(draw) });
 
@@ -987,7 +1340,7 @@ function drawRoster(): void {
         status: rosterState.status,
         isTest: rosterState.event.isTest,
         canEdit,
-        canPublish: rosterState.permissions.canPublish && !publishing,
+        canPublish: rosterState.permissions.canPublish && !session?.publishing,
         demo: isDemo(rosterState),
       },
       handlers,
@@ -1004,13 +1357,14 @@ function drawRoster(): void {
   main.appendChild(left);
 
   const centre = el('div', 'rcol rcol--centre');
-  centre.appendChild(renderGroups(roster, coverage, handlers));
+  centre.appendChild(renderGroups(roster, coverage, handlers, canEdit, true));
   centre.appendChild(
     renderPool(
       {
         pool: rosterState.pool,
         cut: rosterState.cut,
         canEdit,
+        freeSeats: freeSeatsByGroup(),
         statusOnly: rosterState.statusOnly.map((s) => ({ name: s.name, status: s.classKey })),
         unmapped: rosterState.unmapped.map((s) => ({
           name: s.name,
@@ -1022,7 +1376,7 @@ function drawRoster(): void {
     ),
   );
   centre.appendChild(renderWarnings(coverage));
-  centre.appendChild(renderSuggestions(suggestions, handlers));
+  centre.appendChild(renderSuggestions(suggestions, handlers, canEdit, coverage.playerCount));
   const notes = renderNotes(coverage);
   if (notes) centre.appendChild(notes);
   main.appendChild(centre);
@@ -1048,6 +1402,7 @@ function drawRoster(): void {
 /** The Roster nav button with no signed link: explain the whole thing from nothing. */
 function drawRosterIntro(): void {
   if (!app) return;
+  leaveRoster();
   mode = 'intro';
   app.replaceChildren();
   renderHeader({ page: 'roster', account: accountView(draw) });
@@ -1076,11 +1431,10 @@ function drawRosterIntro(): void {
  * from here to a request. Everything else is the real interface.
  */
 function enterDemoMode(): void {
+  // No access and no saver, on purpose. The session exists only to own the demo's state.
+  const s = openSession(null);
   mode = 'roster';
-  link = null;
-  rosterState = stateFromPayload(demoPayload());
-  saveState = 'idle';
-  saveDetail = undefined;
+  setSessionState(s, stateFromPayload(demoPayload()));
   draw();
 }
 /** Something went wrong before there is any roster to show. */
@@ -1096,7 +1450,7 @@ function drawRosterError(message: string): void {
     el(
       'p',
       'drawer__hint',
-      'Roster mode is opened from Discord. Run /roster on the event and use the link the bot sends you.',
+      'Run /roster on the event in Discord and use the link the bot sends you, or sign in here and pick the event from your server.',
     ),
   );
   panel.appendChild(body);
@@ -1110,33 +1464,43 @@ function accessFor(found: RosterLink | null, eventId?: string): RosterAccess {
 
 /** Enter roster mode, by signed link or by session. */
 async function enterRosterMode(found: RosterLink | null, eventId?: string): Promise<void> {
+  const s = openSession(accessFor(found, eventId));
   mode = 'roster';
   link = found;
-  access = accessFor(found, eventId);
   if (app) {
     app.replaceChildren();
     renderHeader({ page: 'roster', account: accountView(draw) });
     app.appendChild(el('p', 'drawer__hint', 'Opening the roster…'));
   }
   try {
-    const payload = await fetchRoster(access!);
-    rosterState = stateFromPayload(payload);
-    startSaver();
+    const payload = await fetchRoster(s.access!);
+    if (!isCurrent(s)) return;
+    setSessionState(s, stateFromPayload(payload));
+    startSaver(s);
     draw();
     if (!payload.permissions.canEdit) {
       toast('You can look at this roster but not change it.');
     }
   } catch (err) {
+    if (!isCurrent(s)) return;
     if (err instanceof ApiError) drawRosterError(explain(err.failure));
     else drawRosterError('Something went wrong opening this roster.');
   }
 }
 
-/* A tab closing must not lose the last drag. A debounced save would, so the pending one
-   is flushed with keepalive, which lets the request outlive the page. */
-window.addEventListener('pagehide', () => saver?.flush(true));
+/* A tab closing should not lose the last drag, so the pending save is flushed with
+   keepalive, which lets the request outlive the page. That is a best effort: a save already
+   in flight, the browser's keepalive limits or a dropped connection can still lose it. So
+   while anything is unsaved the browser is also asked to confirm leaving. */
+window.addEventListener('pagehide', () => session?.saver?.flush(true));
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') saver?.flush(true);
+  if (document.visibilityState === 'hidden') session?.saver?.flush(true);
+});
+window.addEventListener('beforeunload', (ev) => {
+  if (!session?.saver?.hasUnsaved()) return;
+  session.saver.flush(true);
+  ev.preventDefault();
+  ev.returnValue = '';
 });
 
 /**
@@ -1167,7 +1531,7 @@ export function renderRosterIntro(): HTMLElement {
     el(
       'p',
       '',
-      'The planner next door does the same seating with made-up players, which is the right tool for working out a composition. This one holds real people who get a message when you publish, so it is opened from Discord rather than from here.',
+      'The planner next door does the same seating with made-up players, which is the right tool for working out a composition. This one holds real people who get a message when you publish, so it only opens on an event you are allowed to run: from the link the bot sends you, or by signing in and picking the event from your server.',
     ),
   );
   intro.appendChild(body);
@@ -1226,11 +1590,11 @@ export function renderRosterIntro(): HTMLElement {
   );
   step(
     'Run /roster on the event',
-    'The bot checks you lead the raid and sends you a private link to this page, already loaded with your signups.',
+    'The bot checks you may edit the event and sends you a private link to this page, already loaded with your signups. If you are signed in here, you can instead pick the event from your server above.',
   );
   step(
     'Seat people and publish',
-    'The link works for two hours and covers one event. If it expires, run /roster again for a fresh one.',
+    'Drag people into seats, or use the buttons on each row. The link works for two hours and covers one event. If it expires, run /roster again for a fresh one.',
   );
   const stepsHost = el('div');
   stepsHost.id = 'rsteps-host';
@@ -1505,8 +1869,11 @@ function renderAccount(): HTMLElement {
   who.appendChild(el('div', 'acct__name', currentUser()!.user.username));
   const out = el('button', 'btn btn--sm', 'Sign out');
   out.addEventListener('click', () => {
-    void signOut().then(() => {
-      guildEvents = {};
+    void signOut().then((ok) => {
+      if (!ok) {
+        toast(SIGN_OUT_FAILED);
+        return;
+      }
       draw();
       toast('Signed out');
     });
@@ -1558,11 +1925,11 @@ function renderAccount(): HTMLElement {
         void fetchGuildEvents(guild.id)
           .then((list) => {
             guildEvents[guild.id] = list;
-            drawRosterIntro();
+            if (mode === 'intro') drawRosterIntro();
           })
           .catch(() => {
             guildEvents[guild.id] = [];
-            drawRosterIntro();
+            if (mode === 'intro') drawRosterIntro();
             toast('Could not read that server’s events.');
           });
       });

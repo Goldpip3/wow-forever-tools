@@ -21,12 +21,13 @@ import { finishShard } from './sim/accumulate';
 import type { RotationLine } from './sim/rotation';
 import { specModule } from './sim/specs';
 import type { FightConfig, SimConfig, SimResult } from './sim/types';
-import { deriveStatSheet, effectsOn } from './stats';
+import { simConfig } from './config';
 import { assembleWeights, planWeights, type WeightResult } from './weights';
 import type { Character } from './types';
 import type { ItemRef, Slot, StatKey } from './export-format';
 import {
-  enumerate, planTopGear, setsIn, swapsIn, valid, type Loadout,
+  FINALISTS, TOP_GEAR_CAP, bestLoadouts, enumerate, planTopGear, setsIn, swapsIn, valid, type Loadout,
+  type TopGearPlan,
 } from './topgear';
 import type { WeightTable } from './weights';
 
@@ -40,21 +41,14 @@ export interface RunOptions {
   apl?: RotationLine[];
 }
 
-function configFor(
+/** A run's config, through the one builder in config.ts. */
+export function configFor(
   character: Character,
   fight: FightConfig,
   rotation?: string,
-  apl?: RotationLine[],
+  apl?: RotationLine[] | null,
 ): SimConfig {
-  return {
-    specId: character.specId,
-    stats: deriveStatSheet(character, fight),
-    talents: character.talentRanks,
-    fight,
-    ...(rotation ? { rotation } : {}),
-    ...(apl?.length ? { apl } : {}),
-    ...effectsOn(character),
-  };
+  return simConfig({ character, fight, rotation, apl });
 }
 
 function specFor(character: Character) {
@@ -159,6 +153,8 @@ export interface TopGearOptions extends RunOptions {
   iterations?: number;
   /** Iterations for the handful that come out on top. */
   finalIterations?: number;
+  /** A plan the page already made for these inputs, so it is not made twice. */
+  plan?: TopGearPlan;
   rotation?: string;
 }
 
@@ -179,13 +175,22 @@ export interface TopGearResult {
   entries: TopGearEntry[];
   /** How many loadouts were run, after the impossible ones were taken out. */
   combinations: number;
+  /**
+   * True when more loadouts were possible than were run, so the best here is the best of
+   * those tried and not a proof that nothing untried beats it.
+   */
+  capped: boolean;
 }
 
-/** No more than this many loadouts in one go, however many were asked for. */
-export const TOP_GEAR_CAP = 2000;
+/** Hand the page a turn, and stop if the run was cancelled meanwhile. */
+async function checkpoint(signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted) throw new Error('cancelled');
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  if (signal?.aborted) throw new Error('cancelled');
+}
 
-/** How many of the best are run again at the full iteration count. */
-const FINALISTS = 5;
+export { TOP_GEAR_CAP } from './topgear';
+
 
 /**
  * Every combination worth trying, simulated.
@@ -202,50 +207,40 @@ export async function runTopGear(
   opts: TopGearOptions = {},
 ): Promise<TopGearResult> {
   specFor(character);
-  const plan = planTopGear(character, weights, opts.perSlot ?? 3);
+  // Preparing is main-thread work, so it hands the page a turn between stages and between
+  // batches of configs, and a Cancel pressed meanwhile stops it there.
+  await checkpoint(opts.signal);
+  const plan = opts.plan ?? planTopGear(character, weights, opts.perSlot ?? 3);
+  await checkpoint(opts.signal);
 
-
-  const loadouts = [...enumerate(plan.choices)]
-    .filter((loadout) => valid(character, loadout))
-    .slice(0, TOP_GEAR_CAP);
+  // Past the cap, the best-scoring loadouts rather than whichever came first, found
+  // without ever building the ones that are not kept. Under it, every one, which is at
+  // most the cap by the plan's own bounded count.
+  const loadouts = plan.capped
+    ? bestLoadouts(character, plan.choices, weights, TOP_GEAR_CAP)
+    : [...enumerate(plan.choices)].filter((loadout) => valid(character, loadout));
+  await checkpoint(opts.signal);
 
   const first = Math.max(50, Math.round(opts.iterations ?? 300));
   const final = Math.max(first, Math.round(opts.finalIterations ?? fight.iterations));
 
   // Every loadout is a fight of its own, built the way a swap is.
   const runFight: FightConfig = { ...fight, iterations: first };
-  const base: SimConfig = {
-    specId: character.specId,
-    stats: deriveStatSheet(character, runFight),
-    talents: character.talentRanks,
-    fight: runFight,
-    ...(opts.rotation ? { rotation: opts.rotation } : {}),
-    ...(opts.apl?.length ? { apl: opts.apl } : {}),
-    ...effectsOn(character),
-  };
+  const base = simConfig({ character, fight: runFight, rotation: opts.rotation, apl: opts.apl });
 
-  const configFrom = (loadout: Loadout, iterations: number): SimConfig => {
-    const f: FightConfig = { ...fight, iterations };
-    return {
-      ...base,
-      fight: f,
-      stats: deriveStatSheet(character, f, { gearOverride: loadout }),
-      ...effectsOn(character, loadout),
-    };
-  };
+  const configFrom = (loadout: Loadout, iterations: number): SimConfig =>
+    simConfig({ character, fight: { ...fight, iterations }, rotation: opts.rotation, apl: opts.apl, loadout });
 
-  const jobs: Job[] = [
-    { jobId: 0, config: base, iterations: first },
-    ...loadouts.map((loadout, i) => ({
-      jobId: i + 1,
-      config: configFrom(loadout, first),
-      iterations: first,
-    })),
-  ];
+  const jobs: Job[] = [{ jobId: 0, config: base, iterations: first }];
+  for (let i = 0; i < loadouts.length; i += 1) {
+    jobs.push({ jobId: i + 1, config: configFrom(loadouts[i]!, first), iterations: first });
+    if (i % 100 === 99) await checkpoint(opts.signal);
+  }
 
   // Both passes share one progress bar, so it does not appear to finish twice.
   const firstTotal = jobs.reduce((sum, job) => sum + job.iterations, 0);
-  const secondTotal = FINALISTS * final;
+  // The second pass runs what is worn again too, and only as many finalists as there are.
+  const secondTotal = (1 + Math.min(FINALISTS, loadouts.length)) * final;
   const whole = firstTotal + secondTotal;
   const report = (done: number) => opts.onProgress?.(done, whole);
 
@@ -301,7 +296,7 @@ export async function runTopGear(
   }).sort((a, b) => b.delta - a.delta);
 
   // What was actually run, which the cap may have trimmed further.
-  return { baseDps: settledBaseDps, entries, combinations: loadouts.length };
+  return { baseDps: settledBaseDps, entries, combinations: loadouts.length, capped: plan.capped };
 }
 
 function average(values: number[]): number {

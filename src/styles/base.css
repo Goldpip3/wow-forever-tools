@@ -80,6 +80,13 @@ button { font-family: inherit; font-size: inherit; cursor: pointer; }
 .site-header__sub { margin: 0; color: var(--muted); font-size: 12px; }
 .site-header__nav { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: center; }
 
+/* Where the keyboard is, on every page. Shown for keyboard focus only, so a click does
+   not leave a ring behind. */
+:where(button, select, input, textarea, a, [tabindex]):focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
 /* ---------- buttons ---------- */
 .btn {
   background: var(--grad-panel);
@@ -173,9 +180,30 @@ select.btn { appearance: none; padding-right: 26px;
 .c-warlock { color: var(--c-warlock); }
 .c-druid   { color: var(--c-druid); }
 
+/* Tablet and phone: two rows instead of three columns. The mark and the account share the
+   top row and the four tools share the second, one line of them, where stacking all three
+   had cost a phone 160px and a tablet 164px before anything of the page showed. */
+@media (max-width: 900px) {
+  .site-header__inner {
+    grid-template-columns: 1fr auto;
+    grid-template-areas: 'home acct' 'nav nav';
+    gap: 6px 8px;
+    padding: 6px 12px;
+  }
+  .site-header__home { grid-area: home; }
+  .site-header__acct { grid-area: acct; }
+  .site-header__nav { grid-area: nav; width: 100%; flex-wrap: nowrap; }
+  .site-header__nav .btn { flex: 1 1 0; min-width: 0; text-align: center; padding: 5px 4px; }
+}
 @media (max-width: 640px) {
-  .site-header__inner { grid-template-columns: 1fr; justify-items: center; text-align: center; }
-  .site-header__nav { width: 100%; }
+  /* Pinned, even the shorter header would stay over every tree and roster, so on a phone it
+     scrolls away and gives up the subtitle. */
+  .site-header { position: static; }
+  .site-header__mark { width: 32px; height: 32px; flex-basis: 32px; }
+  .site-header__title { font-size: 17px; }
+  .site-header__sub { display: none; }
+  .site-header__nav .btn { font-size: 13px; }
+  .drawer__hint { font-size: 13px; }
 }
 
 /* ------------------------------------------------------------ numeric bits */
@@ -360,6 +388,5 @@ select.btn optgroup {
 .acctmenu__item:hover { background: var(--panel2); color: var(--gold); text-decoration: none; }
 
 @media (max-width: 640px) {
-  .site-header__acct { justify-self: center; }
-  .acctmenu { right: auto; left: 50%; transform: translateX(-50%); }
+  .acctmenu { right: 0; left: auto; transform: none; }
 }
