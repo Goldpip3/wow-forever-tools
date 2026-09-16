@@ -20,10 +20,11 @@ import { applyTalents, type AbilityDef, type ResourceKind, type SpellMods } from
 import type { SpecModule } from './spec';
 import type { Rotation, RotationCtx } from './rotation';
 import { resistMultiplier, rollSpell, spellCritChance, spellHitChance } from './tables';
-import { buildNotes } from './notes';
+import { emptyShard, emptyTally, finishShard, type Shard, type Tally } from './accumulate';
+
+export type { Shard };
 import {
   AVOIDED,
-  type AbilityStats,
   type Hand,
   type Outcome,
   type SimConfig,
@@ -45,12 +46,6 @@ export const AUTO_ATTACK_ID: Record<Hand, string> = {
   ranged: 'auto-ranged',
 };
 
-const AUTO_ATTACK_NAME: Record<Hand, string> = {
-  main: 'Main hand',
-  off: 'Off hand',
-  ranged: 'Ranged',
-};
-
 type SimEvent =
   | { kind: 'decide' }
   | { kind: 'cast-finish'; spellId: string }
@@ -58,16 +53,6 @@ type SimEvent =
   | { kind: 'mana-tick' }
   | { kind: 'resource-tick' }
   | { kind: 'swing'; hand: Hand };
-
-interface Tally {
-  casts: number;
-  hits: number;
-  crits: number;
-  misses: number;
-  avoided: number;
-  glances: number;
-  damage: number;
-}
 
 export interface IterationResult {
   damage: number;
@@ -131,10 +116,6 @@ function resolveSpells(spec: SpecModule, mods: SpellMods): Map<string, ResolvedS
   }
 
   return out;
-}
-
-function emptyTally(): Tally {
-  return { casts: 0, hits: 0, crits: 0, misses: 0, avoided: 0, glances: 0, damage: 0 };
 }
 
 /* ------------------------------------------------------- once per run setup */
@@ -698,6 +679,65 @@ export function runIteration(
   };
 }
 
+/* --------------------------------------------------------------- slices */
+
+export interface ShardOptions {
+  onProgress?: (done: number, total: number) => void;
+  /** How often to report, in iterations. */
+  progressEvery?: number;
+}
+
+/**
+ * Runs iterations [start, end) and hands them back as a slice.
+ *
+ * This is the only entry the worker pool needs: every other way of asking for
+ * damage is a set of these put back together. Splitting is safe because
+ * iteration i always uses splitSeed(seed, i), so a slice neither knows nor
+ * cares whether anything else is running beside it.
+ */
+export function runShard(
+  config: SimConfig,
+  spec: SpecModule,
+  start: number,
+  end: number,
+  opts: ShardOptions = {},
+  prepared: Prepared = prepare(config, spec),
+): Shard {
+  const shard = emptyShard(start);
+  const duration = config.fight.duration;
+  const every = opts.progressEvery ?? 25;
+  const total = end - start;
+
+  for (let i = start; i < end; i += 1) {
+    const result = runIteration(config, spec, splitSeed(config.fight.seed, i), prepared);
+    shard.series.push(result.damage / duration);
+    shard.idle += result.idleTime;
+    shard.starved += result.starvedTime;
+    shard.manaSpent += result.manaSpent;
+    shard.rageGained += result.rageGained;
+    shard.energySpent += result.energySpent;
+    if (result.oomAt !== null) {
+      shard.oomSum += result.oomAt;
+      shard.oomCount += 1;
+    }
+    for (const [id, t] of result.abilities) {
+      const running = shard.abilities[id] ?? emptyTally();
+      running.casts += t.casts;
+      running.hits += t.hits;
+      running.crits += t.crits;
+      running.misses += t.misses;
+      running.avoided += t.avoided;
+      running.glances += t.glances;
+      running.damage += t.damage;
+      shard.abilities[id] = running;
+    }
+    const done = i - start + 1;
+    if (opts.onProgress && (done % every === 0 || done === total)) opts.onProgress(done, total);
+  }
+
+  return shard;
+}
+
 /**
  * The damage per second of each iteration on its own.
  *
@@ -707,13 +747,7 @@ export function runIteration(
  */
 export function dpsSeries(config: SimConfig, spec: SpecModule): number[] {
   const iterations = Math.max(1, Math.round(config.fight.iterations));
-  const prepared = prepare(config, spec);
-  const out: number[] = new Array(iterations);
-  for (let i = 0; i < iterations; i += 1) {
-    out[i] = runIteration(config, spec, splitSeed(config.fight.seed, i), prepared).damage
-      / config.fight.duration;
-  }
-  return out;
+  return runShard(config, spec, 0, iterations).series;
 }
 
 /* ------------------------------------------------------------------- a run */
@@ -731,96 +765,9 @@ export interface SimOptions {
 
 export function simulate(config: SimConfig, spec: SpecModule, opts: SimOptions = {}): SimResult {
   const iterations = Math.max(1, Math.round(config.fight.iterations));
-  const duration = config.fight.duration;
-  const every = opts.progressEvery ?? 50;
-  const prepared = prepare(config, spec);
+  const shardOpts: ShardOptions = {};
+  if (opts.onProgress) shardOpts.onProgress = (done, total) => opts.onProgress!({ done, total });
+  if (opts.progressEvery !== undefined) shardOpts.progressEvery = opts.progressEvery;
 
-  const perIteration: number[] = [];
-  const totals = new Map<string, Tally>();
-  let idle = 0;
-  let starved = 0;
-  let manaSpent = 0;
-  let rageGained = 0;
-  let energySpent = 0;
-  let oomSum = 0;
-  let oomCount = 0;
-
-  for (let i = 0; i < iterations; i += 1) {
-    const result = runIteration(config, spec, splitSeed(config.fight.seed, i), prepared);
-    perIteration.push(result.damage / duration);
-    idle += result.idleTime;
-    starved += result.starvedTime;
-    manaSpent += result.manaSpent;
-    rageGained += result.rageGained;
-    energySpent += result.energySpent;
-    if (result.oomAt !== null) {
-      oomSum += result.oomAt;
-      oomCount += 1;
-    }
-    for (const [id, t] of result.abilities) {
-      const running = totals.get(id) ?? emptyTally();
-      running.casts += t.casts;
-      running.hits += t.hits;
-      running.crits += t.crits;
-      running.misses += t.misses;
-      running.avoided += t.avoided;
-      running.glances += t.glances;
-      running.damage += t.damage;
-      totals.set(id, running);
-    }
-    if (opts.onProgress && (i % every === every - 1 || i === iterations - 1)) {
-      opts.onProgress({ done: i + 1, total: iterations });
-    }
-  }
-
-  const mean = perIteration.reduce((sum, n) => sum + n, 0) / iterations;
-  const variance =
-    iterations > 1
-      ? perIteration.reduce((sum, n) => sum + (n - mean) ** 2, 0) / (iterations - 1)
-      : 0;
-  const stdev = Math.sqrt(variance);
-
-  const totalDamage = [...totals.values()].reduce((sum, t) => sum + t.damage, 0);
-  const names = new Map(spec.spells.map((s) => [s.id, s.name]));
-  for (const [hand, id] of Object.entries(AUTO_ATTACK_ID)) {
-    names.set(id, AUTO_ATTACK_NAME[hand as Hand]);
-  }
-  for (const [id, name] of Object.entries(spec.extraNames ?? {})) names.set(id, name);
-
-  const abilities: AbilityStats[] = [...totals.entries()]
-    .map(([id, t]) => ({
-      id,
-      name: names.get(id) ?? names.get(id.replace(/-dot$/, '')) ?? id,
-      casts: t.casts / iterations,
-      hits: t.hits / iterations,
-      crits: t.crits / iterations,
-      misses: t.misses / iterations,
-      avoided: t.avoided / iterations,
-      glances: t.glances / iterations,
-      damage: t.damage / iterations,
-      dps: t.damage / iterations / duration,
-      share: totalDamage > 0 ? t.damage / totalDamage : 0,
-    }))
-    .filter((a) => a.casts > 0 || a.damage > 0 || a.hits > 0 || a.misses > 0 || a.avoided > 0)
-    .sort((a, b) => b.damage - a.damage);
-
-  const resources: SimResult['resources'] = {
-    timeIdle: idle / iterations,
-    manaSpent: manaSpent / iterations,
-    rageGained: rageGained / iterations,
-    energySpent: energySpent / iterations,
-    starvedFor: starved / iterations,
-  };
-  if (oomCount > 0) resources.oomAt = oomSum / oomCount;
-
-  return {
-    dps: mean,
-    dpsStdev: stdev,
-    dpsStderr: stdev / Math.sqrt(iterations),
-    iterations,
-    duration,
-    abilities,
-    resources,
-    notes: buildNotes(config, spec, prepared.target),
-  };
+  return finishShard(runShard(config, spec, 0, iterations, shardOpts), config, spec);
 }

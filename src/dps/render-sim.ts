@@ -21,6 +21,8 @@ import { el, qualityColor } from './render';
 
 export interface FightHandlers {
   onFightChange(patch: Partial<FightConfig>): void;
+  /** Stops handing out work, for a run that is no longer worth waiting for. */
+  onCancel(): void;
   onToggleBuff(id: string, on: boolean, kind: BuffKind): void;
   onRotation(name: string): void;
   onRun(): void;
@@ -226,6 +228,16 @@ export function renderFightPanel(
   weights.addEventListener('click', handlers.onDeriveWeights);
 
   actions.append(run, weights);
+
+  // Stopping hands out no more slices; whatever a core is already holding
+  // finishes first, which is at most a tenth of a second.
+  if (busy) {
+    const stop = el('button', 'btn', 'Stop');
+    stop.title = 'Stops handing out work, so the run ends within a moment';
+    stop.addEventListener('click', handlers.onCancel);
+    actions.appendChild(stop);
+  }
+
   body.appendChild(actions);
 
   if (busy) {

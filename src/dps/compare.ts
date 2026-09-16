@@ -70,6 +70,73 @@ export interface CompareOptions {
   onProgress?: (done: number, total: number) => void;
 }
 
+/** Every fight a comparison needs, worked out before any of them runs. */
+export interface ComparePlan {
+  base: SimConfig;
+  iterations: number;
+  swaps: Array<{ swap: GearSwap; config: SimConfig; clearedOffhand: boolean }>;
+}
+
+export function planCompare(
+  character: Character,
+  fight: FightConfig,
+  swaps: GearSwap[],
+  iterations?: number,
+  rotation?: string,
+): ComparePlan {
+  const count = Math.max(1, Math.round(iterations ?? fight.iterations));
+  const runFight: FightConfig = { ...fight, iterations: count };
+
+  const base: SimConfig = {
+    specId: character.specId,
+    stats: deriveStatSheet(character, runFight),
+    talents: character.talentRanks,
+    fight: runFight,
+    ...(rotation ? { rotation } : {}),
+  };
+
+  return {
+    base,
+    iterations: count,
+    swaps: swaps.map((swap) => {
+      const override = overrideFor(swap);
+      return {
+        swap,
+        config: { ...base, stats: deriveStatSheet(character, runFight, { gearOverride: override }) },
+        clearedOffhand: override.offhand === null && swap.slot === 'mainhand',
+      };
+    }),
+  };
+}
+
+/** Turns the fights back into one figure per swap, paired against the baseline. */
+export function assembleCompare(
+  plan: ComparePlan,
+  baseSeries: number[],
+  swapSeries: number[][],
+): CompareResult {
+  const baseDps = mean(baseSeries);
+
+  const results: SwapResult[] = plan.swaps.map((entry, i) => {
+    const series = swapSeries[i] ?? [];
+    const result: SwapResult = {
+      slot: entry.swap.slot,
+      item: entry.swap.item,
+      deltaDps: mean(series) - baseDps,
+      stderr: pairedStderr(baseSeries, series),
+    };
+    if (entry.clearedOffhand) result.clearedOffhand = true;
+    return result;
+  });
+
+  return { baseDps, results };
+}
+
+/**
+ * Runs the whole comparison on this thread. The page goes through the worker
+ * pool instead; this is the same answer without one, which is what the tests
+ * call.
+ */
 export function compareGear(
   character: Character,
   fight: FightConfig,
@@ -78,43 +145,19 @@ export function compareGear(
   opts: CompareOptions = {},
   rotation?: string,
 ): CompareResult {
-  const iterations = Math.max(1, Math.round(opts.iterations ?? fight.iterations));
-  const runFight: FightConfig = { ...fight, iterations };
+  const plan = planCompare(character, fight, swaps, opts.iterations, rotation);
+  const total = plan.swaps.length + 1;
 
-  const baseConfig: SimConfig = {
-    specId: character.specId,
-    stats: deriveStatSheet(character, runFight),
-    talents: character.talentRanks,
-    fight: runFight,
-    ...(rotation ? { rotation } : {}),
-  };
-
-  const total = swaps.length + 1;
-  const baseSeries = dpsSeries(baseConfig, spec);
-  const baseDps = mean(baseSeries);
+  const baseSeries = dpsSeries(plan.base, spec);
   opts.onProgress?.(1, total);
 
-  const results: SwapResult[] = swaps.map((swap, i) => {
-    const override = overrideFor(swap);
-    const config: SimConfig = {
-      ...baseConfig,
-      stats: deriveStatSheet(character, runFight, { gearOverride: override }),
-    };
-    const series = dpsSeries(config, spec);
-
-    const result: SwapResult = {
-      slot: swap.slot,
-      item: swap.item,
-      deltaDps: mean(series) - baseDps,
-      stderr: pairedStderr(baseSeries, series),
-    };
-    if (override.offhand === null && swap.slot === 'mainhand') result.clearedOffhand = true;
-
+  const swapSeries = plan.swaps.map((entry, i) => {
+    const series = dpsSeries(entry.config, spec);
     opts.onProgress?.(i + 2, total);
-    return result;
+    return series;
   });
 
-  return { baseDps, results };
+  return assembleCompare(plan, baseSeries, swapSeries);
 }
 
 /** The slot an item would displace, for a label like "instead of your ring". */

@@ -124,44 +124,74 @@ function hitRoom(config: SimConfig, spec: SpecModule, stat: StatKey): number | n
 }
 
 /**
- * Measures every stat the spec asked about.
+ * What each stat costs to measure, worked out before anything runs.
  *
- * Runs one fight per stat plus one baseline, so a spec with eight weight stats
- * costs nine runs. Iterations can be dialled down here: a weight only has to be
- * good enough to rank two items, which needs far less precision than the damage
- * figure itself.
+ * Splitting the planning from the running is what lets the worker pool drive
+ * it: this half decides which fights are needed and the pool decides which core
+ * runs them. A capped stat needs no fight at all and says so here.
  */
-export function deriveWeights(
+export interface WeightPlan {
+  base: SimConfig;
+  iterations: number;
+  entries: Array<{
+    stat: StatKey;
+    step: number;
+    capped: boolean;
+    /** The fight to run, absent when the stat is capped. */
+    config?: SimConfig;
+  }>;
+}
+
+export function planWeights(
   config: SimConfig,
   spec: SpecModule,
   opts: WeightOptions = {},
-): WeightResult {
+): WeightPlan {
   const iterations = Math.max(1, Math.round(opts.iterations ?? config.fight.iterations));
   const base: SimConfig = { ...config, fight: { ...config.fight, iterations } };
 
-  const total = spec.weightStats.length + 1;
-  const baseSeries = dpsSeries(base, spec);
-  const baseDps = mean(baseSeries);
-  opts.onProgress?.(1, total);
-
-  const notes: string[] = [];
-  const weights: StatWeight[] = [];
-
-  spec.weightStats.forEach((entry, i) => {
+  const entries: WeightPlan['entries'] = spec.weightStats.map((entry) => {
     let step = entry.step;
     let capped = false;
 
     const room = hitRoom(base, spec, entry.stat);
     if (room !== null) {
-      if (room <= 0) {
-        capped = true;
-      } else if (room < step) {
-        // Only part of the step would do anything, so measure the part that does.
-        step = room;
-      }
+      if (room <= 0) capped = true;
+      // Only part of the step would do anything, so measure the part that does.
+      else if (room < step) step = room;
     }
 
-    if (capped) {
+    if (capped) return { stat: entry.stat, step: entry.step, capped: true };
+    return {
+      stat: entry.stat,
+      step,
+      capped: false,
+      config: { ...base, stats: perturb(base, entry.stat, step) },
+    };
+  });
+
+  return { base, iterations, entries };
+}
+
+/**
+ * Turns the fights back into a table.
+ *
+ * The paired difference is the point of the whole exercise: both series saw the
+ * same dice, so what is left between them is the stat.
+ */
+export function assembleWeights(
+  plan: WeightPlan,
+  spec: SpecModule,
+  baseSeries: number[],
+  movedSeries: Array<number[] | null>,
+  opts: WeightOptions = {},
+): WeightResult {
+  const baseDps = mean(baseSeries);
+  const notes: string[] = [];
+  const weights: StatWeight[] = [];
+
+  plan.entries.forEach((entry, i) => {
+    if (entry.capped) {
       weights.push({
         stat: entry.stat,
         label: STAT_LABEL[entry.stat],
@@ -171,23 +201,18 @@ export function deriveWeights(
         capped: true,
         step: entry.step,
       });
-      opts.onProgress?.(i + 2, total);
       return;
     }
 
-    const moved: SimConfig = { ...base, stats: perturb(base, entry.stat, step) };
-    const movedSeries = dpsSeries(moved, spec);
-
+    const series = movedSeries[i] ?? [];
     weights.push({
       stat: entry.stat,
       label: STAT_LABEL[entry.stat],
-      perPoint: (mean(movedSeries) - baseDps) / step,
-      stderr: pairedStderr(baseSeries, movedSeries) / step,
+      perPoint: (mean(series) - baseDps) / entry.step,
+      stderr: pairedStderr(baseSeries, series) / entry.step,
       normalised: 0,
-      step,
+      step: entry.step,
     });
-
-    opts.onProgress?.(i + 2, total);
   });
 
   const reference = opts.reference ?? spec.referenceStat;
@@ -204,7 +229,34 @@ export function deriveWeights(
     notes.push('A capped stat does nothing more for you. Spend those points elsewhere.');
   }
 
-  return { baseDps, weights, reference, iterations, notes };
+  return { baseDps, weights, reference, iterations: plan.iterations, notes };
+}
+
+/**
+ * Measures every stat the spec asked about, on this thread.
+ *
+ * Runs one fight per stat plus one baseline, so a spec with eight weight stats
+ * costs nine runs. The page goes through the worker pool instead; this is the
+ * same answer without one, which is what the tests call.
+ */
+export function deriveWeights(
+  config: SimConfig,
+  spec: SpecModule,
+  opts: WeightOptions = {},
+): WeightResult {
+  const plan = planWeights(config, spec, opts);
+  const total = plan.entries.length + 1;
+
+  const baseSeries = dpsSeries(plan.base, spec);
+  opts.onProgress?.(1, total);
+
+  const moved = plan.entries.map((entry, i) => {
+    const series = entry.config ? dpsSeries(entry.config, spec) : null;
+    opts.onProgress?.(i + 2, total);
+    return series;
+  });
+
+  return assembleWeights(plan, spec, baseSeries, moved, opts);
 }
 
 /** Rewrites the relative column against a chosen stat. */

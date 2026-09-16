@@ -66,6 +66,8 @@ let weights: WeightResult | null = null;
 let overrides: WeightTable = {};
 const confirmed = new Map<string, SwapResult>();
 let busy: Busy | null = null;
+/** The run in flight, so changing the fight or the character can call it off. */
+let running: AbortController | null = null;
 
 /** The slot whose other items are showing under the character sheet. */
 let openSlot: Slot | null = null;
@@ -134,6 +136,7 @@ function update(): void {
 
 /** A new character invalidates everything that was worked out for the old one. */
 function clearResults(): void {
+  cancelRun();
   result = null;
   weights = null;
   confirmed.clear();
@@ -195,26 +198,55 @@ function backfillBuild(): void {
 /* ------------------------------------------------------------------ running */
 
 function fail(err: unknown): void {
-  busy = null;
   const message = err instanceof Error ? err.message : String(err);
-  if (message !== 'cancelled') toast(message);
+  if (message === 'cancelled') return;
+  running = null;
+  busy = null;
+  toast(message);
   draw();
+}
+
+function startRun(label: string, total: number): AbortController {
+  running?.abort();
+  running = new AbortController();
+  busy = { label, done: 0, total };
+  draw();
+  return running;
+}
+
+function finished(controller: AbortController): boolean {
+  if (running !== controller) return false;
+  running = null;
+  busy = null;
+  return true;
+}
+
+/** Throws out whatever is running, for when the answer would be about the old character. */
+export function cancelRun(): void {
+  running?.abort();
+  running = null;
+  busy = null;
+}
+
+function progressInto(label: string, controller: AbortController) {
+  return (done: number, total: number) => {
+    if (running !== controller) return;
+    busy = { label, done, total };
+    drawProgress();
+  };
 }
 
 function runSim(): void {
   if (!character || busy) return;
-  busy = { label: 'Simulating', done: 0, total: fight.iterations };
-  draw();
+  const controller = startRun('Simulating', fight.iterations);
 
-  runSimulation(character, { ...fight }, rotation, (done, total) => {
-    if (busy) {
-      busy = { label: 'Simulating', done, total };
-      drawProgress();
-    }
+  runSimulation(character, { ...fight }, rotation, {
+    signal: controller.signal,
+    onProgress: progressInto('Simulating', controller),
   })
     .then((res) => {
+      if (!finished(controller)) return;
       result = res;
-      busy = null;
       draw();
     })
     .catch(fail);
@@ -225,19 +257,19 @@ function deriveWeightsNow(): void {
   // Weights only have to rank two items apart, which needs far less precision
   // than the damage figure, so they run on a fraction of the iterations.
   const iterations = Math.max(100, Math.min(400, Math.round(fight.iterations / 4)));
-  busy = { label: 'Measuring stat weights', done: 0, total: 9 };
-  draw();
+  const label = 'Measuring stat weights';
+  const controller = startRun(label, iterations * 9);
 
-  runWeights(character, { ...fight }, { iterations, rotation }, (done, total) => {
-    if (busy) {
-      busy = { label: 'Measuring stat weights', done, total };
-      drawProgress();
-    }
+  runWeights(character, { ...fight }, {
+    iterations,
+    rotation,
+    signal: controller.signal,
+    onProgress: progressInto(label, controller),
   })
     .then((res) => {
+      if (!finished(controller)) return;
       weights = res;
       confirmed.clear();
-      busy = null;
       draw();
     })
     .catch(fail);
@@ -245,20 +277,20 @@ function deriveWeightsNow(): void {
 
 function confirmSwap(slot: Slot, item: ItemRef): void {
   if (!character || busy) return;
-  busy = { label: 'Checking ' + item.name, done: 0, total: 2 };
-  draw();
+  const iterations = Math.max(200, Math.round(fight.iterations / 2));
+  const label = 'Checking ' + item.name;
+  const controller = startRun(label, iterations * 2);
 
-  runCompare(
-    character,
-    { ...fight },
-    [{ slot, item }],
-    Math.max(200, Math.round(fight.iterations / 2)),
+  runCompare(character, { ...fight }, [{ slot, item }], {
+    iterations,
     rotation,
-  )
+    signal: controller.signal,
+    onProgress: progressInto(label, controller),
+  })
     .then((res) => {
+      if (!finished(controller)) return;
       const swap = res.results[0];
       if (swap) confirmed.set(upgradeKey(slot, item), swap);
-      busy = null;
       draw();
     })
     .catch(fail);
@@ -334,6 +366,7 @@ const fightHandlers: FightHandlers = {
     fight = { ...fight, ...patch };
     savePrefs({ fight });
     // The old answer belonged to the old fight.
+    cancelRun();
     result = null;
     weights = null;
     confirmed.clear();
@@ -345,6 +378,7 @@ const fightHandlers: FightHandlers = {
     const current = fight[key];
     fight = { ...fight, [key]: on ? [...current, id] : current.filter((b) => b !== id) };
     savePrefs({ fight });
+    cancelRun();
     result = null;
     weights = null;
     confirmed.clear();
@@ -354,8 +388,14 @@ const fightHandlers: FightHandlers = {
   onRotation: (name) => {
     rotation = name;
     savePrefs({ rotation });
+    cancelRun();
     result = null;
     weights = null;
+    draw();
+  },
+
+  onCancel: () => {
+    cancelRun();
     draw();
   },
 
