@@ -179,6 +179,12 @@ export interface SpecModule {
    */
   extraHandsFor?(spellId: string, mods: SpellMods, actor: Actor): Hand[];
 
+  /**
+   * What each hand actually hits with, when it is not the weapon on the sheet.
+   * Cat Form is why it exists: the paws do the damage, whatever is equipped.
+   */
+  weaponsFor?(stats: StatSheet): StatSheet['weapons'];
+
   /** How much faster than written a cast goes right now, one being no change. */
   castSpeedFor?(actor: Actor, now: number, mods: SpellMods): number;
 

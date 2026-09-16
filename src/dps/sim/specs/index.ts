@@ -7,6 +7,7 @@
  */
 
 import type { SpecModule } from '../spec';
+import { druidFeral } from './druid-feral';
 import { mageFrost } from './mage-frost';
 import { paladinRetribution } from './paladin-retribution';
 import { rogueCombat } from './rogue-combat';
@@ -15,7 +16,7 @@ import { shamanEnhancement } from './shaman-enhancement';
 import { warriorArms } from './warrior-arms';
 import { warriorFury } from './warrior-fury';
 
-const MODULES: SpecModule[] = [mageFrost, warriorArms, warriorFury, rogueCombat, shamanEnhancement, shamanElemental, paladinRetribution];
+const MODULES: SpecModule[] = [mageFrost, warriorArms, warriorFury, rogueCombat, shamanEnhancement, shamanElemental, paladinRetribution, druidFeral];
 
 const BY_ID = new Map<number, SpecModule>(MODULES.map((m) => [m.specId, m]));
 

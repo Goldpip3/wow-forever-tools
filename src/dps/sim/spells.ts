@@ -96,6 +96,8 @@ export interface AbilityDef {
   };
   /** Only usable once the target is below this share of its health. */
   execute?: { belowPct: number };
+  /** Only usable from behind the target, which Shred is. */
+  fromBehind?: boolean;
   /** Still usable while moving, which instants generally are. */
   usableWhileMoving?: boolean;
   /** Half as much again by default; twice as much for a weapon strike. */

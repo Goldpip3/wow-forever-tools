@@ -6,6 +6,7 @@
  */
 
 import { SAMPLE_EXPORT } from './sample';
+import { SAMPLE_DRUID_EXPORT } from './sample-druid';
 import { SAMPLE_PALADIN_EXPORT } from './sample-paladin';
 import { SAMPLE_ROGUE_EXPORT } from './sample-rogue';
 import { SAMPLE_SHAMAN_EXPORT } from './sample-shaman';
@@ -24,6 +25,7 @@ export const SAMPLES: Sample[] = [
   { key: 'rogue', label: 'A combat rogue', text: SAMPLE_ROGUE_EXPORT },
   { key: 'shaman', label: 'An enhancement shaman', text: SAMPLE_SHAMAN_EXPORT },
   { key: 'paladin', label: 'A retribution paladin', text: SAMPLE_PALADIN_EXPORT },
+  { key: 'druid', label: 'A feral druid', text: SAMPLE_DRUID_EXPORT },
 ];
 
 export function sampleByKey(key: string): Sample | undefined {

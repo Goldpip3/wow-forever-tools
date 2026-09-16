@@ -173,6 +173,8 @@ export function plainVariables(): Record<string, Reader> {
     time_left: (ctx) => ctx.timeLeft,
     target_health_pct: (ctx) => ctx.targetHealthPct,
     targets: (ctx) => ctx.targets,
+    // One when the fight has you behind the boss, for Shred and Backstab.
+    behind: (ctx) => (ctx.fight.target.behind ? 1 : 0),
   };
 }
 

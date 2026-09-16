@@ -226,6 +226,8 @@ export function runIteration(
   const actor = new Actor(stats, overrides.infiniteMana === true, overrides.infiniteResource === true);
   actor.rage.max = K.RAGE_MAX.value + mods.bonusRage;
   spec.init?.(actor, config, mods);
+  // A form can put something other than the weapon on the end of the arm.
+  const weapons = spec.weaponsFor?.(stats) ?? stats.weapons;
 
   const regen = spec.manaRegen?.(stats, mods) ?? { per2s: 0, castingFraction: 0 };
   const effects = new EffectRuntime(config.effects ?? []);
@@ -360,8 +362,8 @@ export function runIteration(
 
   /* ---------------------------------------------------------------- swings */
 
-  const swingParams = (hand: Hand, now: number, aimed: boolean): SwingParams | null => {
-    const weapon = stats.weapons[hand];
+  const swingParams = (hand: Hand, now: number, aimed: boolean, spellId: string): SwingParams | null => {
+    const weapon = weapons[hand];
     if (!weapon) return null;
     const params: SwingParams = {
       weapon,
@@ -373,7 +375,7 @@ export function runIteration(
       hitLive: actor.statAt('hit') - stats.hit,
       critLive: actor.statAt('crit') - stats.crit,
       critBonus: mods.meleeCrit + (spec.critBonusFor
-        ? spec.critBonusFor({ spellId: AUTO_ATTACK_ID[hand], school: 'physical', actor, now, mods })
+        ? spec.critBonusFor({ spellId, school: 'physical', actor, now, mods })
         : 0),
       behind: fight.target.behind,
       canParry: fight.target.canParry,
@@ -395,7 +397,7 @@ export function runIteration(
     tallyId: string,
     points = 0,
   ): number => {
-    const params = swingParams(hand, now, ability !== null);
+    const params = swingParams(hand, now, ability !== null, ability?.def.id ?? AUTO_ATTACK_ID[hand]);
     if (!params) return 0;
 
     const t = tally(tallyId);
@@ -574,6 +576,7 @@ export function runIteration(
       if (!actor.ready(spellId, now)) return false;
       if (spell.def.useBelowMana !== undefined && actor.manaFraction() > spell.def.useBelowMana) return false;
       if (spell.def.execute && healthAt(now) > spell.def.execute.belowPct) return false;
+      if (spell.def.fromBehind && !fight.target.behind) return false;
       // Pressing a finisher with nothing banked spends a global on nothing.
       if (spell.def.combo?.spends && actor.comboPoints <= 0) return false;
       // An ability that waits on a swing cannot be queued onto a hand that is
