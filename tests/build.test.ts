@@ -430,3 +430,73 @@ describe('every talent, every rank', () => {
     expect(checked).toBeGreaterThan(30);
   });
 });
+
+describe('ranks between two read ranks', () => {
+  /* Maelstrom Weapon's shape: rank 1 and rank 5 read, three numbers in the sentence, only
+     one of which moves. The old code copied whichever read rank was nearer, so rank 3 read
+     4% and rank 4 read 20%. */
+  const maelstrom = {
+    name: 'Maelstrom Weapon',
+    max: 5,
+    row: 1,
+    col: 1,
+    icon: 'x',
+    desc: {
+      '1': 'reduce the cast time of your next Lightning Bolt by 4%. Stacks up to 5 times. Lasts 30 sec.',
+      '5': 'reduce the cast time of your next Lightning Bolt by 20%. Stacks up to 5 times. Lasts 30 sec.',
+    },
+  } as unknown as Parameters<typeof rankText>[0];
+
+  it('reads straight across instead of copying the nearer end', () => {
+    expect(rankText(maelstrom, 2).text).toContain('by 8%');
+    expect(rankText(maelstrom, 3).text).toContain('by 12%');
+    expect(rankText(maelstrom, 4).text).toContain('by 16%');
+  });
+
+  it('leaves the numbers that do not move between the two ranks alone', () => {
+    for (const rank of [2, 3, 4]) {
+      const text = rankText(maelstrom, rank).text;
+      expect(text, 'rank ' + rank).toContain('Stacks up to 5 times');
+      expect(text, 'rank ' + rank).toContain('Lasts 30 sec');
+    }
+  });
+
+  it('calls the filled-in ranks estimates and the read ones read', () => {
+    expect(rankText(maelstrom, 1).basis).toBe('read');
+    expect(rankText(maelstrom, 5).basis).toBe('read');
+    for (const rank of [2, 3, 4]) {
+      expect(rankText(maelstrom, rank).basis, 'rank ' + rank).toBe('scaled');
+      expect(rankText(maelstrom, rank).estimated, 'rank ' + rank).toBe(true);
+    }
+  });
+
+  it('refuses when the two ranks are not the same sentence', () => {
+    const reworded = {
+      name: 'Reworded',
+      max: 3,
+      row: 1,
+      col: 1,
+      icon: 'x',
+      desc: {
+        '1': 'Increases damage by 5% for 8 sec.',
+        '3': 'Now also silences the target for 3 sec and costs 12 Rage.',
+      },
+    } as unknown as Parameters<typeof rankText>[0];
+    /* Nothing lines up between the two, and neither end carries a single unambiguous
+       number to fall back on, so this stays an admitted gap rather than a guess. */
+    expect(rankText(reworded, 2).basis).toBe('unknown');
+  });
+
+  it('fixes the real Maelstrom Weapon in the shipped data', () => {
+    const tree = DATA.talents.Shaman!.trees.find((t) => t.name === 'Enhancement')!;
+    const talent = tree.talents.find((t) => t.name === 'Maelstrom Weapon');
+    if (!talent) return; // the talent may be renamed by a later import
+    // Split rather than a regex: an escape that does not survive the file is exactly how
+    // this repo has broken patterns before.
+    const percents = [1, 2, 3, 4, 5].map((r) => {
+      const after = rankText(talent, r).text.split(' by ').pop() ?? '';
+      return after.split('%')[0];
+    });
+    expect(percents).toEqual(['4', '8', '12', '16', '20']);
+  });
+});

@@ -281,6 +281,56 @@ export interface RankText {
   basis: 'read' | 'scaled' | 'unknown';
 }
 
+/**
+ * Fill in a rank that sits between two the demo did show.
+ *
+ * Two read ranks answer the question `scaleIdx` exists to answer, without guessing: the
+ * numbers that differ between them are the ones rank moves, and every number that matches
+ * is fixed. Maelstrom Weapon reads "by 4% ... Stacks up to 5 times. Lasts 30 sec." at rank
+ * 1 and "by 20% ... Stacks up to 5 times. Lasts 30 sec." at rank 5, so the stack count and
+ * the duration stay put and ranks 2 to 4 come out as 8%, 12% and 16%.
+ *
+ * Before this, a rank between two read ranks was shown as a copy of whichever end was
+ * nearer, so rank 3 read 4% and rank 4 read 20% — a jump that looked like a bug because it
+ * was one.
+ *
+ * Straight-line between the two ends, which is the shape of almost every per-rank table
+ * Blizzard writes. It is still an estimate and is still labelled as one.
+ */
+function interpolateRank(
+  loText: string,
+  hiText: string,
+  lo: number,
+  hi: number,
+  wanted: number,
+): string | null {
+  const loNums = loText.match(NUMBER);
+  const hiNums = hiText.match(NUMBER);
+  if (!loNums || !hiNums || loNums.length !== hiNums.length) return null;
+
+  /* Same sentence on both sides, or the ranks are not the same shape and there is no
+     reason to believe the third number in one means the third number in the other. */
+  if (loText.replace(NUMBER, '#') !== hiText.replace(NUMBER, '#')) return null;
+
+  const along = (wanted - lo) / (hi - lo);
+  let seen = 0;
+  let moved = false;
+  const out = loText.replace(NUMBER, (match) => {
+    const from = parseFloat(match);
+    const to = parseFloat(hiNums[seen++] ?? match);
+    if (from === to) return match;
+    moved = true;
+    const value = from + (to - from) * along;
+    // A figure written with a decimal at either end keeps one.
+    return match.includes('.') || String(to).includes('.')
+      ? String(Math.round(value * 10) / 10)
+      : String(Math.round(value));
+  });
+
+  // Nothing moved between the two ranks, so there is nothing to interpolate.
+  return moved ? out : null;
+}
+
 /** Rank text for a talent, interpolating when only some ranks were read off the demo. */
 export function rankText(talent: Talent, rank: number): RankText {
   const wanted = Math.max(1, Math.min(talent.max, rank));
@@ -299,7 +349,15 @@ export function rankText(talent: Talent, rank: number): RankText {
     .sort((a, b) => a - b);
   if (!known.length) return { text: '', estimated: true, basis: 'unknown' };
 
-  // Scale from whichever read rank is closest, so the guess travels the shortest distance.
+  /* Between two read ranks, read across rather than copying the nearer end. */
+  const lo = [...known].reverse().find((n) => n < wanted);
+  const hi = known.find((n) => n > wanted);
+  if (lo !== undefined && hi !== undefined) {
+    const between = interpolateRank(map[String(lo)] ?? '', map[String(hi)] ?? '', lo, hi, wanted);
+    if (between) return { text: between, estimated: true, basis: 'scaled' };
+  }
+
+  // Outside the read ranks: scale from the closest, so the guess travels the least distance.
   const from = known.reduce((best, n) =>
     Math.abs(n - wanted) < Math.abs(best - wanted) ? n : best,
   );
