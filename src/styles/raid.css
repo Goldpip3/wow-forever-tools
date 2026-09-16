@@ -642,24 +642,34 @@
 .rbar__skipped { color: var(--muted); font-family: var(--font-narrow); font-size: 12.5px; }
 
 /* Commands and troubleshooting, filled in from the bot's own description of itself. */
-.rcmds { display: grid; gap: 8px; }
-.rcmd {
-  padding: 7px 9px;
+
+/* Commands borrow the setup rail above rather than sitting in cards of their own.
+   The marker is a slash instead of a number because they are a list, not an order. */
+.rsteps--cmds li::before { content: '/'; font-weight: 700; }
+.rsteps--cmds .rsteps__title {
+  display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
+}
+
+/* Arial Narrow is condensed, so it needs a size or so more than the body face to
+   read as the same size. At 13.5px it was smaller than everything around it. */
+.rsteps__cmd { font-family: var(--font-narrow); font-size: 15px; letter-spacing: .2px; }
+
+.rsubs { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.rsub {
+  font-family: var(--font-narrow);
+  font-size: 12.5px;
+  color: var(--ink2);
   background: var(--panel2);
   border: 1px solid var(--line);
-  border-left: 3px solid var(--gold2);
   border-radius: var(--radius-sm);
+  padding: 2px 7px;
+  white-space: nowrap;
 }
-.rcmd__name {
-  display: flex; align-items: center; gap: 7px;
-  font-family: var(--font-narrow);
-  color: var(--gold);
-  font-size: 13.5px;
-  font-weight: 700;
-  margin-bottom: 2px;
-}
-.rcmd__desc { color: var(--ink2); font-size: 13px; line-height: 1.5; margin: 0 0 4px; }
-.rcmd__subs { color: var(--muted); font-size: 11.5px; font-family: var(--font-narrow); }
+
+.rgotcha { margin-bottom: 11px; }
+.rgotcha:last-child { margin-bottom: 0; }
+.rgotcha__problem { color: var(--gold); font-weight: 700; font-size: 13.5px; margin-bottom: 2px; }
+.rgotcha__answer { color: var(--ink2); font-size: 13px; line-height: 1.5; margin: 0; }
 
 /* ---------- signed in ---------- */
 .acct { display: flex; align-items: center; gap: 9px; margin-bottom: 10px; }

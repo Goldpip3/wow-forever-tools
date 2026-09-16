@@ -1343,22 +1343,37 @@ function enhanceRosterIntro(docs: CommandDocs): void {
   const cmds = el('section', 'panel');
   cmds.appendChild(el('div', 'panel__head', 'The commands'));
   const cbody = el('div', 'panel__body');
-  const list = el('div', 'rcmds');
+
+  /* The same rail as the setup steps above, because it reads the same way: a name to
+     scan down the left, and a line of prose under it. The marker is a slash rather
+     than a number, since commands are a list and not a sequence. */
+  const list = document.createElement('ol');
+  list.className = 'rsteps rsteps--cmds';
+
   for (const c of docs.commands) {
-    const row = el('div', 'rcmd');
-    const head = el('div', 'rcmd__name', '/' + c.name);
+    const row = document.createElement('li');
+
+    const head = el('div', 'rsteps__title');
+    head.appendChild(el('span', 'rsteps__cmd', '/' + c.name));
     if (c.adminOnly) {
       const pill = el('span', 'pill pill--unverified', 'manage server');
       pill.title = 'Needs the Manage Server permission in Discord.';
       head.appendChild(pill);
     }
     row.appendChild(head);
-    row.appendChild(el('div', 'rcmd__desc', c.description));
+
+    row.appendChild(el('div', 'rsteps__detail', c.description));
+
+    // One chip each, written out in full, so a subcommand can be read and typed
+    // rather than picked out of a run-on line.
     if (c.subcommands.length) {
-      row.appendChild(
-        el('div', 'rcmd__subs', c.subcommands.map((s) => c.name + ' ' + s.name).join(' · ')),
-      );
+      const subs = el('div', 'rsubs');
+      for (const s of c.subcommands) {
+        subs.appendChild(el('code', 'rsub', '/' + c.name + ' ' + s.name));
+      }
+      row.appendChild(subs);
     }
+
     list.appendChild(row);
   }
   cbody.appendChild(list);
@@ -1379,8 +1394,10 @@ function enhanceRosterIntro(docs: CommandDocs): void {
     gotchas.appendChild(el('div', 'panel__head', 'When it does not work'));
     const gbody = el('div', 'panel__body');
     for (const g of docs.guide.gotchas) {
-      gbody.appendChild(el('div', 'rcmd__name', g.problem));
-      gbody.appendChild(el('p', 'rcmd__desc', g.answer));
+      const item = el('div', 'rgotcha');
+      item.appendChild(el('div', 'rgotcha__problem', g.problem));
+      item.appendChild(el('p', 'rgotcha__answer', g.answer));
+      gbody.appendChild(item);
     }
     gotchas.appendChild(gbody);
     anchor?.parentNode?.insertBefore(gotchas, anchor);
