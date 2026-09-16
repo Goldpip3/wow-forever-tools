@@ -1358,7 +1358,7 @@ export function renderPublishResult(
       'p',
       '',
       result.selected + ' selected and ' + result.standby + ' standby. ' +
-        result.notified + ' were messaged.',
+        result.notified + (result.notified === 1 ? ' was messaged.' : ' were messaged.'),
     ),
   );
 
