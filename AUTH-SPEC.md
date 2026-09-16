@@ -57,11 +57,10 @@ that disagrees quietly is the web half, because nobody is watching it.
 
 Ask Discord for **`identify`** and nothing else.
 
-The obvious design asks for `guilds` and `guilds.members.read` so the site can read the
-signed-in user's roles. Do not. The bot is already in the guild with the members intent on,
-so it holds every member and every role in its own cache. Once OAuth has told us *who* this
-person is, the bot can answer *what they may do* without the user's token being involved at
-all.
+The obvious design also asks for `guilds` and `guilds.members.read` so the site can read
+the signed-in user's roles. Do not. Once OAuth has said *who* this person is, the bot can
+answer *what they may do* by asking Discord about that member directly, and the user's
+token is never involved in a permission decision.
 
 That is better on three counts, and the third is the one that matters:
 
@@ -69,11 +68,45 @@ That is better on three counts, and the third is the one that matters:
 2. Nothing to keep. No Discord access token has to be stored or refreshed to check a role.
 3. **A role change takes effect at once.** With `guilds.members.read` the site sees the
    roles the user's token was minted with, so demoting an officer leaves them in charge
-   until their token refreshes. Reading from the bot's own view, removing the role removes
-   the access on their next click.
+   until their token refreshes. Asking Discord per check, removing the role removes the
+   access on their next click.
 
 Discord's access token is used once, to learn the user id, and is then discarded. It is
 never stored.
+
+### Fetch the member, never read the cache
+
+An earlier draft of this section said the bot already holds every member and every role in
+its own cache, so a permission check could read it for free. **That is false**, and it was
+the load-bearing sentence, so it is worth being blunt about how it fails.
+
+discord.js does not populate the member cache on startup, even with the members intent. It
+caches a member when it happens to see one. Measured on the 113-member guild, before any
+fetch:
+
+```
+members cached: 1 of 113
+```
+
+A permission check written against that cache would deny an officer who simply had not
+clicked anything lately, and admit them again once they had. Intermittent, and it would
+look exactly like the role system being broken rather than like a caching bug.
+
+What is true is the next step along: the bot can fetch any member on demand, and that read
+is authoritative. Measured on the same guild:
+
+```
+fetch(id)              289 ms, 6 roles
+fetch(id, force: true) 156 ms, 6 roles
+```
+
+So the mechanism is **fetch with `force: true` on every permission check**. Without the
+force, discord.js hands back the cached copy, which is only fresh if the gateway event
+happened to arrive — and after a restart it will not have. Roughly 150 ms on a web request
+buys the property point 3 is actually claiming.
+
+The conclusion in this section survives the correction; the reason underneath it changed.
+Credit to the bot side for measuring the claim rather than believing it.
 
 ---
 
@@ -144,6 +177,11 @@ PATCH  /api/v4/events/:eventId/settings
 
 POST   /api/v4/auth/signout
 ```
+
+`role` is the **highest** one that applies. `isAdmin`, `isManager` and `isAssistant` are
+cumulative in `permissions.ts` rather than exclusive, and a single string is what the UI
+wants. `canCreate` and `canEditAny` come from the same `can()` calls, so there is exactly
+one implementation of the rule and the web only ever asks.
 
 `guilds` lists only guilds the bot is in *and* this person is in. A guild where they are a
 plain member appears with `role: "member"` rather than being hidden, so the site can say
