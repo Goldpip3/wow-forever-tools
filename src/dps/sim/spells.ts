@@ -82,6 +82,12 @@ export interface AbilityDef {
   onNextSwing?: boolean;
   /** Combo points earned or spent, for anyone who keeps them. */
   combo?: { generates?: number; spends?: boolean };
+  /**
+   * What each combo point a finisher spends is worth. Eviscerate is why: its
+   * damage is not a number, it is a number times however many points were
+   * banked when you pressed it.
+   */
+  comboDamage?: { min: number; max: number; apCoefficient?: number };
   /** How many things it reaches when more than one is standing there. */
   aoe?: { maxTargets: number };
   /** Only usable once the target is below this share of its health. */

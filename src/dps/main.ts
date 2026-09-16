@@ -18,6 +18,7 @@ import {
 } from './codec';
 import { SAMPLE_EXPORT } from './sample';
 import { SAMPLE_WARRIOR_EXPORT } from './sample-warrior';
+import { SAMPLE_ROGUE_EXPORT } from './sample-rogue';
 import {
   DEFAULT_BUFFS, DEFAULT_CONSUMABLES, defaultsFor, type BuffKind, type BuffRole,
 } from './data/buffs';
@@ -468,7 +469,11 @@ function confirmSwap(slot: Slot, item: ItemRef): void {
 const handlers: DpsHandlers = {
   onImport: (text) => importFromText(text),
 
-  onLoadSample: (which) => importFromText(which === 'warrior' ? SAMPLE_WARRIOR_EXPORT : SAMPLE_EXPORT),
+  onLoadSample: (which) => importFromText(
+    which === 'warrior' ? SAMPLE_WARRIOR_EXPORT
+      : which === 'rogue' ? SAMPLE_ROGUE_EXPORT
+        : SAMPLE_EXPORT,
+  ),
 
   onClear: () => {
     character = null;

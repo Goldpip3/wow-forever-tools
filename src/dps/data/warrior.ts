@@ -311,7 +311,6 @@ export const WARRIOR_FLAGS = {
   deepWoundsShare: 'deepWoundsShare',
   angerManagement: 'angerManagement',
   swordSpecChance: 'swordSpecChance',
-  bloodthrillChance: 'bloodthrillChance',
   improvedOverpowerCrit: 'improvedOverpowerCrit',
 };
 
@@ -372,12 +371,6 @@ export const WARRIOR_TALENT_HOOKS: Record<string, TalentHook> = {
    */
   Weaponmaster: (rank, mods) => {
     mods.flags.weaponmasterRank = rank;
-  },
-
-  // 'Your melee attacks against targets afflicted by your Rend have a 2%
-  // chance to activate your Overpower ability.' No rotation keeps Rend up.
-  Bloodthrill: (rank, mods) => {
-    mods.flags[WARRIOR_FLAGS.bloodthrillChance] = 0.02 * rank;
   },
 
   /* ---------------------------------------------------------------- Fury */

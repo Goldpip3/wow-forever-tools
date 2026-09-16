@@ -10,6 +10,7 @@ import { copyText } from '../shared/toast';
 import { ADDON_INFO } from './addon-info';
 import { SAMPLE_EXPORT } from './sample';
 import { SAMPLE_WARRIOR_EXPORT } from './sample-warrior';
+import { SAMPLE_ROGUE_EXPORT } from './sample-rogue';
 import type { ItemRef, Slot } from './export-format';
 import { SLOT_LABEL, STAT_KEYS, STAT_LABEL } from './export-format';
 import type { Character, ImportIssue } from './types';
@@ -18,7 +19,7 @@ import { candidatesFor, equippedIn, slotsInUse } from './gear';
 
 export interface DpsHandlers {
   onImport(text: string): void;
-  onLoadSample(which: 'mage' | 'warrior'): void;
+  onLoadSample(which: 'mage' | 'warrior' | 'rogue'): void;
   onClear(): void;
   onSave(name: string): void;
   onLoadSaved(id: string): void;
@@ -214,7 +215,7 @@ export function renderHowTo(collapsed = false): HTMLElement {
     'p',
     'dstep__note',
     'Not ready to install anything? Load a sample below and the whole tool works on a made-up ' +
-      'mage or a made-up warrior.',
+      'mage, a made-up warrior or a made-up rogue.',
   );
 
   if (collapsed) {
@@ -279,7 +280,14 @@ export function renderImportPanel(handlers: DpsHandlers, hasCharacter: boolean):
     handlers.onLoadSample('warrior');
   });
 
-  row.append(go, mage, warrior);
+  const rogue = el('button', 'btn', 'Load a sample rogue');
+  rogue.title = 'A made-up combat rogue, for the energy half of the engine';
+  rogue.addEventListener('click', () => {
+    box.value = SAMPLE_ROGUE_EXPORT;
+    handlers.onLoadSample('rogue');
+  });
+
+  row.append(go, mage, warrior, rogue);
 
   if (hasCharacter) {
     const clear = el('button', 'btn', 'Clear');

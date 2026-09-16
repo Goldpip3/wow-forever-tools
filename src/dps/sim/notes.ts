@@ -28,6 +28,9 @@ export function buildNotes(
   for (const [name, why] of Object.entries(spec.unmodelledTalents ?? {})) {
     if ((config.talents[name] ?? 0) > 0) missed.push(name + ': ' + why);
   }
+  for (const [name, why] of Object.entries(spec.partlyModelledTalents ?? {})) {
+    if ((config.talents[name] ?? 0) > 0) missed.push(name + ': ' + why);
+  }
   for (const line of missed) notes.push(line);
 
   // Anything ticked in the fight settings that pays out nothing.

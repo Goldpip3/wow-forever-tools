@@ -70,6 +70,8 @@ export interface ResourceTickEvent {
   kind: ResourceKind;
   actor: Actor;
   now: number;
+  /** The dice, for anything on the heartbeat that fires on a chance. */
+  rng: Rng;
   mods: SpellMods;
 }
 
@@ -176,4 +178,12 @@ export interface SpecModule {
    * quietly worth more than the number says.
    */
   unmodelledTalents?: Record<string, string>;
+  /**
+   * Talents where part of what they do is modelled and part is not, with the
+   * reason. Weaponmaster and Hack and Slash are both: which branch applies
+   * depends on the weapon in your hand, and one branch of each is an extra
+   * attack, which is a proc. Kept apart from the list above so that neither a
+   * hook nor a note can be quietly forgotten.
+   */
+  partlyModelledTalents?: Record<string, string>;
 }

@@ -97,6 +97,10 @@ const base = {
   // and the table would report a real stat as worthless.
   extraNames: { [DEEP_WOUNDS_ID]: 'Deep Wounds' },
 
+  configure: (config: SimConfig, mods: SpellMods): void => {
+    mods.flags.incomingDps = config.fight.incoming?.damagePerSecond ?? 0;
+  },
+
   init: armWarrior,
 
   /** Flurry is the only thing that moves a warrior's swing timer. */
@@ -201,8 +205,21 @@ const base = {
   extraHandsFor: (spellId: string, mods: SpellMods): Hand[] =>
     (spellId === 'whirlwind' && whirlwindHitsOffhand(mods) ? ['off'] : []),
 
-  /** Anger Management trickles rage in whether or not anything is happening. */
-  onResourceTick: ({ actor, mods }: { actor: Actor; mods: SpellMods }): void => {
+  /**
+   * The heartbeat: rage from Anger Management, and Enrage from being hit.
+   *
+   * Enrage fires off damage arriving rather than damage dealt, so it does
+   * nothing at all to somebody standing behind a boss that never turns round.
+   * That is not a gap in the model, it is what the talent does.
+   */
+  onResourceTick: ({ actor, now, rng, mods }: {
+    actor: Actor; now: number; rng: { chance(p: number): boolean }; mods: SpellMods;
+  }): void => {
+    const enrageRank = mods.flags.enrageRank ?? 0;
+    if (enrageRank > 0 && (mods.flags.incomingDps ?? 0) > 0 && rng.chance(ENRAGE.chance)) {
+      actor.auras.apply(WARRIOR_AURAS.enrage, now, { duration: ENRAGE.duration });
+    }
+
     const perSecond = mods.flags[WARRIOR_FLAGS.angerManagement] ?? 0;
     if (perSecond > 0) actor.gain('rage', perSecond * K.RESOURCE_TICK.value);
   },
@@ -214,15 +231,17 @@ const base = {
       'than from Classic. The abilities the trees say nothing about are still Classic values.',
   },
 
+  partlyModelledTalents: {
+    Weaponmaster:
+      'the axe and mace halves are modelled. The sword half is an extra attack on a chance, ' +
+      'which is not simulated yet.',
+  },
+
   unmodelledTalents: {
     Deflection: 'a parry chance, which does nothing to a warrior standing behind a boss.',
     'Improved Rend': 'no rotation here keeps Rend up, so nothing reads it.',
     Bloodthrill: 'it needs Rend on the target and an Overpower to activate, neither of which is modelled.',
     'Sweeping Strikes': 'it hits one extra target, and extra targets are a first pass here.',
-    Weaponmaster:
-      'the axe and mace halves are modelled. The sword half is an extra attack on a chance, ' +
-      'which is not simulated yet.',
-    Enrage: 'it only fires after you are hit, so it does nothing unless the fight sends damage back.',
     'Blood Craze': 'it restores health, which nothing here tracks.',
     'Improved Tactical Mastery': 'it keeps rage through a stance change, and nothing changes stance.',
     'Improved Charge': 'the pull is not modelled, so charge rage never arrives.',

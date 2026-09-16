@@ -384,6 +384,7 @@ export function runIteration(
     now: number,
     ability: ResolvedSpell | null,
     tallyId: string,
+    points = 0,
   ): number => {
     const params = swingParams(hand, now, ability !== null);
     if (!params) return 0;
@@ -398,6 +399,19 @@ export function runIteration(
     for (let i = 0; i < reach; i += 1) {
       const swing = resolveAttack(params, rng, ability?.def ?? null, overrides.forceAverageDamage);
       let amount = swing.amount;
+
+      // A finisher is worth what it spent, so the points go in before anything
+      // that multiplies, which is what makes a critical strike count them too.
+      // It is gated on the swing connecting rather than on the weapon part
+      // being worth something: Eviscerate reads no weapon damage at all, so
+      // testing the amount would leave it dealing nothing.
+      const scale = ability?.def.comboDamage;
+      if (scale && points > 0 && !AVOIDED.has(swing.outcome)) {
+        const rolled = overrides.forceAverageDamage
+          ? (scale.min + scale.max) / 2
+          : rng.between(scale.min, scale.max);
+        amount += (rolled + actor.statAt('attackPower') * (scale.apCoefficient ?? 0)) * points;
+      }
 
       if (amount > 0) {
         amount *= ability?.damageMultiplier ?? mods.physicalDamage;
@@ -450,6 +464,11 @@ export function runIteration(
         retime(now);
       }
 
+      const earns = ability?.def.combo?.generates ?? 0;
+      if (earns > 0 && i === 0 && !AVOIDED.has(swing.outcome)) {
+        actor.addCombo(earns, K.COMBO_POINT_MAX.value);
+      }
+
       spec.onSwing?.({
         spellId: ability?.def.id ?? AUTO_ATTACK_ID[hand],
         school: 'physical',
@@ -498,6 +517,8 @@ export function runIteration(
       if (!actor.ready(spellId, now)) return false;
       if (spell.def.useBelowMana !== undefined && actor.manaFraction() > spell.def.useBelowMana) return false;
       if (spell.def.execute && healthAt(now) > spell.def.execute.belowPct) return false;
+      // Pressing a finisher with nothing banked spends a global on nothing.
+      if (spell.def.combo?.spends && actor.comboPoints <= 0) return false;
       // An ability that waits on a swing cannot be queued onto a hand that is
       // already holding one, and needs a weapon in that hand at all.
       if (spell.def.onNextSwing) {
@@ -536,7 +557,7 @@ export function runIteration(
       if (spec.resource === 'rage' && fight.incoming?.damagePerSecond) {
         actor.gain('rage', rageFromDamageTaken(fight.incoming.damagePerSecond * interval));
       }
-      spec.onResourceTick?.({ kind: spec.resource ?? 'mana', actor, now, mods });
+      spec.onResourceTick?.({ kind: spec.resource ?? 'mana', actor, now, rng, mods });
       if (trace) {
         const bar = actor.resource(spec.resource ?? 'mana');
         trace.push({
@@ -625,7 +646,10 @@ export function runIteration(
 
         if (spell.physical) {
           const hand = spell.def.weapon?.hand ?? 'main';
-          strike(hand, now, spell, spell.def.id);
+          // A finisher spends what was banked, whether or not the strike lands,
+          // which is what the game does and what the rotation plans around.
+          const points = spell.def.combo?.spends ? actor.spendCombo() : 0;
+          strike(hand, now, spell, spell.def.id, points);
           for (const extra of spec.extraHandsFor?.(spell.def.id, mods, actor) ?? []) {
             if (extra !== hand && actor.swings[extra]) strike(extra, now, spell, spell.def.id);
           }
