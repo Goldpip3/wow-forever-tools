@@ -1,0 +1,64 @@
+{
+  "v": 1,
+  "source": "A fixture, invented for the tests and shipped nowhere",
+  "items": [
+    {
+      "id": 800001,
+      "name": "Warblade of the Hidden Vale",
+      "ilvl": 84,
+      "quality": 4,
+      "equipLoc": "INVTYPE_WEAPONMAINHAND",
+      "subType": "One-Handed Axes",
+      "icon": "inv_axe_14",
+      "stats": { "strength": 24, "crit": 2 },
+      "weapon": { "min": 138, "max": 231, "speed": 2.7, "type": "One-Handed Axes" },
+      "source": { "kind": "raid", "zone": "The Hidden Vale", "boss": "The Keeper" }
+    },
+    {
+      "id": 800002,
+      "name": "Helm of the Hidden Vale",
+      "ilvl": 84,
+      "quality": 4,
+      "equipLoc": "INVTYPE_HEAD",
+      "subType": "Plate",
+      "icon": "inv_helmet_25",
+      "stats": { "strength": 42, "stamina": 36, "crit": 2, "armor": 720 },
+      "set": "Vale Regalia",
+      "source": { "kind": "raid", "zone": "The Hidden Vale", "boss": "The Keeper" }
+    },
+    {
+      "id": 800003,
+      "name": "Robes of Quiet Study",
+      "ilvl": 82,
+      "quality": 4,
+      "equipLoc": "INVTYPE_ROBE",
+      "subType": "Cloth",
+      "icon": "inv_chest_cloth_36",
+      "stats": { "intellect": 34, "spellPower": 48 },
+      "source": { "kind": "raid", "zone": "The Hidden Vale", "boss": "The Archivist" }
+    },
+    {
+      "id": 800004,
+      "name": "Bracers of the Long Watch",
+      "ilvl": 78,
+      "quality": 3,
+      "equipLoc": "INVTYPE_WRIST",
+      "subType": "Plate",
+      "icon": "inv_bracer_19",
+      "stats": { "strength": 20, "stamina": 14, "armor": 380 },
+      "source": { "kind": "dungeon", "zone": "The Sunken Hold", "boss": "Warden Arkus" }
+    },
+    {
+      "id": 800005,
+      "name": "Trinket of Small Consequence",
+      "ilvl": 60,
+      "quality": 2,
+      "equipLoc": "INVTYPE_TRINKET",
+      "subType": "Miscellaneous",
+      "icon": "inv_misc_gem_bloodstone_01",
+      "stats": { "stamina": 4 },
+      "source": { "kind": "vendor" }
+    }
+  ],
+  "sets": [{ "name": "Vale Regalia", "pieces": 3, "itemIds": [800002] }]
+}

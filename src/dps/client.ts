@@ -15,6 +15,8 @@ import {
   assembleCompare, planCompare, type CompareResult, type GearSwap,
 } from './compare';
 import { runJobs, type Job } from './pool';
+import { planDrops } from './droptimizer';
+import type { ItemDatabase } from './itemdb';
 import { finishShard } from './sim/accumulate';
 import type { RotationLine } from './sim/rotation';
 import { specModule } from './sim/specs';
@@ -315,4 +317,79 @@ function pairedSpread(base: number[], moved: number[]): number {
   const m = average(diffs);
   const variance = diffs.reduce((sum, d) => sum + (d - m) ** 2, 0) / (n - 1);
   return Math.sqrt(variance / n);
+}
+
+/* --------------------------------------------------------------- drops */
+
+export interface DropRow {
+  item: ItemRef;
+  slot: Slot;
+  zone: string;
+  boss: string;
+  deltaDps: number;
+  stderr: number;
+}
+
+export interface DropResult {
+  baseDps: number;
+  drops: DropRow[];
+}
+
+export interface DropOptions extends RunOptions {
+  iterations?: number;
+  rotation?: string;
+  /** Zones to look in. Empty means everywhere the list knows about. */
+  zones?: string[];
+}
+
+/** No more than this many drops in one go, best by the score first. */
+export const DROP_CAP = 400;
+
+/**
+ * Every drop worth going for, simulated.
+ *
+ * It is the gear comparison with a different source of candidates, which is
+ * exactly what the database seam was for: an item from a list and an item from
+ * your bank are both an ItemRef by the time they reach here.
+ */
+export async function runDroptimizer(
+  character: Character,
+  fight: FightConfig,
+  db: ItemDatabase,
+  weights: WeightTable,
+  opts: DropOptions = {},
+): Promise<DropResult> {
+  specFor(character);
+
+  const plan = planDrops(character, db, weights, opts.zones);
+  const candidates = plan.candidates.slice(0, DROP_CAP);
+
+  const compared = await runCompare(
+    character,
+    fight,
+    candidates.map((candidate) => ({ slot: candidate.slot, item: candidate.item })),
+    {
+      ...(opts.iterations !== undefined ? { iterations: opts.iterations } : {}),
+      ...(opts.rotation ? { rotation: opts.rotation } : {}),
+      ...(opts.apl ? { apl: opts.apl } : {}),
+      ...(opts.signal ? { signal: opts.signal } : {}),
+      ...(opts.onProgress ? { onProgress: opts.onProgress } : {}),
+    },
+  );
+
+  const drops: DropRow[] = candidates.map((candidate, i) => {
+    const swap = compared.results[i]!;
+    return {
+      item: candidate.item,
+      slot: candidate.slot,
+      zone: candidate.zone,
+      boss: candidate.boss,
+      deltaDps: swap.deltaDps,
+      stderr: swap.stderr,
+    };
+  })
+    .filter((row) => row.deltaDps > 0)
+    .sort((a, b) => b.deltaDps - a.deltaDps);
+
+  return { baseDps: compared.baseDps, drops };
 }

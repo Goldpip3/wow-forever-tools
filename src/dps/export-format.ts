@@ -152,7 +152,8 @@ export interface WeaponInfo {
 }
 
 export interface ItemLocation {
-  where: 'equipped' | 'bag' | 'bank';
+  /** 'database' is an item you do not own, offered by a list of what drops. */
+  where: 'equipped' | 'bag' | 'bank' | 'database';
   /** Set when where is 'equipped'. */
   slot?: Slot;
   bag?: number;

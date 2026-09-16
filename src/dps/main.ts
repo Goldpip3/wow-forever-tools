@@ -31,10 +31,16 @@ import { buildNotes } from './sim/notes';
 import { targetStateFor } from './sim/target';
 import type { TraceEvent } from './sim/trace';
 import { deriveStatSheet } from './stats';
-import { runCompare, runSimulation, runTopGear, runWeights, type TopGearResult } from './client';
+import {
+  runCompare, runDroptimizer, runSimulation, runTopGear, runWeights,
+  type DropResult, type TopGearResult,
+} from './client';
 import { estimate, planTopGear } from './topgear';
 import { renderTopGearPanel, type TopGearHandlers } from './render-topgear';
 import { renderRotationPanel, type RotationHandlers } from './render-rotation';
+import { renderDropPanel, type DropHandlers } from './render-droptimizer';
+import { loadItemDatabase, type ItemDatabase } from './itemdb';
+import { planDrops } from './droptimizer';
 import { linesOf, type RotationLine } from './sim/rotation';
 import {
   itemForCell,
@@ -95,6 +101,10 @@ let topGearPerSlot = 3;
 let apl: RotationLine[] | null = null;
 /** How fast this machine turned out to be, so an estimate can be given. */
 let msPerIteration = 0.5;
+/** The item list, when there is one. Null until it has been looked for. */
+let items: ItemDatabase | null = null;
+let drops: DropResult | null = null;
+let dropZones: string[] = [];
 /** The run in flight, so changing the fight or the character can call it off. */
 let running: AbortController | null = null;
 
@@ -189,6 +199,7 @@ function clearResults(): void {
   result = null;
   trace = null;
   topGear = null;
+  drops = null;
   weights = null;
   confirmed.clear();
   busy = null;
@@ -575,6 +586,38 @@ function runTopGearNow(perSlot: number): void {
     .catch(fail);
 }
 
+function runDropsNow(zones: string[]): void {
+  if (!character || busy || !weights || !items) return;
+  const table = weightTable(weights, overrides);
+  const iterations = Math.max(200, Math.round(fight.iterations / 2));
+  const plan = planDrops(character, items, table, zones);
+  const label = 'Checking ' + plan.candidates.length + ' drops';
+  const controller = startRun(label, plan.candidates.length * iterations);
+
+  runDroptimizer(character, { ...fight }, items, table, {
+    zones,
+    iterations,
+    rotation,
+    ...(apl ? { apl } : {}),
+    signal: controller.signal,
+    onProgress: progressInto(label, controller),
+  })
+    .then((res) => {
+      if (!finished(controller)) return;
+      drops = res;
+      draw();
+    })
+    .catch(fail);
+}
+
+const dropHandlers: DropHandlers = {
+  onRun: runDropsNow,
+  onToggleZone: (zone, on) => {
+    dropZones = on ? [...dropZones, zone] : dropZones.filter((z) => z !== zone);
+    draw();
+  },
+};
+
 const topGearHandlers: TopGearHandlers = {
   onRun: runTopGearNow,
   onPerSlot: (n) => {
@@ -742,6 +785,13 @@ function draw(): void {
         topGearHandlers,
         busy !== null,
       ),
+    );
+  }
+
+  if (table && module) {
+    const zones = items ? planDrops(character, items, table).zones : [];
+    left.appendChild(
+      renderDropPanel(items, zones, dropZones, drops, dropHandlers, busy !== null),
     );
   }
 
@@ -944,6 +994,18 @@ readHash();
 void loadUser(draw);
 
 // The build code needs the talent file, which lands after the first paint.
+// The item list is optional and almost always absent, so it is looked for after
+// the page is already up and nothing waits on it.
+void loadItemDatabase()
+  .then((db) => {
+    if (!db) return;
+    items = db;
+    draw();
+  })
+  .catch(() => {
+    /* An item list nobody shipped is the ordinary case, not a failure. */
+  });
+
 void loadTalentData()
   .then((data) => {
     talentData = data;

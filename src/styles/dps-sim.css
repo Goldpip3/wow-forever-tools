@@ -318,3 +318,43 @@
   .dapl__buttons { grid-area: buttons; }
   .dapl__error { padding-left: 2px; }
 }
+
+/* Where to go for it. */
+.dzones { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0; }
+.dzone {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 8px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.dzone--on { border-color: var(--gold2); color: var(--gold); }
+.ddrops { margin-top: 10px; }
+.ddrop-group { margin-bottom: 6px; }
+.ddrop__boss {
+  font-family: var(--font-narrow); font-size: 11px; color: var(--ink2);
+  padding: 2px 0;
+}
+.ddrop {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr) 78px 52px;
+  gap: 8px;
+  align-items: baseline;
+  padding: 2px 0 2px 8px;
+  border-bottom: 1px solid var(--line);
+}
+.ddrop:last-child { border-bottom: 0; }
+.ddrop__gain { font-family: var(--font-narrow); font-weight: 700; font-size: 12.5px; color: var(--muted); }
+.ddrop__gain--up { color: var(--green2); }
+.ddrop__name { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ddrop__slot {
+  font-family: var(--font-narrow); font-size: 10.5px; text-transform: uppercase;
+  letter-spacing: .6px; color: var(--muted);
+}
+.ddrop__range { font-family: var(--font-narrow); font-size: 11px; color: var(--muted); text-align: right; }
+@media (max-width: 620px) {
+  .ddrop { grid-template-columns: 48px minmax(0, 1fr) 52px; }
+  .ddrop__slot { display: none; }
+}
