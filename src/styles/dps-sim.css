@@ -266,3 +266,30 @@
   .drun { grid-template-columns: minmax(0, 1fr) 56px; }
   .drun__when { display: none; }
 }
+
+/* Every combination, ranked. */
+.dcombos { display: flex; flex-direction: column; gap: 3px; margin-top: 8px; }
+.dcombo { border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.dcombo--best { border-color: var(--gold2); }
+.dcombo__head {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: baseline;
+  padding: 5px 8px;
+  cursor: pointer;
+}
+.dcombo__gain {
+  font-family: var(--font-narrow); font-weight: 700; font-size: 13px; color: var(--muted);
+}
+.dcombo__gain--up { color: var(--green2); }
+.dcombo__what { font-size: 13px; color: var(--ink2); }
+.dcombo__dps { font-family: var(--font-narrow); font-size: 11.5px; color: var(--muted); }
+.dcombo__body { padding: 4px 8px 8px; border-top: 1px solid var(--line); }
+.dcombo__swap { display: grid; grid-template-columns: 78px minmax(0, 1fr); gap: 6px; padding: 2px 0; }
+.dcombo__slot {
+  font-family: var(--font-narrow); font-size: 10.5px; text-transform: uppercase;
+  letter-spacing: .6px; color: var(--muted);
+}
+.dcombo__item { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dcombo__item--off { color: var(--muted); font-style: italic; }

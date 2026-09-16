@@ -21,6 +21,7 @@ import type { SpecModule } from './spec';
 import type { Rotation, RotationCtx } from './rotation';
 import { resistMultiplier, rollSpell, spellCritChance, spellHitChance } from './tables';
 import { emptyShard, emptyTally, finishShard, type Shard, type Tally } from './accumulate';
+import { EffectRuntime, type EffectFired } from './effects';
 import { collectTrace, type TraceEvent, type TraceSink } from './trace';
 
 export type { Shard };
@@ -53,7 +54,8 @@ type SimEvent =
   | { kind: 'dot-tick'; spellId: string; snapshotPower: number; left: number; perTick?: number }
   | { kind: 'mana-tick' }
   | { kind: 'resource-tick' }
-  | { kind: 'swing'; hand: Hand };
+  | { kind: 'swing'; hand: Hand }
+  | { kind: 'effect-expire'; auraId: string };
 
 export interface IterationResult {
   damage: number;
@@ -186,6 +188,7 @@ export function runIteration(
   spec.init?.(actor, config, mods);
 
   const regen = spec.manaRegen?.(stats, mods) ?? { per2s: 0, castingFraction: 0 };
+  const effects = new EffectRuntime(config.effects ?? []);
   const targets = Math.max(1, Math.round(fight.targets ?? 1));
   const armed = actor.armedHands();
   const dualWield = !!actor.swings.main && !!actor.swings.off;
@@ -231,6 +234,27 @@ export function runIteration(
       });
     };
 
+  /**
+   * An effect went off. Damage lands now and is billed to the item, and an aura
+   * gets a real expiry event, because the stats it added have to come back off
+   * rather than be noticed as gone on the next read.
+   */
+  const settle = (fired: EffectFired[]): void => {
+    for (const one of fired) {
+      if (one.expiresAt !== undefined && one.auraId) {
+        queue.push(one.expiresAt, { kind: 'effect-expire', auraId: one.auraId });
+      }
+      if (one.damage) {
+        const amount = one.damage.amount * (target.damageTaken.physical ?? 1);
+        const t = tally(one.damage.id);
+        t.casts += 1;
+        t.hits += 1;
+        t.damage += amount;
+        total += amount;
+      }
+    }
+  };
+
   const hasteNow = (now: number): number => spec.hasteFor?.(actor, now, mods) ?? 1;
 
   /** Haste may have moved; keep each swing's progress and re-time the rest. */
@@ -255,9 +279,11 @@ export function runIteration(
   };
 
   /** Spell power that reaches a school: the generic pool plus that school's own. */
+  // Read through the actor rather than the sheet: a trinket that is up has to
+  // count, and it is not on the sheet because it was not up when it was built.
   const powerFor = (spell: ResolvedSpell): number => {
     const key = SCHOOL_POWER[spell.def.school];
-    return stats.spellPower + (key ? (stats[key] ?? 0) : 0);
+    return actor.statAt('spellPower') + (key ? actor.statAt(key) : 0);
   };
 
   const hitPctFor = (): number =>
@@ -293,8 +319,11 @@ export function runIteration(
       weapon,
       hand,
       stats,
+      attackPower: actor.statAt('attackPower'),
       target,
       hitBonus: mods.meleeHit + (hand === 'off' ? mods.offhandHit : 0),
+      hitLive: actor.statAt('hit') - stats.hit,
+      critLive: actor.statAt('crit') - stats.crit,
       critBonus: mods.meleeCrit + (spec.critBonusFor
         ? spec.critBonusFor({ spellId: AUTO_ATTACK_ID[hand], school: 'physical', actor, now, mods })
         : 0),
@@ -371,6 +400,15 @@ export function runIteration(
           swing.outcome === 'crit',
         ) * mods.rageFromDamage * (hand === 'off' ? mods.offhandRage : 1);
         if (earned > 0) actor.gain('rage', earned);
+      }
+
+      if (effects.any && !AVOIDED.has(swing.outcome)) {
+        const fired = effects.onTrigger(
+          swing.outcome === 'crit' ? 'melee-crit' : 'melee-hit',
+          now, actor, rng, params.weapon, hand,
+        );
+        settle(fired);
+        retime(now);
       }
 
       spec.onSwing?.({
@@ -474,6 +512,13 @@ export function runIteration(
       continue;
     }
 
+    if (data.kind === 'effect-expire') {
+      effects.expire(data.auraId, now, actor);
+      retime(now);
+      event = queue.pop();
+      continue;
+    }
+
     if (data.kind === 'swing') {
       const timer = actor.swings[data.hand];
       if (!timer) {
@@ -537,6 +582,11 @@ export function runIteration(
               t.damage += amount;
               total += amount;
             }
+            if (effects.any && outcome !== 'miss') {
+              const fired = effects.onTrigger('spell-hit', now, actor, rng, undefined, 'main');
+              settle(fired);
+            }
+
             spec.onLand?.({
               spellId: spell.def.id,
               school: spell.def.school,
@@ -617,6 +667,20 @@ export function runIteration(
     if (now >= fight.duration) {
       event = queue.pop();
       continue;
+    }
+
+    // Anything you press rather than cast goes off the moment it is ready and
+    // there is fight left to spend it on. None of it costs a global.
+    if (effects.any) {
+      for (const ready of effects.usable(now)) {
+        const aura = ready.effect.kind === 'use' ? ready.effect.aura : null;
+        if (!aura || fight.duration - now < Math.min(aura.duration, 5)) continue;
+        const fired = effects.use(ready.name, now, actor, rng);
+        if (fired) {
+          settle([fired]);
+          retime(now);
+        }
+      }
     }
 
     const action = rotation(ctxFor(now));

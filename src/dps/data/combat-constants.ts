@@ -189,3 +189,24 @@ export const NORMALISED_SPEED = classic({
 
 /** Attack power buys damage at this rate: fourteen points for one per second. */
 export const AP_PER_DPS = classic(14);
+
+/* -------------------------------------------------------------- item effects */
+
+/**
+ * How long a trinket you press waits before it can be pressed again.
+ *
+ * A tooltip does not say, so this is assumed rather than read, and the results
+ * panel names any item it was assumed for. Most Classic trinkets are between
+ * ninety seconds and three minutes; three is the cautious end.
+ */
+export const TRINKET_COOLDOWN = classic(
+  180,
+  'A trinket tooltip does not give its cooldown, so three minutes is assumed.',
+);
+
+/**
+ * How often a proc with a rate rather than a chance fires: that rate a minute,
+ * scaled by how slow the weapon is, which is what keeps a slow weapon from
+ * procing less than a fast one over the same fight.
+ */
+export const PROC_PPM_DEFAULT = classic(1);

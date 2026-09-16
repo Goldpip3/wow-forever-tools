@@ -18,10 +18,14 @@ import { runJobs, type Job } from './pool';
 import { finishShard } from './sim/accumulate';
 import { specModule } from './sim/specs';
 import type { FightConfig, SimConfig, SimResult } from './sim/types';
-import { deriveStatSheet } from './stats';
+import { deriveStatSheet, effectsOn } from './stats';
 import { assembleWeights, planWeights, type WeightResult } from './weights';
 import type { Character } from './types';
-import type { StatKey } from './export-format';
+import type { ItemRef, Slot, StatKey } from './export-format';
+import {
+  enumerate, planTopGear, setsIn, swapsIn, valid, type Loadout,
+} from './topgear';
+import type { WeightTable } from './weights';
 
 export type Progress = (done: number, total: number) => void;
 
@@ -38,6 +42,7 @@ function configFor(character: Character, fight: FightConfig, rotation?: string):
     talents: character.talentRanks,
     fight,
     ...(rotation ? { rotation } : {}),
+    ...effectsOn(character),
   };
 }
 
@@ -132,4 +137,172 @@ export async function runCompare(
 /** Whether this character's spec has a simulation behind it at all. */
 export function canSimulate(character: Character): boolean {
   return !!specModule(character.specId);
+}
+
+/* ----------------------------------------------------------------- top gear */
+
+export interface TopGearOptions extends RunOptions {
+  /** How many candidates per slot the linear score shortlists. */
+  perSlot?: number;
+  /** Iterations for the first pass, which only has to rank. */
+  iterations?: number;
+  /** Iterations for the handful that come out on top. */
+  finalIterations?: number;
+  rotation?: string;
+}
+
+export interface TopGearEntry {
+  loadout: Loadout;
+  dps: number;
+  stderr: number;
+  /** Against what is worn now. */
+  delta: number;
+  swaps: Array<{ slot: Slot; item: ItemRef | null }>;
+  sets: Array<{ name: string; worn: number }>;
+  /** Whether this one was run again properly rather than only ranked. */
+  confirmed: boolean;
+}
+
+export interface TopGearResult {
+  baseDps: number;
+  entries: TopGearEntry[];
+  /** How many loadouts were run, after the impossible ones were taken out. */
+  combinations: number;
+}
+
+/** No more than this many loadouts in one go, however many were asked for. */
+export const TOP_GEAR_CAP = 2000;
+
+/** How many of the best are run again at the full iteration count. */
+const FINALISTS = 5;
+
+/**
+ * Every combination worth trying, simulated.
+ *
+ * Two passes. The first ranks every loadout at a low iteration count, which is
+ * enough to tell a good one from a bad one and nowhere near enough to tell two
+ * good ones apart. The second runs the handful at the top properly, which is
+ * what decides between them.
+ */
+export async function runTopGear(
+  character: Character,
+  fight: FightConfig,
+  weights: WeightTable,
+  opts: TopGearOptions = {},
+): Promise<TopGearResult> {
+  specFor(character);
+  const plan = planTopGear(character, weights, opts.perSlot ?? 3);
+
+
+  const loadouts = [...enumerate(plan.choices)]
+    .filter((loadout) => valid(character, loadout))
+    .slice(0, TOP_GEAR_CAP);
+
+  const first = Math.max(50, Math.round(opts.iterations ?? 300));
+  const final = Math.max(first, Math.round(opts.finalIterations ?? fight.iterations));
+
+  // Every loadout is a fight of its own, built the way a swap is.
+  const runFight: FightConfig = { ...fight, iterations: first };
+  const base: SimConfig = {
+    specId: character.specId,
+    stats: deriveStatSheet(character, runFight),
+    talents: character.talentRanks,
+    fight: runFight,
+    ...(opts.rotation ? { rotation: opts.rotation } : {}),
+    ...effectsOn(character),
+  };
+
+  const configFrom = (loadout: Loadout, iterations: number): SimConfig => {
+    const f: FightConfig = { ...fight, iterations };
+    return {
+      ...base,
+      fight: f,
+      stats: deriveStatSheet(character, f, { gearOverride: loadout }),
+      ...effectsOn(character, loadout),
+    };
+  };
+
+  const jobs: Job[] = [
+    { jobId: 0, config: base, iterations: first },
+    ...loadouts.map((loadout, i) => ({
+      jobId: i + 1,
+      config: configFrom(loadout, first),
+      iterations: first,
+    })),
+  ];
+
+  // Both passes share one progress bar, so it does not appear to finish twice.
+  const firstTotal = jobs.reduce((sum, job) => sum + job.iterations, 0);
+  const secondTotal = FINALISTS * final;
+  const whole = firstTotal + secondTotal;
+  const report = (done: number) => opts.onProgress?.(done, whole);
+
+  const ranked = await runJobs(jobs, {
+    ...(opts.signal ? { signal: opts.signal } : {}),
+    onProgress: (done) => report(done),
+  });
+
+  const baseSeries = ranked[0]!.shard.series;
+  const baseDps = average(baseSeries);
+
+  const scored = loadouts.map((loadout, i) => {
+    const series = ranked[i + 1]!.shard.series;
+    return {
+      loadout,
+      series,
+      dps: average(series),
+    };
+  }).sort((a, b) => b.dps - a.dps);
+
+  const finalists = scored.slice(0, FINALISTS);
+  const finalJobs: Job[] = [
+    { jobId: 0, config: { ...base, fight: { ...fight, iterations: final } }, iterations: final },
+    ...finalists.map((entry, i) => ({
+      jobId: i + 1,
+      config: configFrom(entry.loadout, final),
+      iterations: final,
+    })),
+  ];
+
+  const settled = await runJobs(finalJobs, {
+    ...(opts.signal ? { signal: opts.signal } : {}),
+    onProgress: (done) => report(firstTotal + done),
+  });
+
+  const settledBase = settled[0]!.shard.series;
+  const settledBaseDps = average(settledBase);
+
+  const entries: TopGearEntry[] = scored.map((entry) => {
+    const at = finalists.indexOf(entry);
+    const series = at >= 0 ? settled[at + 1]!.shard.series : entry.series;
+    const against = at >= 0 ? settledBase : baseSeries;
+    const dps = average(series);
+    return {
+      loadout: entry.loadout,
+      dps,
+      stderr: pairedSpread(against, series),
+      delta: dps - (at >= 0 ? settledBaseDps : baseDps),
+      swaps: swapsIn(character, entry.loadout),
+      sets: setsIn(character, entry.loadout),
+      confirmed: at >= 0,
+    };
+  }).sort((a, b) => b.delta - a.delta);
+
+  // What was actually run, which the cap may have trimmed further.
+  return { baseDps: settledBaseDps, entries, combinations: loadouts.length };
+}
+
+function average(values: number[]): number {
+  return values.length ? values.reduce((sum, n) => sum + n, 0) / values.length : 0;
+}
+
+/** The spread of the paired differences, which is what sharing the seeds shrinks. */
+function pairedSpread(base: number[], moved: number[]): number {
+  const n = Math.min(base.length, moved.length);
+  if (n < 2) return 0;
+  const diffs = new Array<number>(n);
+  for (let i = 0; i < n; i += 1) diffs[i] = moved[i]! - base[i]!;
+  const m = average(diffs);
+  const variance = diffs.reduce((sum, d) => sum + (d - m) ** 2, 0) / (n - 1);
+  return Math.sqrt(variance / n);
 }

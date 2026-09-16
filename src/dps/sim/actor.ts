@@ -11,6 +11,7 @@
 import { AuraTracker } from './auras';
 import { SwingTimer } from './swing';
 import type { ResourceKind } from './spells';
+import type { StatKey } from '../export-format';
 import type { Hand, StatSheet } from './types';
 
 /** One bar: what is in it, what has gone through it, and when it ran dry. */
@@ -71,6 +72,13 @@ export class Actor {
   /** Points banked towards a finisher. */
   comboPoints = 0;
 
+  /**
+   * Stats from anything that comes and goes: a trinket that was pressed, a
+   * weapon that procced. Kept apart from the sheet and added on read, because
+   * the sheet is resolved once and these change mid-fight.
+   */
+  readonly bonus: Partial<Record<StatKey, number>> = {};
+
   /** Auras on the character. */
   readonly auras = new AuraTracker();
   /** Auras on the boss, kept apart so a rotation can ask about either. */
@@ -119,6 +127,20 @@ export class Actor {
     // Rage starts empty, the way a pull does. Energy starts full.
     this.rage = new Resource('rage', 100, 0);
     this.energy = new Resource('energy', 100, 100);
+  }
+
+  /* ------------------------------------------------------------- live stats */
+
+  /** A stat as it stands now: what the sheet said, plus anything up. */
+  statAt(key: StatKey): number {
+    return this.stats[key] + (this.bonus[key] ?? 0);
+  }
+
+  /** Puts a block of stats on, or takes it back off with a sign of minus one. */
+  addBonus(stats: Partial<Record<StatKey, number>>, sign: number): void {
+    for (const [key, value] of Object.entries(stats) as Array<[StatKey, number]>) {
+      if (value) this.bonus[key] = (this.bonus[key] ?? 0) + value * sign;
+    }
   }
 
   /* --------------------------------------------------------------- cooldowns */

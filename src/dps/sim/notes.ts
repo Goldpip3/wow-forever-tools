@@ -46,6 +46,11 @@ export function buildNotes(
     );
   }
 
+  // A line off an item's tooltip that nothing could be made of. The damage
+  // figure is short by whatever it would have been worth, and saying which item
+  // is the difference between an estimate and a wrong answer.
+  for (const line of config.effectNotes ?? []) notes.push(line);
+
   if (config.fight.targets && config.fight.targets > 1) {
     notes.push(
       'Extra targets only reach abilities that say they hit more than one, and they are ' +

@@ -18,6 +18,9 @@ import { SCHOOL_POWER, SLOTS, STAT_KEYS } from './export-format';
 import { BASE_STATS } from './data/base-stats';
 import { CONVERSIONS, spiritRegenPer2s } from './data/conversions';
 import { buffById } from './data/buffs';
+import { setStats } from './data/sets';
+import { effectsForLoadout } from './data/item-effects';
+import type { ActiveEffect } from './sim/effects';
 import type { Character } from './types';
 import {
   emptyStatSheet, type FightConfig, type Hand, type StatSheet, type WeaponStats,
@@ -42,12 +45,26 @@ export function equippedStats(
   equipped: Partial<Record<Slot, ItemRef>>,
   override?: Partial<Record<Slot, ItemRef | null>>,
 ): StatBlock {
+  const worn = wornItems(equipped, override);
   const total: StatBlock = {};
+  for (const item of worn) addInto(total, item.stats);
+  // A set bonus is counted here rather than on top, so a swap that breaks a set
+  // loses the bonus the same way it loses the item's own stats.
+  addInto(total, setStats(worn));
+  return total;
+}
+
+/** Which item is in each slot once a swap has been applied. */
+export function wornItems(
+  equipped: Partial<Record<Slot, ItemRef>>,
+  override?: Partial<Record<Slot, ItemRef | null>>,
+): ItemRef[] {
+  const out: ItemRef[] = [];
   for (const slot of SLOTS) {
     const item = override && slot in override ? override[slot] : equipped[slot];
-    if (item) addInto(total, item.stats);
+    if (item) out.push(item);
   }
-  return total;
+  return out;
 }
 
 /**
@@ -95,6 +112,30 @@ export function baselineStats(source: CharacterExport): StatBlock {
 
   addInto(base, gear, -1);
   return base;
+}
+
+/**
+ * The trinkets and weapon procs on what a character is wearing, read off the
+ * tooltips the addon scanned.
+ *
+ * Resolved here rather than in the worker because it is cheap, and because a
+ * line nothing could be made of has to reach the notes rather than vanish.
+ */
+export function effectsOn(
+  character: Character,
+  override?: Partial<Record<Slot, ItemRef | null>>,
+): { effects: ActiveEffect[]; effectNotes: string[] } {
+  const worn = wornItems(character.source.equipped, override);
+  const read = effectsForLoadout(worn);
+
+  return {
+    effects: read.effects.map(({ item, effect }) => ({ name: item.name, effect })),
+    effectNotes: read.unknown.map(
+      ({ item, line }) =>
+        item.name + ' does something this page cannot read: "' + line.trim() +
+        '". Whatever that is worth is missing from the figure.',
+    ),
+  };
 }
 
 /* -------------------------------------------------------------------- buffs */

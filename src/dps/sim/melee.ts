@@ -50,6 +50,11 @@ export interface SwingParams {
   weapon: WeaponStats;
   hand: Hand;
   stats: StatSheet;
+  /** Attack power as it stands now, which a trinket that is up has moved. */
+  attackPower: number;
+  /** Hit and crit a live effect has added on top of the sheet. */
+  hitLive?: number;
+  critLive?: number;
   target: TargetState;
   /** Extra percentage points beyond what the sheet already carries. */
   hitBonus: number;
@@ -68,8 +73,8 @@ export function bandsFor(params: SwingParams, aimed: boolean): AttackTable {
   const attack: AttackParams = {
     skill: params.weapon.skill,
     defense: defenseFor(params.target.level),
-    hitPct: params.stats.hit + params.hitBonus,
-    critPct: params.stats.crit + params.critBonus,
+    hitPct: params.stats.hit + params.hitBonus + (params.hitLive ?? 0),
+    critPct: params.stats.crit + params.critBonus + (params.critLive ?? 0),
     attackerLevel: params.stats.level,
     targetLevel: params.target.level,
     dualWield: params.dualWield,
@@ -120,7 +125,7 @@ export function resolveAttack(
     return { outcome, amount: 0, white: !aimed };
   }
 
-  const attackPower = params.stats.attackPower;
+  const attackPower = params.attackPower;
   const share = ability?.weapon?.multiplier ?? 1;
   const normalise = ability?.weapon?.normalised ?? false;
   const flat = ability?.weapon?.flat ?? 0;

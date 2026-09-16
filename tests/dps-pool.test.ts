@@ -5,7 +5,7 @@ import { runShard, simulate } from '../src/dps/sim/sim';
 import { runJobs, workersAvailable } from '../src/dps/pool';
 import { parseCharacterExport } from '../src/dps/importer';
 import { SAMPLE_WARRIOR_EXPORT } from '../src/dps/sample-warrior';
-import { deriveStatSheet } from '../src/dps/stats';
+import { deriveStatSheet, effectsOn } from '../src/dps/stats';
 import { specModule } from '../src/dps/sim/specs';
 import { runSimulation, runWeights } from '../src/dps/client';
 import type { FightConfig, SimConfig } from '../src/dps/sim/types';
@@ -31,12 +31,14 @@ function fight(iterations = 1000): FightConfig {
   };
 }
 
+/** The same config the client builds, trinkets and all, so the two can be compared. */
 function configFor(f: FightConfig): SimConfig {
   return {
     specId: character.specId,
     stats: deriveStatSheet(character, f),
     talents: character.talentRanks,
     fight: f,
+    ...effectsOn(character),
   };
 }
 

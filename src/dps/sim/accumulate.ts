@@ -188,6 +188,11 @@ export function finishShard(shard: Shard, config: SimConfig, spec: SpecModule): 
   const names = new Map(spec.spells.map((s) => [s.id, s.name]));
   for (const [id, name] of Object.entries(AUTO_ATTACK_NAME)) names.set(id, name);
   for (const [id, name] of Object.entries(spec.extraNames ?? {})) names.set(id, name);
+  // A trinket or a weapon proc bills its damage to a row of its own, named
+  // after the item it came from.
+  for (const entry of config.effects ?? []) {
+    if (entry.effect.kind !== 'extra-attacks') names.set(entry.effect.aura.id, entry.name);
+  }
 
   const abilities: AbilityStats[] = entries
     .map(([id, t]) => ({

@@ -1,4 +1,5 @@
 import type { School, StatKey } from '../export-format';
+import type { ActiveEffect } from './effects';
 import { STAT_KEYS } from '../export-format';
 
 export type { School, StatKey };
@@ -120,6 +121,13 @@ export interface SimConfig {
   fight: FightConfig;
   /** Which of the spec's rotations to run. */
   rotation?: string;
+  /**
+   * Trinkets and weapon procs, already read off the worn items. The engine is
+   * handed effects rather than items, so it never needs to know what an item is.
+   */
+  effects?: ActiveEffect[];
+  /** Effect lines on the worn items that nothing could be made of. */
+  effectNotes?: string[];
 }
 
 /**

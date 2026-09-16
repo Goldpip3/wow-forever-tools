@@ -31,7 +31,9 @@ import { buildNotes } from './sim/notes';
 import { targetStateFor } from './sim/target';
 import type { TraceEvent } from './sim/trace';
 import { deriveStatSheet } from './stats';
-import { runCompare, runSimulation, runWeights } from './client';
+import { runCompare, runSimulation, runTopGear, runWeights, type TopGearResult } from './client';
+import { estimate, planTopGear } from './topgear';
+import { renderTopGearPanel, type TopGearHandlers } from './render-topgear';
 import {
   itemForCell,
   itemTip,
@@ -76,6 +78,10 @@ const confirmed = new Map<string, SwapResult>();
 let busy: Busy | null = null;
 /** One fight from the last run, replayed for the timeline. */
 let trace: TraceEvent[] | null = null;
+let topGear: TopGearResult | null = null;
+let topGearPerSlot = 3;
+/** How fast this machine turned out to be, so an estimate can be given. */
+let msPerIteration = 0.5;
 /** The run in flight, so changing the fight or the character can call it off. */
 let running: AbortController | null = null;
 
@@ -160,6 +166,7 @@ function clearResults(): void {
   cancelRun();
   result = null;
   trace = null;
+  topGear = null;
   weights = null;
   confirmed.clear();
   busy = null;
@@ -262,11 +269,13 @@ function runSim(): void {
   if (!character || busy) return;
   const controller = startRun('Simulating', fight.iterations);
 
+  const began = Date.now();
   runSimulation(character, { ...fight }, rotation, {
     signal: controller.signal,
     onProgress: progressInto('Simulating', controller),
   })
     .then((res) => {
+      msPerIteration = (Date.now() - began) / Math.max(1, fight.iterations);
       if (!finished(controller)) return;
       result = res;
       trace = replayMiddle(res);
@@ -482,6 +491,35 @@ const handlers: DpsHandlers = {
   },
 };
 
+function runTopGearNow(perSlot: number): void {
+  if (!character || busy || !weights) return;
+  const table = weightTable(weights, overrides);
+  const plan = planTopGear(character, table, perSlot);
+  const label = 'Trying ' + plan.combinations.toLocaleString() + ' combinations';
+  const controller = startRun(label, plan.combinations * 300);
+
+  runTopGear(character, { ...fight }, table, {
+    perSlot,
+    rotation,
+    signal: controller.signal,
+    onProgress: progressInto(label, controller),
+  })
+    .then((res) => {
+      if (!finished(controller)) return;
+      topGear = res;
+      draw();
+    })
+    .catch(fail);
+}
+
+const topGearHandlers: TopGearHandlers = {
+  onRun: runTopGearNow,
+  onPerSlot: (n) => {
+    topGearPerSlot = n;
+    draw();
+  },
+};
+
 const fightHandlers: FightHandlers = {
   onFightChange: (patch) => {
     fight = { ...fight, ...patch };
@@ -629,6 +667,21 @@ function draw(): void {
       renderUpgradesPanel(upgrades(character, table), confirmed, fightHandlers, busy, scale),
     );
   }
+  if (table && module) {
+    const plan = planTopGear(character, table, topGearPerSlot);
+    const guess = estimate(plan.combinations, 300, msPerIteration, 8);
+    left.appendChild(
+      renderTopGearPanel(
+        plan.combinations,
+        guess.seconds,
+        topGearPerSlot,
+        topGear,
+        topGearHandlers,
+        busy !== null,
+      ),
+    );
+  }
+
   left.appendChild(renderGearPanel(character, table ? gearExtras(rankings, scale) : {}, openSlot, selectSlot));
   main.appendChild(left);
 
