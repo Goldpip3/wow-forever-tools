@@ -276,6 +276,34 @@ One domain, bought and on Cloudflare: **`wowforever.us`**.
 | `wowforever.us` | Cloudflare Pages | the static site: planner, talents, DPS |
 | `api.wowforever.us` | Cloudflare Tunnel → the bot's local port | the roster API |
 
+### Two bot settings, not one
+
+Group Builder has **two** settings that name the planner, and they are not the same thing.
+Setting one and not the other produces a failure with nothing on screen to explain it.
+
+| Setting | What it is | A wrong value looks like |
+|---|---|---|
+| `PLANNER_ORIGIN` | the origin allowed through CORS, matched exactly | every call refused, visible only in the browser console |
+| `PLANNER_URL` | the host in the link `/roster` hands a leader | the leader lands on the wrong port, and then hits the refusal above |
+
+They have to agree. In development both are `http://localhost:5273`, the port
+`.claude/launch.json` pins for the planner's dev server. In production both are the
+deployed origin. A wildcard does not work for `PLANNER_ORIGIN`, because every call carries
+an `Authorization` header.
+
+This is written down because it was got wrong once, and only in a chat message rather than
+in a file: `PLANNER_ORIGIN` was moved to 5273 and `PLANNER_URL` left on 5173. The link a
+leader clicked went to a planner whose every request was then refused, with nothing in the
+browser to say why.
+
+### Never copy the bot's .env
+
+Not even briefly, and not as a backup. It holds the live Discord token, and a copy beside
+it inside the repository is one `git add -A` away from being committed. That happened
+once; it was caught and removed from history, and the repository has no remote, so nothing
+left the machine. `*.bak` and `.env.*` are now gitignored there. Read values in place
+rather than copying the file.
+
 The hostname appears in exactly three places: the CORS origin (§4), the tunnel
 configuration, and `API_BASE` in the planner build (§7.6). Changing it later is a
 three-line edit.

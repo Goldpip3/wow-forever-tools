@@ -112,7 +112,17 @@ export interface PublishResult {
   cut: number;
   messageUrl: string;
   notified: number;
+  /** Real people with real accounts who heard nothing. Never fabricated signups. */
   couldNotDm: Array<{ userId: string; displayName: string }>;
+  /**
+   * Fabricated signups from a /testcreate event, which were deliberately not messaged.
+   *
+   * Always present, empty on a normal event. They are kept out of couldNotDm on purpose:
+   * that list is the one place a publish admits somebody was not reached, and a leader
+   * who learns to ignore it because it is usually fake names will ignore it on the night
+   * it is real.
+   */
+  skippedTestAccounts: Array<{ userId: string; displayName: string }>;
   dmMode: string;
 }
 

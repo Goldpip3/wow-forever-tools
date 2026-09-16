@@ -1348,6 +1348,7 @@ export function renderPublishResult(
     standby: number;
     notified: number;
     couldNotDm: Array<{ userId: string; displayName: string }>;
+    skippedTestAccounts?: Array<{ userId: string; displayName: string }>;
     messageUrl: string;
     dmMode: string;
   },
@@ -1395,6 +1396,23 @@ export function renderPublishResult(
     );
     body.appendChild(
       el('p', 'rbar__nodm', result.couldNotDm.map((p) => p.displayName).join(', ')),
+    );
+  }
+
+  /* Test accounts are reported separately and in a calm colour. They were skipped on
+     purpose and nothing is wrong, which is the opposite of the list above. */
+  const skipped = result.skippedTestAccounts ?? [];
+  if (skipped.length) {
+    body.appendChild(el('div', 'section-label', 'Test accounts skipped ' + skipped.length));
+    body.appendChild(
+      el(
+        'p',
+        'drawer__hint',
+        'Made-up signups from a test event. There is nobody behind them to message, so they were left out rather than counted as unreachable.',
+      ),
+    );
+    body.appendChild(
+      el('p', 'rbar__skipped', skipped.map((p) => p.displayName).join(', ')),
     );
   }
 

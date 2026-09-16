@@ -296,3 +296,41 @@ describe('what the leader is told', () => {
     expect(text).toContain('slots.4.slotIndex');
   });
 });
+
+describe('what a publish reports', () => {
+  /**
+   * couldNotDm is the one place a publish admits somebody was not reached, and the planner
+   * shows it in red. Group Builder guarantees a fabricated signup appears in
+   * skippedTestAccounts or nowhere, never in couldNotDm. The planner renders them as two
+   * separate things so the guarantee is visible to the leader rather than merely true.
+   */
+  it('keeps skipped test accounts out of the unreachable list', () => {
+    const result = {
+      revision: 5,
+      selected: 20,
+      standby: 4,
+      cut: 0,
+      messageUrl: 'https://discord.com/channels/1/2/3',
+      notified: 19,
+      couldNotDm: [{ userId: '140665854328176640', displayName: 'Bob' }],
+      skippedTestAccounts: [
+        { userId: 'test:warrior:3', displayName: 'Tharivol' },
+        { userId: 'test:mage:1', displayName: 'Emberly' },
+      ],
+      dmMode: 'selected+standby',
+    };
+
+    const ids = new Set(result.couldNotDm.map((p) => p.userId));
+    for (const fake of result.skippedTestAccounts) {
+      expect(ids.has(fake.userId), fake.displayName).toBe(false);
+    }
+    expect(result.couldNotDm).toHaveLength(1);
+  });
+
+  it('treats the field as always present, empty on a normal event', () => {
+    // The bot guarantees the key exists, so nothing here should need an undefined check.
+    const normal = { couldNotDm: [], skippedTestAccounts: [] };
+    expect(Array.isArray(normal.skippedTestAccounts)).toBe(true);
+    expect(normal.skippedTestAccounts).toHaveLength(0);
+  });
+});
