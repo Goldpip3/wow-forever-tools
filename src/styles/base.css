@@ -306,3 +306,12 @@ select.btn { appearance: none; padding-right: 26px;
 ::-webkit-scrollbar-thumb:hover { background: var(--gold2); background-clip: padding-box; }
 ::-webkit-scrollbar-thumb:active { background: var(--gold); background-clip: padding-box; }
 ::-webkit-scrollbar-corner { background: transparent; }
+
+/* The option list of a native select is drawn by the browser, not by the page, so it
+   keeps the OS background while inheriting the control's colour. Gold on white is what
+   that produced on the talent calculator's Level menu. Both are set explicitly. */
+select.btn option,
+select.btn optgroup {
+  background: var(--panel);
+  color: var(--ink);
+}

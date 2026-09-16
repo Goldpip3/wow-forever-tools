@@ -76,6 +76,8 @@ let rosterState: RosterState | null = null;
 let saver: Saver | null = null;
 let saveState: SaveState = 'idle';
 let saveDetail: string | undefined;
+/** Where the hash pointed last, so a same-document turn knows which way it travelled. */
+let lastRail = 0;
 
 function el(tag: string, cls?: string, text?: string): HTMLElement {
   const node = document.createElement(tag);
@@ -562,40 +564,59 @@ document.addEventListener('keydown', (ev) => {
 
 window.addEventListener('hashchange', () => {
   if (suppressHash) return;
-  /* A fresh signed link pasted into a tab that is already in roster mode. This is what a
-     leader does after being told their link expired, so it has to work: the page reloads
-     onto the new token rather than sitting there doing nothing. A hash change that is not
-     a different link is ignored, because roster mode never writes its own hash. */
-  if (mode === 'roster') {
-    const next = readRosterLink();
-    if (next && link && (next.token !== link.token || next.eventId !== link.eventId)) {
+
+  /* A fresh signed link pasted into a tab already in roster mode. This is what a leader
+     does after being told their link expired, so it has to work: reload onto the new
+     token rather than sit there. */
+  const arriving = readRosterLink();
+  if (mode === 'roster' && arriving && link) {
+    if (arriving.token !== link.token || arriving.eventId !== link.eventId) {
       saver?.flush();
       location.reload();
     }
     return;
   }
-  /* Planner mode arriving at a signed link: a Discord link opened in a tab that already
-     had the planner up is only a hash change, not a load, so it has to be caught here or
-     the leader sits looking at a hypothetical raid wondering where their signups are. */
-  const arriving = readRosterLink();
+
+  /* Roster, the explainer and the planner are all raid.html, so moving between them is a
+     hash change and the browser will not turn the page for them. Leaving roster mode this
+     way used to return without rendering anything, so the address bar said planner while
+     the roster stayed on screen. */
+  const to = railPosition(location.hash);
+  const direction: 'fwd' | 'back' = to > lastRail ? 'fwd' : 'back';
+  lastRail = to;
+
   if (arriving) {
     void enterRosterMode(arriving);
     return;
   }
   if (/^#?roster=demo/.test(location.hash)) {
-    enterDemoMode();
+    sameDocumentTurn(direction, enterDemoMode);
     return;
   }
   if (/^#?roster/.test(location.hash)) {
-    drawRosterIntro();
+    sameDocumentTurn(direction, drawRosterIntro);
     return;
   }
-  readHash();
+
+  // Back to the planner. Drop any roster state so its pool and bar do not linger.
+  sameDocumentTurn(direction, () => {
+    if (mode !== 'planner') {
+      saver?.flush();
+      saver?.dispose();
+      saver = null;
+      rosterState = null;
+      link = null;
+      mode = 'planner';
+      roster = emptyRoster(40);
+    }
+    readHash();
+  });
 });
 
 /* A signed roster link wins over every other reading of the hash. #roster with no token
    is the nav button, which lands on the explainer. Without either the page is exactly what
    it has always been, with no network call and no account. */
+lastRail = railPosition(location.hash);
 const rosterLink = readRosterLink();
 if (rosterLink) void enterRosterMode(rosterLink);
 else if (/^#?roster=demo/.test(location.hash)) enterDemoMode();
@@ -1167,4 +1188,51 @@ export function renderRosterIntro(): HTMLElement {
   wrap.appendChild(next);
 
   return wrap;
+}
+
+/**
+ * Turn the page when the document does not change.
+ *
+ * Roster, the roster explainer and the planner are all raid.html, so moving between them
+ * is a hash change rather than a navigation. The cross-document view transition in
+ * base.css never fires for them, so those three swapped instantly while every other tab
+ * in the bar slid — which reads as the page glitching rather than as a different design.
+ *
+ * This runs the same animation by hand. `data-nav` is the same attribute page-turn.js
+ * sets before a real navigation, so a same-document turn and a cross-document one are
+ * driven by exactly one set of rules in the stylesheet.
+ */
+function sameDocumentTurn(direction: 'fwd' | 'back', render: () => void): void {
+  const root = document.documentElement;
+  const start = (
+    document as Document & { startViewTransition?: (cb: () => void) => { finished: Promise<void> } }
+  ).startViewTransition;
+
+  let reduced = false;
+  try {
+    reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  } catch {
+    /* a browser that cannot answer gets the animation */
+  }
+
+  if (!start || reduced) {
+    render();
+    return;
+  }
+
+  root.setAttribute('data-nav', direction);
+  const transition = start.call(document, render);
+  // Leave the attribute alone until the turn is over, or the rules stop matching midway
+  // and the page finishes the animation in the wrong direction.
+  void transition.finished.finally(() => root.removeAttribute('data-nav'));
+}
+
+/**
+ * Which way the bar reads between the three states raid.html can be in.
+ *
+ * Roster sits to the right of Raid planner in the nav, and the explainer and the demo are
+ * both reached through Roster, so they travel with it.
+ */
+function railPosition(hash: string): number {
+  return /^#?roster/.test(hash) ? 1 : 0;
 }

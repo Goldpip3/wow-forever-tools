@@ -553,7 +553,9 @@ function coverState(cov: EffectCoverage): CoverState {
 const STATE_LABEL: Record<CoverState, string> = {
   covered: 'Covered',
   overlaps: 'Does not stack',
-  available: 'Available',
+  // Not 'Available': a Paladin with five available blessings read as a Paladin who
+  // brings five blessings, when one of them is a one-at-a-time choice they have not made.
+  available: 'Not assigned',
   missing: 'Missing',
 };
 

@@ -112,7 +112,7 @@ export function renderDrawer(player: Player, h: DrawerHandlers): HTMLElement {
   for (const choice of choicesFor(player)) {
     const hint =
       choice.limit === 1
-        ? 'One at a time.'
+        ? 'One at a time. Picking another turns this one off.'
         : 'Up to ' + choice.limit + ' at a time.';
     const sec = section(choice.label, hint);
     const list = el('div', 'opt-list');
