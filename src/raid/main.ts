@@ -640,6 +640,10 @@ window.addEventListener('hashchange', () => {
    it has always been, with no network call and no account. */
 /* The sign-in callback comes back with #signin=ok|cancelled|expired|failed. Read and
    clear it before anything routes on the hash, or it looks like an unknown roster. */
+/* Asked once for the whole page, not once per mode. It used to live inside the roster
+   explainer, so the planner drew a Sign in button to somebody already signed in. */
+void loadUser(draw);
+
 const signIn = takeSignInOutcome();
 if (signIn) window.setTimeout(() => toast(SIGN_IN_MESSAGE[signIn]), 0);
 
@@ -1009,7 +1013,6 @@ function drawRosterIntro(): void {
   app.appendChild(renderRosterIntro());
   app.appendChild(renderFooter());
 
-  void loadUser(draw);
 
   /* The bot describes its own commands, so the steps above stop being this page's guess.
      Fired after the render and ignored if it fails: most people reading this have not set
