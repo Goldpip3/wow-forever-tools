@@ -30,6 +30,7 @@ export type { Shard };
 import {
   AVOIDED,
   type Hand,
+  type School,
   type Outcome,
   type SimConfig,
   type SimResult,
@@ -95,8 +96,12 @@ function resolveSpells(spec: SpecModule, mods: SpellMods): Map<string, ResolvedS
   const specResource: ResourceKind = spec.resource ?? 'mana';
 
   for (const def of spec.spells) {
-    const shortened = def.castTime > 0
-      ? Math.max(K.MIN_CAST_TIME.value, def.castTime + (mods.castTime[def.id] ?? 0))
+    // A cast shortened to nothing or less becomes instant, which is what a
+    // talent like Instrument of Law says outright. Anything short of that is
+    // held at the floor, the way Improved Frostbolt always has been.
+    const after = def.castTime + (mods.castTime[def.id] ?? 0);
+    const shortened = def.castTime > 0 && after > 0
+      ? Math.max(K.MIN_CAST_TIME.value, after)
       : 0;
 
     const physical = def.kind === 'melee' || def.kind === 'ranged';
@@ -483,6 +488,7 @@ export function runIteration(
         weapon: params.weapon,
         bleed: bleedAt(now),
         extraAttack: (bonus = 0, id = EXTRA_ATTACK_ID) => extraAttack(now, bonus, id),
+        procDamage: (id, amount, school) => procDamage(now, id, amount, school),
         now,
         actor,
         rng,
@@ -503,6 +509,33 @@ export function runIteration(
    * could not proc Windfury, and letting any of them chain would turn a small
    * chance into an occasional runaway that no player has ever seen.
    */
+  /**
+   * Damage a swing sets off that is not a swing: Seal of Command's holy strike.
+   * It rolls for a critical strike at the character's melee chance and takes
+   * the target's resistance to that school rather than its armor, because it
+   * is magic riding on a weapon rather than the weapon itself.
+   */
+  function procDamage(now: number, id: string, base: number, school: School): void {
+    if (base <= 0) return;
+    const critPct = actor.statAt('crit') + mods.meleeCrit + (spec.critBonusFor?.(
+      { spellId: id, school, actor, now, mods },
+    ) ?? 0);
+    const crit = rng.chance(Math.max(0, Math.min(100, critPct)) / 100);
+    let amount = base * (mods.schoolDamage[school] ?? 1) * (target.damageTaken[school] ?? 1);
+    amount *= spec.damageBonusFor?.({ spellId: id, school, actor, now, mods }) ?? 1;
+    if (crit) amount *= K.MELEE_CRIT_MULTIPLIER.value + mods.meleeCritBonus;
+    if (school !== 'physical') amount *= resistMultiplier(target.resistance, stats.level, target.level);
+    else amount *= physicalMultiplier(target, stats.level, mods.armorIgnored);
+
+    const t = tally(id);
+    t.casts += 1;
+    t.hits += 1;
+    if (crit) t.crits += 1;
+    t.damage += amount;
+    total += amount;
+    trace?.push({ t: now, kind: 'land', id, amount, outcome: crit ? 'crit' : 'hit' });
+  }
+
   let extraDepth = 0;
   function extraAttack(now: number, bonusAttackPower: number, id: string): void {
     if (extraDepth > 0 || !actor.swings.main) return;
@@ -772,7 +805,12 @@ export function runIteration(
       if (spell && dot && data.left > 0) {
         const perTick =
           (dot.damage / dot.ticks + (data.snapshotPower * dot.coefficient) / dot.ticks) * spell.damageMultiplier;
-        const amount = perTick
+        // A multiplier that comes and goes, such as Vengeance, counts when the
+        // tick lands rather than when the spell went out.
+        const live = spec.damageBonusFor?.(
+          { spellId: spell.def.id, school: spell.def.school, actor, now, mods },
+        ) ?? 1;
+        const amount = perTick * live
           * resistMultiplier(target.resistance, stats.level, target.level)
           * (target.damageTaken[spell.def.school] ?? 1);
         const t = tally(spell.def.id + '-dot');

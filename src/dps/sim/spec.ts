@@ -59,6 +59,11 @@ export interface SwingEvent extends LandEvent {
    * swing alone. Windfury is why the bonus exists; a sword proc passes nothing.
    */
   extraAttack(bonusAttackPower?: number, id?: string): void;
+  /**
+   * Deal damage that rides on this swing without being a swing, such as Seal
+   * of Command. It rolls its own critical strike and is billed to its own row.
+   */
+  procDamage(id: string, amount: number, school: School): void;
 }
 
 export interface CostEvent {
