@@ -1393,12 +1393,18 @@ function enhanceRosterIntro(docs: CommandDocs): void {
     const gotchas = el('section', 'panel');
     gotchas.appendChild(el('div', 'panel__head', 'When it does not work'));
     const gbody = el('div', 'panel__body');
+
+    // The third list on this page, so it uses the same rail as the other two.
+    // The marker is an exclamation, since each one is something that went wrong.
+    const problems = document.createElement('ol');
+    problems.className = 'rsteps rsteps--gotchas';
     for (const g of docs.guide.gotchas) {
-      const item = el('div', 'rgotcha');
-      item.appendChild(el('div', 'rgotcha__problem', g.problem));
-      item.appendChild(el('p', 'rgotcha__answer', g.answer));
-      gbody.appendChild(item);
+      const item = document.createElement('li');
+      item.appendChild(el('div', 'rsteps__title', g.problem));
+      item.appendChild(el('div', 'rsteps__detail', g.answer));
+      problems.appendChild(item);
     }
+    gbody.appendChild(problems);
     gotchas.appendChild(gbody);
     anchor?.parentNode?.insertBefore(gotchas, anchor);
   }

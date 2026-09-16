@@ -666,10 +666,9 @@
   white-space: nowrap;
 }
 
-.rgotcha { margin-bottom: 11px; }
-.rgotcha:last-child { margin-bottom: 0; }
-.rgotcha__problem { color: var(--gold); font-weight: 700; font-size: 13.5px; margin-bottom: 2px; }
-.rgotcha__answer { color: var(--ink2); font-size: 13px; line-height: 1.5; margin: 0; }
+/* Troubleshooting is the third list on the page and reads like the other two.
+   An exclamation rather than a number, because each one is something that broke. */
+.rsteps--gotchas li::before { content: '!'; font-weight: 700; }
 
 /* ---------- signed in ---------- */
 .acct { display: flex; align-items: center; gap: 9px; margin-bottom: 10px; }
