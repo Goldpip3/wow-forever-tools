@@ -1,5 +1,6 @@
 /**
- * Druid abilities and the talents that change them, for Feral in Cat Form.
+ * Druid abilities and the talents that change them, for Feral in Cat Form and,
+ * further down, for Balance.
  *
  * Forever's Feral tree is its own. Mangle is a Cat Form strike for the whole
  * weapon plus twenty-six, Berserk takes its cooldown away, Rend and Tear rewards
@@ -322,5 +323,182 @@ export const DRUID_TALENT_HOOKS: Record<string, TalentHook> = {
     for (const school of ['nature', 'arcane'] as const) {
       mods.schoolDamage[school] = (mods.schoolDamage[school] ?? 1) * (1 + 0.01 * rank);
     }
+  },
+};
+
+/* =============================================================== Balance */
+
+/*
+ * Balance is kept apart from the Feral hooks above rather than added to them,
+ * because each tree lists the other's talents as doing nothing, and one shared
+ * map would say every talent does something for both.
+ *
+ * The Balance tree gives Insect Swarm at the rank the talent teaches. The
+ * Classic level sixty rank is used, and the note says so.
+ */
+
+export const NATURES_GRACE = { speed: 1.1, duration: 3 };
+export const ECLIPSE = { perRank: 0.17, charges: 2, maxCharges: 4, duration: 15 };
+export const BALANCE_OF_NATURE = { perRank: 0.01, duration: 10 };
+
+export const WRATH: AbilityDef = {
+  id: 'wrath',
+  name: 'Wrath',
+  icon: 'spell_nature_abolishmagic',
+  school: 'nature',
+  castTime: 2,
+  cost: 180,
+  minDamage: 236,
+  maxDamage: 266,
+  coefficient: 0.571,
+  forever: classic('Rank 8 at the Classic values.'),
+};
+
+export const STARFIRE: AbilityDef = {
+  id: 'starfire',
+  name: 'Starfire',
+  icon: 'spell_arcane_starfire',
+  school: 'arcane',
+  castTime: 3.5,
+  cost: 340,
+  minDamage: 463,
+  maxDamage: 543,
+  coefficient: 1,
+  forever: classic('Rank 6 at the Classic values.'),
+};
+
+export const MOONFIRE: AbilityDef = {
+  id: 'moonfire',
+  name: 'Moonfire',
+  icon: 'spell_nature_starfall',
+  school: 'arcane',
+  castTime: 0,
+  cost: 375,
+  minDamage: 195,
+  maxDamage: 228,
+  coefficient: 0.15,
+  dot: { ticks: 4, interval: 3, damage: 384, coefficient: 0.52 },
+  forever: classic('Rank 10 at the Classic values: 195 to 228 at once and 384 over twelve seconds.'),
+};
+
+export const INSECT_SWARM: AbilityDef = {
+  id: 'insect-swarm',
+  name: 'Insect Swarm',
+  icon: 'spell_nature_insectswarm',
+  school: 'nature',
+  castTime: 0,
+  cost: 110,
+  minDamage: 0,
+  maxDamage: 0,
+  coefficient: 0,
+  dot: { ticks: 6, interval: 2, damage: 324, coefficient: 0.76 },
+  forever: classic(
+    'The Balance tree gives 55 over twelve seconds, which is the rank the talent teaches. Rank 5 ' +
+      'is taken at the Classic values.',
+  ),
+};
+
+/** Classic's Major Mana Potion, the same one the mage drinks. */
+export const DRUID_MANA_POTION: AbilityDef = {
+  id: 'mana-potion',
+  name: 'Major Mana Potion',
+  icon: 'inv_potion_76',
+  school: 'arcane',
+  castTime: 0,
+  gcd: 0,
+  cost: 0,
+  cooldown: 120,
+  minDamage: 0,
+  maxDamage: 0,
+  coefficient: 0,
+  restoresMana: 1800,
+  useBelowMana: 0.7,
+  forever: { status: 'unverified' },
+};
+
+export const BALANCE_ABILITIES: AbilityDef[] = [WRATH, STARFIRE, MOONFIRE, INSECT_SWARM, DRUID_MANA_POTION];
+
+const BALANCE_SPELLS = [WRATH, STARFIRE, MOONFIRE, INSECT_SWARM];
+
+export const BALANCE_TALENT_HOOKS: Record<string, TalentHook> = {
+  "Nature's Majesty": DRUID_TALENT_HOOKS["Nature's Majesty"]!,
+  "Nature's Reach": DRUID_TALENT_HOOKS["Nature's Reach"]!,
+  Naturalist: DRUID_TALENT_HOOKS.Naturalist!,
+
+  // 'Increases the periodic damage and healing done by your spells and
+  // abilities by 1%.'
+  Genesis: (rank, mods) => {
+    mods.flags.periodicDamage = 0.01 * rank;
+  },
+
+  // 'Reduces the cast time of your Wrath spell by 0.1 sec and its Mana cost by 10%.'
+  'Improved Wrath': (rank, mods) => {
+    mods.castTime[WRATH.id] = (mods.castTime[WRATH.id] ?? 0) - 0.1 * rank;
+    mods.cost[WRATH.id] = (mods.cost[WRATH.id] ?? 1) * (1 - 0.1 * rank);
+  },
+
+  // 'Reduces the Mana cost of your spells by 3%.'
+  Moonglow: (rank, mods) => {
+    for (const spell of BALANCE_SPELLS) mods.cost[spell.id] = (mods.cost[spell.id] ?? 1) * (1 - 0.03 * rank);
+  },
+
+  // 'Increases the damage and critical strike chance of your Moonfire spell by 5%.'
+  'Improved Moonfire': (rank, mods) => {
+    multiplyDamage(mods, MOONFIRE.id, 1 + 0.05 * rank);
+    mods.flags.improvedMoonfire = 5 * rank;
+  },
+
+  // 'Increases the duration of your Moonfire ... by 3 sec ... and your Insect
+  // Swarm spell by 2 sec.' One tick more on each.
+  "Nature's Splendor": (_rank, mods) => {
+    mods.dotTicks[MOONFIRE.id] = (mods.dotTicks[MOONFIRE.id] ?? 0) + 1;
+    mods.dotTicks[INSECT_SWARM.id] = (mods.dotTicks[INSECT_SWARM.id] ?? 0) + 1;
+  },
+
+  // 'Each time you cast a Nature spell, your next Arcane damage spell within 10
+  // sec deals 1% increased damage', and the other way round.
+  'Balance of Nature': (rank, mods) => {
+    mods.flags.balanceOfNature = BALANCE_OF_NATURE.perRank * rank;
+  },
+
+  // 'Increases the critical strike damage bonus of your Arcane and Nature
+  // spells by 20%.'
+  Vengeance: (rank, mods) => {
+    mods.critBonus.arcane = (mods.critBonus.arcane ?? 0) + 0.5 * 0.2 * rank;
+    mods.critBonus.nature = (mods.critBonus.nature ?? 0) + 0.5 * 0.2 * rank;
+  },
+
+  // 'Reduces the cast time of Starfire by 0.1 sec ...'
+  'Improved Starfire': (rank, mods) => {
+    mods.castTime[STARFIRE.id] = (mods.castTime[STARFIRE.id] ?? 0) - 0.1 * rank;
+  },
+
+  "Nature's Grace": (_rank, mods) => {
+    mods.flags.naturesGrace = 1;
+  },
+
+  // 'Your Wrath spell reduces the cast time of your next 2 Starfire spells by
+  // 0.17 sec. Stores up to 4 charges.'
+  Eclipse: (rank, mods) => {
+    mods.flags.eclipse = ECLIPSE.perRank * rank;
+  },
+
+  // 'Increases the damage done by your Arcane and Nature spells by 1%.'
+  Moonfury: (rank, mods) => {
+    for (const school of ['arcane', 'nature'] as const) {
+      mods.schoolDamage[school] = (mods.schoolDamage[school] ?? 1) * (1 + 0.01 * rank);
+    }
+  },
+
+  // '... all party members within 45 yards have their critical chance increased
+  // by 3%.' The druid is one of them; the fight settings decide whether it is
+  // already counted as a raid buff.
+  'Moonkin Form': (_rank, mods) => {
+    mods.flags.moonkinForm = 1;
+  },
+
+  // 'Allows 17% of your Mana regeneration to continue while casting.'
+  Reflection: (rank, mods) => {
+    mods.flags.castingRegen = 0.17 * rank;
   },
 };
