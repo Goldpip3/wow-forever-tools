@@ -8,7 +8,7 @@
  * thing keeping it from overflowing.
  */
 
-import { priorityRotation } from '../rotation';
+import type { PriorityEntry } from '../rotation';
 import { warriorSpec } from './warrior';
 
 /** A two-hander earns rage in lumps, so there is less spare than Fury has. */
@@ -19,8 +19,7 @@ export const warriorArms = warriorSpec({
   label: 'Arms Warrior',
 
   rotations: {
-    standard: (talents) =>
-      priorityRotation([
+    standard: (talents): PriorityEntry[] => [
         {
           spellId: 'bloodrage',
           when: (ctx) => ctx.rage < 60,
@@ -50,7 +49,7 @@ export const warriorArms = warriorSpec({
           when: (ctx) => ctx.rage > RAGE_DUMP,
           text: 'rage > ' + RAGE_DUMP,
         },
-      ]),
+    ],
   },
 
   rotationLabels: {

@@ -1,5 +1,6 @@
 import type { School, StatKey } from '../export-format';
 import type { ActiveEffect } from './effects';
+import type { RotationLine } from './rotation';
 import { STAT_KEYS } from '../export-format';
 
 export type { School, StatKey };
@@ -63,7 +64,26 @@ export interface TargetConfig {
   canBlock: boolean;
 }
 
+/**
+ * What the fight looks like, beyond how long it is.
+ *
+ * Patchwerk is the default and the only honest one to compare gear against: the
+ * boss stands still and so do you. The others exist because a rotation that
+ * looks best standing still is not always the one that looks best when you have
+ * to move, and a target count changes which abilities are worth a global.
+ */
+export type FightStyle =
+  | { kind: 'patchwerk' }
+  | { kind: 'movement'; every: number; for: number }
+  | { kind: 'cleave'; targets: number };
+
 export interface FightConfig {
+  /**
+   * The shape this was written in. A fight from a link or from an older set of
+   * preferences is read through migrateFight, which fills in what it predates.
+   */
+  v?: number;
+  style?: FightStyle;
   /** Seconds. */
   duration: number;
   iterations: number;
@@ -128,6 +148,8 @@ export interface SimConfig {
   effects?: ActiveEffect[];
   /** Effect lines on the worn items that nothing could be made of. */
   effectNotes?: string[];
+  /** A rotation somebody wrote themselves, which replaces the spec's own. */
+  apl?: RotationLine[];
 }
 
 /**

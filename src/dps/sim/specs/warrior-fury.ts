@@ -8,7 +8,7 @@
  * pressed as soon as it is worth pressing.
  */
 
-import { priorityRotation } from '../rotation';
+import type { PriorityEntry } from '../rotation';
 import { warriorSpec } from './warrior';
 
 /** Above this much rage there is more coming in than globals to spend it. */
@@ -19,8 +19,7 @@ export const warriorFury = warriorSpec({
   label: 'Fury Warrior',
 
   rotations: {
-    standard: (talents) =>
-      priorityRotation([
+    standard: (talents): PriorityEntry[] => [
         {
           spellId: 'bloodrage',
           when: (ctx) => ctx.rage < 60,
@@ -55,7 +54,7 @@ export const warriorFury = warriorSpec({
           when: (ctx) => ctx.rage > RAGE_DUMP,
           text: 'rage > ' + RAGE_DUMP,
         },
-      ]),
+    ],
   },
 
   rotationLabels: {

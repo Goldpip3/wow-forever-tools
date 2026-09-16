@@ -18,7 +18,9 @@ import { rageFromDamage, rageFromDamageTaken } from './rage';
 import { mulberry32, splitSeed, type Rng } from './rng';
 import { applyTalents, type AbilityDef, type ResourceKind, type SpellMods } from './spells';
 import type { SpecModule } from './spec';
-import type { Rotation, RotationCtx } from './rotation';
+import { priorityRotation, type PriorityEntry, type Rotation, type RotationCtx } from './rotation';
+import { condition } from './apl';
+import type { RotationLine } from './rotation';
 import { resistMultiplier, rollSpell, spellCritChance, spellHitChance } from './tables';
 import { emptyShard, emptyTally, finishShard, type Shard, type Tally } from './accumulate';
 import { EffectRuntime, type EffectFired } from './effects';
@@ -55,7 +57,8 @@ type SimEvent =
   | { kind: 'mana-tick' }
   | { kind: 'resource-tick' }
   | { kind: 'swing'; hand: Hand }
-  | { kind: 'effect-expire'; auraId: string };
+  | { kind: 'effect-expire'; auraId: string }
+  | { kind: 'move'; moving: boolean };
 
 export interface IterationResult {
   damage: number;
@@ -142,6 +145,29 @@ export interface Prepared {
   cheapest: Map<ResourceKind, number>;
 }
 
+/**
+ * Turns written lines into a priority list.
+ *
+ * A line that will not read is left out rather than thrown, because a rotation
+ * is edited a character at a time and half-typed text should not stop the run
+ * that is already going. The editor reports the error; the engine skips it.
+ */
+function compileLines(lines: RotationLine[], talents: Record<string, number>): PriorityEntry[] {
+  const out: PriorityEntry[] = [];
+  for (const line of lines) {
+    if (!line.text?.trim()) {
+      out.push({ spellId: line.spellId });
+      continue;
+    }
+    try {
+      out.push({ spellId: line.spellId, when: condition(line.text, { talents }), text: line.text });
+    } catch {
+      continue;
+    }
+  }
+  return out;
+}
+
 export function prepare(config: SimConfig, spec: SpecModule): Prepared {
   const mods = applyTalents(spec.talentHooks, config.talents);
 
@@ -155,7 +181,13 @@ export function prepare(config: SimConfig, spec: SpecModule): Prepared {
   const rotationName = config.rotation && spec.rotations[config.rotation]
     ? config.rotation
     : Object.keys(spec.rotations)[0]!;
-  const rotation = spec.rotations[rotationName]!(config.talents);
+
+  // A rotation somebody wrote themselves replaces the spec's, and its
+  // conditions are compiled here rather than read every time round the loop.
+  const entries = config.apl?.length
+    ? compileLines(config.apl, config.talents)
+    : spec.rotations[rotationName]!(config.talents);
+  const rotation = priorityRotation(entries);
 
   // The cheapest thing worth pressing in each bar, so an idle moment can be
   // told apart from an empty one.
@@ -189,7 +221,11 @@ export function runIteration(
 
   const regen = spec.manaRegen?.(stats, mods) ?? { per2s: 0, castingFraction: 0 };
   const effects = new EffectRuntime(config.effects ?? []);
-  const targets = Math.max(1, Math.round(fight.targets ?? 1));
+  const style = fight.style ?? { kind: 'patchwerk' as const };
+  const targets = Math.max(
+    1,
+    Math.round(style.kind === 'cleave' ? style.targets : fight.targets ?? 1),
+  );
   const armed = actor.armedHands();
   const dualWield = !!actor.swings.main && !!actor.swings.off;
 
@@ -200,6 +236,9 @@ export function runIteration(
     queue.push(K.RESOURCE_TICK.value, { kind: 'resource-tick' });
   }
   for (const hand of armed) queue.push(actor.swings[hand]!.nextAt, { kind: 'swing', hand });
+  if (style.kind === 'movement' && style.every > 0 && style.for > 0) {
+    queue.push(style.every, { kind: 'move', moving: true });
+  }
 
   const abilities = new Map<string, Tally>();
   const tally = (id: string): Tally => {
@@ -512,6 +551,20 @@ export function runIteration(
       continue;
     }
 
+    if (data.kind === 'move') {
+      const moving = style.kind === 'movement' ? style : null;
+      if (moving) {
+        if (data.moving) {
+          actor.movingUntil = now + moving.for;
+          queue.push(now + moving.for, { kind: 'move', moving: false });
+        } else {
+          queue.push(now + moving.every, { kind: 'move', moving: true });
+        }
+      }
+      event = queue.pop();
+      continue;
+    }
+
     if (data.kind === 'effect-expire') {
       effects.expire(data.auraId, now, actor);
       retime(now);
@@ -522,6 +575,14 @@ export function runIteration(
     if (data.kind === 'swing') {
       const timer = actor.swings[data.hand];
       if (!timer) {
+        event = queue.pop();
+        continue;
+      }
+
+      // Out of range of the boss, so the swing waits rather than missing.
+      if (actor.movingUntil > now) {
+        actor.idleTime += Math.min(actor.movingUntil, fight.duration) - now;
+        queue.push(actor.movingUntil, { kind: 'swing', hand: data.hand });
         event = queue.pop();
         continue;
       }
@@ -709,6 +770,12 @@ export function runIteration(
     }
 
     const spell = spells.get(action.spellId);
+    if (spell && actor.movingUntil > now && !spell.def.usableWhileMoving && spell.def.gcd !== 0) {
+      actor.idleTime += Math.min(actor.movingUntil, fight.duration) - now;
+      queue.push(actor.movingUntil, { kind: 'decide' });
+      event = queue.pop();
+      continue;
+    }
     if (!spell) {
       // A rotation asking for an ability the spec does not have is a bug, not a
       // fight event: skip a tenth of a second rather than spinning.

@@ -14,7 +14,7 @@ import { SLOT_LABEL } from './export-format';
 import { buffsFor, type BuffDef, type BuffKind } from './data/buffs';
 import type { Upgrade } from './gear';
 import type { SwapResult } from './compare';
-import type { FightConfig, SimResult } from './sim/types';
+import type { FightConfig, FightStyle, SimResult } from './sim/types';
 import type { SpecModule } from './sim/spec';
 import { isNoisy, type WeightResult, type WeightTable } from './weights';
 import { el, qualityColor } from './render';
@@ -144,12 +144,50 @@ export function renderFightPanel(
   );
   row.appendChild(field('Target level', bossLevel));
 
-  row.appendChild(
-    field(
-      'Things to hit',
-      numberInput(fight.targets ?? 1, (n) => handlers.onFightChange({ targets: n }), 1, 10),
-    ),
-  );
+  // The style decides the target count when it is a cleave, so the two are one
+  // control rather than two that can disagree with each other.
+  const style = fight.style ?? { kind: 'patchwerk' as const };
+
+  const styles = document.createElement('select');
+  styles.className = 'btn dfield__input';
+  for (const [value, label] of [
+    ['patchwerk', 'Standing still'],
+    ['movement', 'Moving now and then'],
+    ['cleave', 'More than one thing'],
+  ] as Array<[FightStyle['kind'], string]>) {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = label;
+    option.selected = value === style.kind;
+    styles.appendChild(option);
+  }
+  styles.addEventListener('change', () => {
+    const kind = styles.value as FightStyle['kind'];
+    const next: FightStyle =
+      kind === 'movement' ? { kind, every: 45, for: 5 }
+        : kind === 'cleave' ? { kind, targets: 3 }
+          : { kind: 'patchwerk' };
+    handlers.onFightChange({ style: next });
+  });
+  row.appendChild(field('The fight', styles));
+
+  if (style.kind === 'movement') {
+    row.appendChild(
+      field('Move every', numberInput(style.every, (n) =>
+        handlers.onFightChange({ style: { ...style, every: n } }), 5, 600)),
+    );
+    row.appendChild(
+      field('For', numberInput(style.for, (n) =>
+        handlers.onFightChange({ style: { ...style, for: n } }), 1, 60)),
+    );
+  }
+
+  if (style.kind === 'cleave') {
+    row.appendChild(
+      field('Things to hit', numberInput(style.targets, (n) =>
+        handlers.onFightChange({ style: { ...style, targets: n } }), 2, 10)),
+    );
+  }
 
   // Rage from being hit is the tank's half of the bar, so it is only offered to
   // somebody who has one, and it defaults to nothing.

@@ -20,7 +20,6 @@ import {
 import { AuraTracker } from '../src/dps/sim/auras';
 import { Actor } from '../src/dps/sim/actor';
 import { simulate } from '../src/dps/sim/sim';
-import { priorityRotation } from '../src/dps/sim/rotation';
 import { emptyStatSheet, type SimConfig } from '../src/dps/sim/types';
 import type { SpecModule } from '../src/dps/sim/spec';
 
@@ -389,7 +388,7 @@ describe('a bar that ticks rather than trickles', () => {
       },
     ],
     talentHooks: {},
-    rotations: { standard: () => priorityRotation([{ spellId: 'jab' }]) },
+    rotations: { standard: () => [{ spellId: 'jab' }] },
     weightStats: [],
     referenceStat: 'attackPower',
     init: (actor, config) => {

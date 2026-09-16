@@ -68,6 +68,20 @@ export interface PriorityEntry {
  * The common shape: walk a list top to bottom and cast the first thing that is
  * off cooldown, affordable and allowed.
  */
+/** A rotation as it is written down, rather than as it is compiled. */
+export interface RotationLine {
+  spellId: string;
+  /** A condition in the small language, or nothing for always. */
+  text?: string;
+}
+
+/** A spec's own rotation written out, which is what the editor starts from. */
+export function linesOf(entries: PriorityEntry[]): RotationLine[] {
+  return entries.map((entry) => (
+    entry.text ? { spellId: entry.spellId, text: entry.text } : { spellId: entry.spellId }
+  ));
+}
+
 export function priorityRotation(entries: PriorityEntry[]): Rotation {
   return (ctx) => {
     for (const entry of entries) {

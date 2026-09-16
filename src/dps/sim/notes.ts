@@ -51,10 +51,20 @@ export function buildNotes(
   // is the difference between an estimate and a wrong answer.
   for (const line of config.effectNotes ?? []) notes.push(line);
 
-  if (config.fight.targets && config.fight.targets > 1) {
+  const style = config.fight.style;
+  const targets = style?.kind === 'cleave' ? style.targets : config.fight.targets ?? 1;
+  if (targets > 1) {
     notes.push(
       'Extra targets only reach abilities that say they hit more than one, and they are ' +
-        'assumed to be standing in range for the whole fight.',
+        'assumed to be standing in range for the whole fight and to live as long as the boss.',
+    );
+  }
+
+  if (style?.kind === 'movement') {
+    notes.push(
+      'Moving for ' + style.for + ' seconds every ' + style.every + ' is modelled as being out ' +
+        'of range: swings wait rather than miss, and nothing but an instant goes off. A real ' +
+        'pull does not put them on a timer.',
     );
   }
 

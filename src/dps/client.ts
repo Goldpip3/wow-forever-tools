@@ -16,6 +16,7 @@ import {
 } from './compare';
 import { runJobs, type Job } from './pool';
 import { finishShard } from './sim/accumulate';
+import type { RotationLine } from './sim/rotation';
 import { specModule } from './sim/specs';
 import type { FightConfig, SimConfig, SimResult } from './sim/types';
 import { deriveStatSheet, effectsOn } from './stats';
@@ -33,15 +34,23 @@ export interface RunOptions {
   onProgress?: Progress;
   /** Aborting stops new work being handed out; the run rejects with 'cancelled'. */
   signal?: AbortSignal;
+  /** A rotation somebody wrote themselves, which replaces the spec's own. */
+  apl?: RotationLine[];
 }
 
-function configFor(character: Character, fight: FightConfig, rotation?: string): SimConfig {
+function configFor(
+  character: Character,
+  fight: FightConfig,
+  rotation?: string,
+  apl?: RotationLine[],
+): SimConfig {
   return {
     specId: character.specId,
     stats: deriveStatSheet(character, fight),
     talents: character.talentRanks,
     fight,
     ...(rotation ? { rotation } : {}),
+    ...(apl?.length ? { apl } : {}),
     ...effectsOn(character),
   };
 }
@@ -61,7 +70,7 @@ export async function runSimulation(
   opts: RunOptions = {},
 ): Promise<SimResult> {
   const spec = specFor(character);
-  const config = configFor(character, fight, rotation);
+  const config = configFor(character, fight, rotation, opts.apl);
   const iterations = Math.max(1, Math.round(fight.iterations));
 
   const [result] = await runJobs([{ jobId: 0, config, iterations }], opts);
@@ -80,7 +89,7 @@ export async function runWeights(
   opts: WeightsOptions = {},
 ): Promise<WeightResult> {
   const spec = specFor(character);
-  const plan = planWeights(configFor(character, fight, opts.rotation), spec, {
+  const plan = planWeights(configFor(character, fight, opts.rotation, opts.apl), spec, {
     ...(opts.iterations !== undefined ? { iterations: opts.iterations } : {}),
     ...(opts.reference ? { reference: opts.reference } : {}),
   });
@@ -119,7 +128,7 @@ export async function runCompare(
   opts: CompareOptions = {},
 ): Promise<CompareResult> {
   specFor(character);
-  const plan = planCompare(character, fight, swaps, opts.iterations, opts.rotation);
+  const plan = planCompare(character, fight, swaps, opts.iterations, opts.rotation, opts.apl);
 
   const jobs: Job[] = [{ jobId: 0, config: plan.base, iterations: plan.iterations }];
   plan.swaps.forEach((entry, i) => {
@@ -209,6 +218,7 @@ export async function runTopGear(
     talents: character.talentRanks,
     fight: runFight,
     ...(opts.rotation ? { rotation: opts.rotation } : {}),
+    ...(opts.apl?.length ? { apl: opts.apl } : {}),
     ...effectsOn(character),
   };
 

@@ -15,6 +15,7 @@ import type { ItemRef, Slot } from './export-format';
 import { isTwoHanded } from './export-format';
 import { pairedSlot } from './gear';
 import { deriveStatSheet, effectsOn } from './stats';
+import type { RotationLine } from './sim/rotation';
 import { dpsSeries } from './sim/sim';
 import type { SpecModule } from './sim/spec';
 import type { FightConfig, SimConfig } from './sim/types';
@@ -83,6 +84,7 @@ export function planCompare(
   swaps: GearSwap[],
   iterations?: number,
   rotation?: string,
+  apl?: RotationLine[],
 ): ComparePlan {
   const count = Math.max(1, Math.round(iterations ?? fight.iterations));
   const runFight: FightConfig = { ...fight, iterations: count };
@@ -93,6 +95,7 @@ export function planCompare(
     talents: character.talentRanks,
     fight: runFight,
     ...(rotation ? { rotation } : {}),
+    ...(apl?.length ? { apl } : {}),
     ...effectsOn(character),
   };
 

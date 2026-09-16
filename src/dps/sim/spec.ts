@@ -12,7 +12,7 @@ import type { BuffRole } from '../data/buffs';
 import type { School, StatKey } from '../export-format';
 import type { Actor } from './actor';
 import type { Rng } from './rng';
-import type { Rotation } from './rotation';
+import type { PriorityEntry } from './rotation';
 import type { ResourceKind, SpellDef, SpellMods, TalentHook } from './spells';
 import type { Hand, Outcome, SimConfig, StatSheet, WeaponStats } from './types';
 
@@ -98,8 +98,12 @@ export interface SpecModule {
   buffRole?: BuffRole;
   /** Keyed by the talent name exactly as the talent data spells it. */
   talentHooks: Record<string, TalentHook>;
-  /** Named rotations, built once per run from the character's talents. */
-  rotations: Record<string, (talents: Record<string, number>) => Rotation>;
+  /**
+   * Named rotations, as priority lists. The engine compiles them once per run,
+   * which is also what lets the fight panel show one and let it be edited: the
+   * list is the rotation, rather than a closure nobody can read.
+   */
+  rotations: Record<string, (talents: Record<string, number>) => PriorityEntry[]>;
   /** Plain labels for the rotation picker. */
   rotationLabels?: Record<string, string>;
   weightStats: WeightStat[];

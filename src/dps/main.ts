@@ -34,6 +34,8 @@ import { deriveStatSheet } from './stats';
 import { runCompare, runSimulation, runTopGear, runWeights, type TopGearResult } from './client';
 import { estimate, planTopGear } from './topgear';
 import { renderTopGearPanel, type TopGearHandlers } from './render-topgear';
+import { renderRotationPanel, type RotationHandlers } from './render-rotation';
+import { linesOf, type RotationLine } from './sim/rotation';
 import {
   itemForCell,
   itemTip,
@@ -61,6 +63,15 @@ import {
 
 const app = document.getElementById('app');
 
+/**
+ * Bumped when the shape of a fight changes in a way migrateFight has to know.
+ *
+ * Declared up here rather than beside defaultFight because the module state
+ * below calls that during bootstrap, and a const read before its own line is a
+ * dead-zone error. This repo has now been caught by that four times.
+ */
+const FIGHT_VERSION = 2;
+
 /* -------------------------------------------------------------------- state */
 
 let character: Character | null = null;
@@ -80,6 +91,8 @@ let busy: Busy | null = null;
 let trace: TraceEvent[] | null = null;
 let topGear: TopGearResult | null = null;
 let topGearPerSlot = 3;
+/** A rotation somebody wrote themselves, per spec. Empty means the spec's own. */
+let apl: RotationLine[] | null = null;
 /** How fast this machine turned out to be, so an estimate can be given. */
 let msPerIteration = 0.5;
 /** The run in flight, so changing the fight or the character can call it off. */
@@ -90,6 +103,8 @@ let openSlot: Slot | null = null;
 
 function defaultFight(): FightConfig {
   return {
+    v: FIGHT_VERSION,
+    style: { kind: 'patchwerk' },
     duration: 300,
     iterations: 1000,
     seed: 20260915,
@@ -108,6 +123,8 @@ interface DpsPrefs {
   rotation?: string;
   /** Which kind of character the ticked buffs were picked for. */
   role?: BuffRole;
+  /** Rotations somebody wrote themselves, by spec id. */
+  apl?: Record<number, RotationLine[]>;
 }
 
 function prefs(): DpsPrefs {
@@ -128,7 +145,12 @@ function savePrefs(patch: DpsPrefs): void {
 function migrateFight(saved: Partial<FightConfig> | undefined): FightConfig {
   const base = defaultFight();
   if (!saved) return base;
-  return { ...base, ...saved, target: { ...base.target, ...saved.target } };
+  const merged: FightConfig = { ...base, ...saved, target: { ...base.target, ...saved.target } };
+  // A fight written before styles existed was a Patchwerk fight, because that
+  // was the only thing the engine could do.
+  if (!merged.style) merged.style = { kind: 'patchwerk' };
+  merged.v = FIGHT_VERSION;
+  return merged;
 }
 
 function loadPrefs(): void {
@@ -182,6 +204,7 @@ function adopt(imported: ReturnType<typeof parseCharacterExport>, quiet = false)
   warnings = imported.warnings;
   overrides = prefs().overrides?.[character.specId] ?? {};
   openSlot = null;
+  apl = prefs().apl?.[character.specId] ?? null;
   adoptRole(specModule(character.specId)?.buffRole ?? 'caster');
   clearResults();
   return true;
@@ -271,6 +294,7 @@ function runSim(): void {
 
   const began = Date.now();
   runSimulation(character, { ...fight }, rotation, {
+    ...(apl ? { apl } : {}),
     signal: controller.signal,
     onProgress: progressInto('Simulating', controller),
   })
@@ -393,6 +417,7 @@ function deriveWeightsNow(): void {
   runWeights(character, { ...fight }, {
     iterations,
     rotation,
+    ...(apl ? { apl } : {}),
     signal: controller.signal,
     onProgress: progressInto(label, controller),
   })
@@ -414,6 +439,7 @@ function confirmSwap(slot: Slot, item: ItemRef): void {
   runCompare(character, { ...fight }, [{ slot, item }], {
     iterations,
     rotation,
+    ...(apl ? { apl } : {}),
     signal: controller.signal,
     onProgress: progressInto(label, controller),
   })
@@ -491,6 +517,42 @@ const handlers: DpsHandlers = {
   },
 };
 
+/** The rotation as it stands: the one that was written, or the spec's own. */
+function currentLines(): RotationLine[] {
+  if (apl) return apl;
+  if (!character) return [];
+  const spec = specModule(character.specId);
+  if (!spec) return [];
+  const name = spec.rotations[rotation] ? rotation : Object.keys(spec.rotations)[0]!;
+  return linesOf(spec.rotations[name]!(character.talentRanks));
+}
+
+const rotationHandlers: RotationHandlers = {
+  onChange: (lines) => {
+    if (!character) return;
+    apl = lines;
+    savePrefs({ apl: { ...prefs().apl, [character.specId]: lines } });
+    cancelRun();
+    result = null;
+    trace = null;
+    topGear = null;
+    draw();
+  },
+
+  onReset: () => {
+    if (!character) return;
+    apl = null;
+    const saved = { ...prefs().apl };
+    delete saved[character.specId];
+    savePrefs({ apl: saved });
+    cancelRun();
+    result = null;
+    trace = null;
+    topGear = null;
+    draw();
+  },
+};
+
 function runTopGearNow(perSlot: number): void {
   if (!character || busy || !weights) return;
   const table = weightTable(weights, overrides);
@@ -501,6 +563,7 @@ function runTopGearNow(perSlot: number): void {
   runTopGear(character, { ...fight }, table, {
     perSlot,
     rotation,
+    ...(apl ? { apl } : {}),
     signal: controller.signal,
     onProgress: progressInto(label, controller),
   })
@@ -690,6 +753,9 @@ function draw(): void {
 
   if (module) {
     right.appendChild(renderFightPanel(fight, module, rotation, fightHandlers, busy));
+    right.appendChild(
+      renderRotationPanel(module, currentLines(), character.talentRanks, rotationHandlers, apl !== null),
+    );
     if (result) {
       const names = new Map(module.spells.map((sp) => [sp.id, sp.name]));
       names.set('auto-main', 'Main hand');

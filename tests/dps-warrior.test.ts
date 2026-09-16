@@ -7,7 +7,6 @@ import { bandsFor, normalisedSpeed } from '../src/dps/sim/melee';
 import { rageFromDamage } from '../src/dps/sim/rage';
 import { glancingMultiplier } from '../src/dps/sim/tables';
 import { mulberry32 } from '../src/dps/sim/rng';
-import { priorityRotation } from '../src/dps/sim/rotation';
 import type { SpecModule } from '../src/dps/sim/spec';
 import { warriorArms } from '../src/dps/sim/specs/warrior-arms';
 import { warriorFury } from '../src/dps/sim/specs/warrior-fury';
@@ -59,7 +58,7 @@ const swingsOnly: SpecModule = {
   resource: 'rage',
   spells: [],
   talentHooks: {},
-  rotations: { standard: () => () => null },
+  rotations: { standard: () => [] },
   weightStats: [],
   referenceStat: 'attackPower',
   init: (actor, config) => {
@@ -74,7 +73,7 @@ const swingsOnly: SpecModule = {
 const warriorSwingsOnly: SpecModule = {
   ...warriorArms,
   specId: 9003,
-  rotations: { standard: () => () => null },
+  rotations: { standard: () => [] },
 };
 
 describe('the registry', () => {
@@ -351,7 +350,7 @@ describe('Execute', () => {
         weapon: { hand: 'main', multiplier: 0, flat: 100, normalised: false },
         forever: { status: 'unverified' },
       }],
-      rotations: { standard: () => priorityRotation([{ spellId: 'execute-test' }]) },
+      rotations: { standard: () => [{ spellId: 'execute-test' }] },
     };
 
     // The boss falls evenly, so the last fifth of a three hundred second fight

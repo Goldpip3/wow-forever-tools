@@ -293,3 +293,28 @@
 }
 .dcombo__item { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dcombo__item--off { color: var(--muted); font-style: italic; }
+
+/* The rotation, as a list you can move around. */
+.daplist { display: flex; flex-direction: column; gap: 3px; margin: 8px 0; }
+.dapl { display: grid; grid-template-columns: 150px minmax(0, 1fr) auto; gap: 4px; align-items: center; }
+.dapl__spell { min-width: 0; font-size: 12.5px; padding: 3px 6px; }
+.dapl__when {
+  min-width: 0;
+  padding: 3px 7px;
+  font-family: var(--font-narrow);
+  font-size: 12.5px;
+}
+.dapl__buttons { display: inline-flex; gap: 2px; }
+.dapl__error {
+  grid-column: 1 / -1;
+  font-size: 11.5px;
+  color: var(--red);
+  padding: 0 2px 2px 154px;
+}
+@media (max-width: 620px) {
+  .dapl { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'spell buttons' 'when when'; }
+  .dapl__spell { grid-area: spell; }
+  .dapl__when { grid-area: when; }
+  .dapl__buttons { grid-area: buttons; }
+  .dapl__error { padding-left: 2px; }
+}

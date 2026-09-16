@@ -28,7 +28,7 @@ import {
   WINTERS_CHILL_DURATION,
   WINTERS_CHILL_PER_STACK,
 } from '../../data/mage';
-import { priorityRotation } from '../rotation';
+import type { PriorityEntry } from '../rotation';
 import type { SpecModule } from '../spec';
 
 const CLEARCASTING = 'clearcasting';
@@ -45,24 +45,26 @@ export const mageFrost: SpecModule = {
   referenceStat: 'spellPower',
 
   rotations: {
-    standard: () =>
-      priorityRotation([
-        // Nothing else is worth a global while the tank is waiting, so the only
-        // question each time is whether mana needs attention first.
-        {
-          spellId: 'evocation',
-          when: (ctx) => ctx.timeLeft > EVOCATION.duration + 4,
-        },
-        {
-          spellId: 'mana-gem',
-          when: (ctx) => ctx.actor.maxMana - ctx.actor.mana > MANA_GEM_AMOUNT,
-        },
-        {
-          spellId: 'mana-potion',
-          when: (ctx) => ctx.actor.maxMana - ctx.actor.mana > MANA_POTION_AMOUNT,
-        },
-        { spellId: 'frostbolt' },
-      ]),
+    standard: (): PriorityEntry[] => [
+      // Nothing else is worth a global while the tank is waiting, so the only
+      // question each time is whether mana needs attention first.
+      {
+        spellId: 'evocation',
+        when: (ctx) => ctx.timeLeft > EVOCATION.duration + 4,
+        text: 'time_left > ' + (EVOCATION.duration + 4),
+      },
+      {
+        spellId: 'mana-gem',
+        when: (ctx) => ctx.actor.maxMana - ctx.actor.mana > MANA_GEM_AMOUNT,
+        text: 'mana_pct < 0.75',
+      },
+      {
+        spellId: 'mana-potion',
+        when: (ctx) => ctx.actor.maxMana - ctx.actor.mana > MANA_POTION_AMOUNT,
+        text: 'mana_pct < 0.7',
+      },
+      { spellId: 'frostbolt' },
+    ],
   },
 
   rotationLabels: {
