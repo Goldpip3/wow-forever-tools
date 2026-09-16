@@ -595,3 +595,32 @@
   .rbar__title { max-width: none; }
   .pool { max-height: none; }
 }
+
+/* Numbered setup steps on the roster explainer. */
+.rsteps { list-style: none; counter-reset: rstep; padding: 0; margin: 10px 0 0; }
+.rsteps li {
+  counter-increment: rstep;
+  position: relative;
+  padding: 0 0 12px 34px;
+  border-left: 1px solid var(--line);
+  margin-left: 11px;
+}
+.rsteps li:last-child { border-left-color: transparent; padding-bottom: 0; }
+.rsteps li::before {
+  content: counter(rstep);
+  position: absolute;
+  left: -11px;
+  top: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--panel2);
+  border: 1px solid var(--gold2);
+  color: var(--gold);
+  font-family: var(--font-narrow);
+  font-size: 12px;
+  display: grid;
+  place-items: center;
+}
+.rsteps__title { color: var(--gold); font-weight: 700; font-size: 13.5px; margin-bottom: 2px; }
+.rsteps__detail { color: var(--ink2); font-size: 13px; line-height: 1.5; }

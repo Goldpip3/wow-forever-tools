@@ -1,8 +1,22 @@
 # Roster: selection and Discord notification
 
-**Status:** specification, not yet built. Supersedes the "Getting the composition back"
-section of `INTEGRATION.md`, which describes a copy-paste handoff. This is the live
-round-trip instead.
+**Status: built and running.** Roster mode is implemented in the planner and verified
+against the deployed bot. **Where this document and the deployed API disagree, the API
+wins.** Three places it already did:
+
+1. `roleKey` is lowercase — `tank` / `healer` / `melee` / `ranged` — and may be null when
+   the member picked no spec. The example below shows `Ranged`; that is wrong.
+2. `GET` returns `slots`, an array. `PUT` answers with `slotCount`, a number. The names
+   differ on purpose.
+3. A published roster **stays** `status: "published"` through later saves. Editing does
+   not return it to draft.
+
+Guests also turned out to be supported; see section 2.
+
+---
+
+Supersedes the "Getting the composition back" section of `INTEGRATION.md`, which
+describes a copy-paste handoff. This is the live round-trip instead.
 
 **Two repositories implement this:**
 
@@ -43,10 +57,12 @@ spec emote, their own signup status (`primary` / `late` / `tentative` / `bench` 
 `absence`), and signup position. Drag from pool to a seat, seat to seat, or seat back to
 pool. Anyone left in the pool when you publish is **standby** unless explicitly cut.
 
-**Guests are out of scope for v1**, by the owner's decision. A seat in roster mode always
-maps to a signup, which keeps the notification path simple: every selected seat has a
-Discord id to message. If a leader needs to seat someone who never signed up, the answer
-for now is to sign them up first. Revisit only if that becomes a real complaint.
+**Guests are supported.** This was written as out of scope, on the grounds that every
+seat having a Discord id keeps the notification path simple. The deployed API decided
+otherwise: a slot takes a null `signupId`, which is how it carries somebody who never
+signed up. The planner gives them a synthetic `guest:N` id so the rule that a userId
+appears at most once still holds, and the bot never messages them, because there is no
+account behind the id.
 
 Planner mode must keep working with no network and no account. Do not make roster mode a
 prerequisite for anything that works today.

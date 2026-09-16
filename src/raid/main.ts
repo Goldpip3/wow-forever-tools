@@ -54,6 +54,9 @@ interface SavedRoster {
   savedAt: string;
 }
 
+const BASE = import.meta.env.BASE_URL ?? '/';
+const href = (file: string) => (BASE.endsWith('/') ? BASE + file : BASE + '/' + file);
+
 const app = document.getElementById('app');
 let roster: Roster = emptyRoster(40);
 let suppressHash = false;
@@ -65,7 +68,7 @@ let suppressHash = false;
  * lives in it, so writing an encoded roster over the top would throw the token away and
  * break the page on reload.
  */
-let mode: 'planner' | 'roster' = 'planner';
+let mode: 'planner' | 'roster' | 'intro' = 'planner';
 let link: RosterLink | null = null;
 let rosterState: RosterState | null = null;
 let saver: Saver | null = null;
@@ -434,6 +437,12 @@ function draw(): void {
     drawRoster();
     return;
   }
+  /* The explainer is a mode, not a one-off render: the talent data lands a moment after
+     boot and calls draw() again, which would otherwise paint the planner over it. */
+  if (mode === 'intro') {
+    drawRosterIntro();
+    return;
+  }
   if (!app) return;
   const scrollY = window.scrollY;
   app.replaceChildren();
@@ -571,13 +580,19 @@ window.addEventListener('hashchange', () => {
     void enterRosterMode(arriving);
     return;
   }
+  if (/^#?roster/.test(location.hash)) {
+    drawRosterIntro();
+    return;
+  }
   readHash();
 });
 
-/* A signed roster link wins over every other reading of the hash. Without one the page
-   is exactly what it has always been, with no network call and no account. */
+/* A signed roster link wins over every other reading of the hash. #roster with no token
+   is the nav button, which lands on the explainer. Without either the page is exactly what
+   it has always been, with no network call and no account. */
 const rosterLink = readRosterLink();
 if (rosterLink) void enterRosterMode(rosterLink);
+else if (/^#?roster/.test(location.hash)) drawRosterIntro();
 else readHash();
 
 // The game's own spell text lives in the talent data. The page draws straight
@@ -926,6 +941,17 @@ function drawRoster(): void {
   window.scrollTo({ top: scrollY });
 }
 
+
+/** The Roster nav button with no signed link: explain the whole thing from nothing. */
+function drawRosterIntro(): void {
+  if (!app) return;
+  mode = 'intro';
+  app.replaceChildren();
+  renderHeader({ page: 'roster' });
+  app.appendChild(renderRosterIntro());
+  app.appendChild(renderFooter());
+}
+
 /** Something went wrong before there is any roster to show. */
 function drawRosterError(message: string): void {
   if (!app) return;
@@ -976,3 +1002,139 @@ window.addEventListener('pagehide', () => saver?.flush(true));
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') saver?.flush(true);
 });
+
+/**
+ * What someone sees at raid.html#roster with no signed link.
+ *
+ * The Roster button in the nav lands here, which means most people arriving have never
+ * heard of the bot. It has to explain the whole thing from nothing: what roster mode is
+ * for, why it is separate from the planner, and the five steps to get there. Nobody
+ * reaches roster mode by typing a URL, so the page cannot simply say "open it from
+ * Discord" and stop.
+ */
+export function renderRosterIntro(): HTMLElement {
+  const wrap = el('div');
+
+  const intro = el('section', 'panel');
+  intro.appendChild(el('div', 'panel__head', 'Rosters'));
+  const body = el('div', 'panel__body');
+  body.appendChild(
+    el(
+      'p',
+      '',
+      'Signing up is not the same as going. Roster mode takes the people who signed up to a raid in Discord, lets you drag the ones you want into groups, and then tells everybody where they stand.',
+    ),
+  );
+  body.appendChild(
+    el(
+      'p',
+      '',
+      'The planner next door does the same seating with made-up players, which is the right tool for working out a composition. This one holds real people who get a message when you publish, so it is opened from Discord rather than from here.',
+    ),
+  );
+  intro.appendChild(body);
+  wrap.appendChild(intro);
+
+  /* --- what you get --- */
+  const what = el('section', 'panel');
+  what.appendChild(el('div', 'panel__head', 'What it does'));
+  const whatBody = el('div', 'panel__body');
+  const list = document.createElement('ul');
+  const point = (text: string) => {
+    const li = document.createElement('li');
+    li.textContent = text;
+    list.appendChild(li);
+  };
+  point('Everyone who signed up appears in a pool beside the groups, with their class, spec and what they said when they signed up.');
+  point('Drag them into seats. The buff panel updates as you go, so you can see a group losing Windfury before you have finished moving people.');
+  point('Anyone still in the pool when you publish is told they are standby. Cutting someone is a separate, deliberate choice, and they hear nothing at all.');
+  point('Publishing posts the roster in the event channel and sends direct messages. Anyone with direct messages closed is named afterwards, so you know who to chase.');
+  point('Your work saves a second after you stop dragging. Closing the tab does not lose it.');
+  whatBody.appendChild(list);
+  what.appendChild(whatBody);
+  wrap.appendChild(what);
+
+  /* --- how to get one --- */
+  const how = el('section', 'panel');
+  how.appendChild(el('div', 'panel__head', 'Setting it up'));
+  const howBody = el('div', 'panel__body');
+  howBody.appendChild(
+    el(
+      'p',
+      'drawer__hint',
+      'Rosters need Group Builder, a free signup bot that runs on your own machine. It is the half that knows who signed up; this page is the half that decides who plays.',
+    ),
+  );
+
+  const steps = document.createElement('ol');
+  steps.className = 'rsteps';
+  const step = (title: string, detail: string) => {
+    const li = document.createElement('li');
+    li.appendChild(el('div', 'rsteps__title', title));
+    li.appendChild(el('div', 'rsteps__detail', detail));
+    steps.appendChild(li);
+  };
+  step(
+    'Run the bot on your server',
+    'Group Builder keeps everything in one SQLite file and needs no database to install. Its README walks through creating the Discord application and inviting it.',
+  );
+  step(
+    'Post an event',
+    'Use /create in the channel you raid from. Members click a class button, pick a spec, and the post updates itself.',
+  );
+  step(
+    'Wait for people to sign up',
+    'Signing up puts them in the pool. It does not give them a seat, which is the whole point of this page.',
+  );
+  step(
+    'Run /roster on the event',
+    'The bot checks you lead the raid and sends you a private link to this page, already loaded with your signups.',
+  );
+  step(
+    'Seat people and publish',
+    'The link works for two hours and covers one event. If it expires, run /roster again for a fresh one.',
+  );
+  howBody.appendChild(steps);
+
+  howBody.appendChild(
+    el(
+      'p',
+      'drawer__hint',
+      'Nobody but the raid leader and anyone they have made an assistant can open a roster, and the link only ever opens the one event it was made for.',
+    ),
+  );
+  how.appendChild(howBody);
+  wrap.appendChild(how);
+
+  /* --- get on with something useful --- */
+  const next = el('section', 'panel');
+  next.appendChild(el('div', 'panel__head', 'While you set that up'));
+  const nextBody = el('div', 'panel__body');
+  nextBody.appendChild(
+    el(
+      'p',
+      '',
+      'The planner does everything except the messaging. Build a composition with invented players, check the buffs, and share it as a link.',
+    ),
+  );
+  const row = el('div', 'spec-picker');
+  const open = document.createElement('a');
+  open.className = 'btn btn--gold';
+  open.href = href('raid.html');
+  open.textContent = 'Open the raid planner';
+  const sample = document.createElement('a');
+  sample.className = 'btn';
+  sample.href = href('raid.html');
+  sample.textContent = 'Start from a sample 40-man';
+  sample.addEventListener('click', (ev) => {
+    ev.preventDefault();
+    location.hash = '';
+    fillSample();
+  });
+  row.append(open, sample);
+  nextBody.appendChild(row);
+  next.appendChild(nextBody);
+  wrap.appendChild(next);
+
+  return wrap;
+}
