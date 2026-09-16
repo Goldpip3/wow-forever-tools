@@ -906,7 +906,12 @@ function drawRoster(): void {
   const main = el('div', 'rmain rmain--roster');
 
   const left = el('div', 'rcol rcol--overview');
-  left.appendChild(
+  left.appendChild(renderOverview(roster, handlers));
+  main.appendChild(left);
+
+  const centre = el('div', 'rcol rcol--centre');
+  centre.appendChild(renderGroups(roster, coverage, handlers));
+  centre.appendChild(
     renderPool(
       {
         pool: rosterState.pool,
@@ -921,11 +926,6 @@ function drawRoster(): void {
       handlers,
     ),
   );
-  left.appendChild(renderOverview(roster, handlers));
-  main.appendChild(left);
-
-  const centre = el('div', 'rcol rcol--centre');
-  centre.appendChild(renderGroups(roster, coverage, handlers));
   centre.appendChild(renderWarnings(coverage));
   centre.appendChild(renderSuggestions(suggestions, handlers));
   const notes = renderNotes(coverage);

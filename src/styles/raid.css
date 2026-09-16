@@ -515,7 +515,19 @@
 /* ------------------------------------------------------------------ the pool */
 
 .pool-panel { margin-bottom: 10px; }
-.pool { display: grid; gap: 3px; max-height: 58vh; overflow-y: auto; }
+/* The pool sits under the groups, across the full width of the centre column, so it
+   lays out as a grid of names rather than a tall narrow list that has to scroll. A
+   scrollbar here was hiding half the raid behind a drag. */
+.pool {
+  display: grid;
+  gap: 4px;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  align-content: start;
+}
+/* The three notes and the two labels span the whole grid rather than sitting in a cell. */
+.pool > p,
+.pool > .section-label { grid-column: 1 / -1; margin: 0; }
+.pool > .section-label { margin-top: 6px; }
 .pool--drop { outline: 1px dashed var(--gold2); outline-offset: -3px; }
 
 .poolrow {
@@ -593,7 +605,7 @@
 
 @media (max-width: 900px) {
   .rbar__title { max-width: none; }
-  .pool { max-height: none; }
+  
 }
 
 /* Numbered setup steps on the roster explainer. */
