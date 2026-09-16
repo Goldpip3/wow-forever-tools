@@ -87,7 +87,15 @@ let suppressHash = false;
  */
 let mode: 'planner' | 'roster' | 'intro' = 'planner';
 let link: RosterLink | null = null;
-/* How this roster is authorised: a signed link, a session, or both. */
+/*
+ * How this roster is authorised: a signed link, a session, or both.
+ *
+ * Guard on this, never on `link`. Signing in and opening an event from your own server
+ * list authorises by session and carries no link at all, and three things tested `link`
+ * before reaching for `access` anyway: autosave never started, publish refused to run, and
+ * a 409 could not refetch. What a raid leader saw was their seating quietly reverting,
+ * because the roster had only ever been saved the once.
+ */
 let access: RosterAccess | null = null;
 let rosterState: RosterState | null = null;
 let saver: Saver | null = null;
@@ -849,7 +857,7 @@ function handleFailure(failure: ApiFailure): void {
 }
 
 async function reloadRoster(note?: string): Promise<void> {
-  if (!link) return;
+  if (!access) return;
   try {
     const payload = await fetchRoster(access!);
     rosterState = stateFromPayload(payload);
@@ -865,7 +873,7 @@ async function reloadRoster(note?: string): Promise<void> {
 }
 
 function startSaver(): void {
-  if (!link || !rosterState?.permissions.canEdit) return;
+  if (!access || !rosterState?.permissions.canEdit) return;
   saver?.dispose();
   saver = new Saver(
     access!,
@@ -906,7 +914,7 @@ function openPublishConfirm(): void {
 
 /** One publish per user action: the button cannot be made to fire twice. */
 async function doPublish(): Promise<void> {
-  if (!link || !rosterState || publishing) return;
+  if (!access || !rosterState || publishing) return;
   publishing = true;
   draw();
   try {
