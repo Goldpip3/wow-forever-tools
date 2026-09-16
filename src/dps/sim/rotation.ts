@@ -8,7 +8,7 @@
 
 import type { Actor } from './actor';
 import type { Rng } from './rng';
-import type { FightConfig } from './types';
+import type { FightConfig, Hand } from './types';
 
 export interface RotationCtx {
   now: number;
@@ -17,16 +17,36 @@ export interface RotationCtx {
   actor: Actor;
   fight: FightConfig;
   rng: Rng;
+  /** What is in each bar right now. */
+  rage: number;
+  energy: number;
+  comboPoints: number;
+  /** Share of its mana the character still has, from nought to one. */
+  manaPct: number;
+  /**
+   * The boss's health, as a share. The model has it falling evenly over the
+   * fight, which is the only honest thing to do without a health number.
+   */
+  targetHealthPct: number;
+  /** How many things are standing there. */
+  targets: number;
   /** An aura on the character. */
   has(id: string): boolean;
   stacks(id: string): number;
+  remaining(id: string): number;
   /** An aura on the boss. */
   onTarget(id: string): boolean;
   targetStacks(id: string): number;
   remainingOnTarget(id: string): number;
-  /** Whether a spell's own cooldown is up, and whether the mana is there. */
+  /** Seconds until that hand comes round, or Infinity when it holds nothing. */
+  swingIn(hand: Hand): number;
+  /** Whether an ability is already waiting on the next swing of that hand. */
+  queued(hand: Hand): boolean;
+  /** Whether an ability's own cooldown is up, and whether it can be paid for. */
   ready(spellId: string): boolean;
   canAfford(spellId: string): boolean;
+  /** Seconds until that cooldown is up, zero when it already is. */
+  cooldownLeft(spellId: string): number;
 }
 
 export type Action =
@@ -40,6 +60,8 @@ export type Rotation = (ctx: RotationCtx) => Action | null;
 export interface PriorityEntry {
   spellId: string;
   when?: (ctx: RotationCtx) => boolean;
+  /** The condition in words, for the rotation the fight panel shows. */
+  text?: string;
 }
 
 /**

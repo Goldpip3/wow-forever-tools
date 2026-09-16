@@ -89,7 +89,7 @@ src/raid/groupbuilder.ts                reads signups from the Discord bot
 src/raid/effects/                       one file per class, the hand-maintained catalog
 src/dps/                                export format, importer, stat model, gear ranking, UI
 src/dps/sim/                            the simulator: rolls, event queue, auras, the fight
-src/dps/sim/specs/                      one file per spec; frost mage is the one written
+src/dps/sim/specs/                      one file per spec; frost mage and both warrior trees
 src/dps/data/                           the editable numbers: spells, buffs, conversions
 addon/WoWForeverSync/                   the in-game addon that exports your character
 addon/RELEASING.md                      how to publish it, and the CurseForge caveat
@@ -195,18 +195,26 @@ the whole fight again with the item on and reports what actually changed.
 
 ### Adding a spec
 
-Frost Mage is the one that works. It went first because its rotation is one button,
-which makes the damage checkable by hand, while still exercising every part of the
-engine: cast timing, the hit and crit rolls, a stacking debuff on the boss, procs,
-cooldowns worth planning around and a mana bar that runs dry.
+Frost Mage went first because its rotation is one button, which makes the damage
+checkable by hand, while still exercising the caster half of the engine: cast
+timing, the hit and crit rolls, a stacking debuff on the boss, procs, cooldowns
+worth planning around and a mana bar that runs dry.
+
+Arms and Fury Warrior went second, and they are the other half. A weapon swings on
+a timer of its own, the whole Classic attack table applies to it, rage arrives in
+proportion to the damage and the weapon's speed, and Flurry speeds the swings up
+which earns more rage. Their talents are read from Forever's own tree text rather
+than from Classic, because Forever moved them: Bloodthirst deals thirty-five per
+cent of attack power plus thirty, Flurry gives five per cent a rank, and a hook
+keyed to a Classic name would silently never fire.
 
 A new spec is one file in `src/dps/sim/specs`, registered in the index beside it.
-It declares its spells, a hook per talent keyed by the name the talent data uses, a
-rotation as a priority list, and which stats the weight pass should measure.
-Nothing in the engine needs to change unless the spec needs a mechanic the engine
-has never seen, which is what the remaining classes will mostly bring: rage earned
-from damage dealt, energy ticks and combo points, auto-attack swing timers,
-damage-over-time effects that snapshot, and weapon procs.
+It declares its abilities, a hook per talent keyed by the name the talent data
+uses, a rotation as a priority list, and which stats the weight pass should
+measure. Nothing in the engine needs to change unless the spec needs a mechanic it
+has never seen. Energy ticks and combo points are built and tested against a spec
+invented for the purpose; what the remaining classes will still bring is
+snapshotting damage over time, ranged swing timers and weapon procs.
 
 ### Where the numbers came from
 
@@ -221,10 +229,12 @@ All of it lives in `src/dps/data`. Every entry carries a status, the results pan
 repeats the warning, and when the beta contradicts something the tag changes rather
 than the number quietly moving.
 
-**What is not modelled yet:** percentage buffs such as Blessing of Kings and the
-warlock curses, use and proc effects on trinkets, and anything a frozen target
-would change, since a boss cannot be frozen. Each of those is listed in the panel
-that would otherwise overstate your damage.
+**What is not modelled yet:** use and proc effects on trinkets and weapons, and
+anything a frozen target would change, since a boss cannot be frozen. The boss also
+loses health evenly over the fight rather than at the rate a real pull goes down,
+which is what decides when Execute becomes available. Each of those is listed in
+the panel that would otherwise overstate your damage, along with every talent in
+your build that has no hook behind it.
 
 ## Talking to a Discord bot
 

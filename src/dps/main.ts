@@ -14,7 +14,10 @@ import { parseCharacterExport, parseCharacterValue } from './importer';
 import { buildCodeFromExport } from './talents';
 import { MAX_SAVED, decodeCharacter, encodeCharacter, type SavedCharacter } from './codec';
 import { SAMPLE_EXPORT } from './sample';
-import { DEFAULT_BUFFS, DEFAULT_CONSUMABLES, type BuffKind } from './data/buffs';
+import { SAMPLE_WARRIOR_EXPORT } from './sample-warrior';
+import {
+  DEFAULT_BUFFS, DEFAULT_CONSUMABLES, defaultsFor, type BuffKind, type BuffRole,
+} from './data/buffs';
 import { rankAll, upgrades, type SlotRanking } from './gear';
 import { dpsPerPoint, weightTable, normalise, type WeightResult, type WeightTable } from './weights';
 import type { SwapResult } from './compare';
@@ -85,6 +88,8 @@ interface DpsPrefs {
   fight?: FightConfig;
   overrides?: Record<number, WeightTable>;
   rotation?: string;
+  /** Which kind of character the ticked buffs were picked for. */
+  role?: BuffRole;
 }
 
 function prefs(): DpsPrefs {
@@ -145,8 +150,21 @@ function adopt(imported: ReturnType<typeof parseCharacterExport>, quiet = false)
   warnings = imported.warnings;
   overrides = prefs().overrides?.[character.specId] ?? {};
   openSlot = null;
+  adoptRole(specModule(character.specId)?.buffRole ?? 'caster');
   clearResults();
   return true;
+}
+
+/**
+ * A warrior has no use for Arcane Intellect and a mage none for Battle Shout,
+ * so loading the other kind of character replaces the ticked list rather than
+ * leaving the wrong one on screen. Picks of the same kind are left alone.
+ */
+function adoptRole(role: BuffRole): void {
+  if (prefs().role === role) return;
+  const picks = defaultsFor(role);
+  fight = { ...fight, buffs: picks.buffs, consumables: picks.consumables, debuffs: [] };
+  savePrefs({ fight, role });
 }
 
 function guessClassKey(text: string): string {
@@ -251,7 +269,7 @@ function confirmSwap(slot: Slot, item: ItemRef): void {
 const handlers: DpsHandlers = {
   onImport: (text) => importFromText(text),
 
-  onLoadSample: () => importFromText(SAMPLE_EXPORT),
+  onLoadSample: (which) => importFromText(which === 'warrior' ? SAMPLE_WARRIOR_EXPORT : SAMPLE_EXPORT),
 
   onClear: () => {
     character = null;

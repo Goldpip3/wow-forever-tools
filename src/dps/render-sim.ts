@@ -11,7 +11,7 @@
 import { iconImg } from '../shared/icons';
 import type { ItemRef, Slot, StatKey } from './export-format';
 import { SLOT_LABEL } from './export-format';
-import { buffsOfKind, type BuffDef, type BuffKind } from './data/buffs';
+import { buffsFor, type BuffDef, type BuffKind } from './data/buffs';
 import type { Upgrade } from './gear';
 import type { SwapResult } from './compare';
 import type { FightConfig, SimResult } from './sim/types';
@@ -138,6 +138,43 @@ export function renderFightPanel(
   );
   row.appendChild(field('Target level', bossLevel));
 
+  row.appendChild(
+    field(
+      'Things to hit',
+      numberInput(fight.targets ?? 1, (n) => handlers.onFightChange({ targets: n }), 1, 10),
+    ),
+  );
+
+  // Rage from being hit is the tank's half of the bar, so it is only offered to
+  // somebody who has one, and it defaults to nothing.
+  if (spec.resource === 'rage') {
+    row.appendChild(
+      field(
+        'Damage taken a second',
+        numberInput(
+          fight.incoming?.damagePerSecond ?? 0,
+          (n) => handlers.onFightChange({ incoming: { damagePerSecond: n } }),
+          0,
+          5000,
+        ),
+      ),
+    );
+  }
+
+  if (spec.stance && spec.stance.options.length > 1) {
+    const stance = document.createElement('select');
+    stance.className = 'btn dfield__input';
+    for (const option of spec.stance.options) {
+      const item = document.createElement('option');
+      item.value = option.id;
+      item.textContent = option.label;
+      item.selected = option.id === (fight.stance ?? spec.stance.options[0]!.id);
+      stance.appendChild(item);
+    }
+    stance.addEventListener('change', () => handlers.onFightChange({ stance: stance.value }));
+    row.appendChild(field(spec.stance.label, stance));
+  }
+
   if (Object.keys(spec.rotations).length > 1) {
     const select = document.createElement('select');
     select.className = 'btn dfield__input';
@@ -160,10 +197,11 @@ export function renderFightPanel(
     ['On the boss', 'debuff', fight.debuffs],
   ];
 
+  const role = spec.buffRole ?? 'caster';
   for (const [title, kind, chosen] of sections) {
     const section = el('div', 'dbuffs');
     section.appendChild(el('div', 'dbuffs__head', title));
-    for (const buff of buffsOfKind(kind)) {
+    for (const buff of buffsFor(kind, role)) {
       section.appendChild(buffRow(buff, chosen.includes(buff.id), handlers));
     }
     body.appendChild(section);
@@ -230,12 +268,19 @@ export function renderResultsPanel(result: SimResult): HTMLElement {
     ),
   );
 
-  const table = el('div', 'dtable');
+  // A weapon can be dodged, parried or graze the target, and a spell cannot, so
+  // those two columns only appear for somebody who swings one.
+  const swings = result.abilities.some((a) => a.glances > 0 || a.avoided > 0);
+  const table = el('div', 'dtable' + (swings ? ' dtable--melee' : ''));
   const header = el('div', 'dtable__row dtable__row--head');
-  for (const label of ['Spell', 'Casts', 'Crit', 'Per second', 'Share']) {
-    header.appendChild(el('span', 'dtable__cell', label));
-  }
+  const labels = swings
+    ? ['Ability', 'Casts', 'Crit', 'Glancing', 'Avoided', 'Per second', 'Share']
+    : ['Spell', 'Casts', 'Crit', 'Per second', 'Share'];
+  for (const label of labels) header.appendChild(el('span', 'dtable__cell', label));
   table.appendChild(header);
+
+  const attempts = (a: typeof result.abilities[number]) =>
+    a.hits + a.misses + a.avoided;
 
   for (const ability of result.abilities) {
     const row = el('div', 'dtable__row');
@@ -244,6 +289,25 @@ export function renderResultsPanel(result: SimResult): HTMLElement {
     row.appendChild(
       el('span', 'dtable__cell', ability.hits > 0 ? round((ability.crits / ability.hits) * 100, 0) + '%' : '–'),
     );
+    if (swings) {
+      const total = attempts(ability);
+      row.appendChild(
+        el(
+          'span',
+          'dtable__cell dtable__cell--muted',
+          ability.glances > 0 ? round((ability.glances / total) * 100, 0) + '%' : '–',
+        ),
+      );
+      row.appendChild(
+        el(
+          'span',
+          'dtable__cell dtable__cell--muted',
+          total > 0 && (ability.avoided > 0 || ability.misses > 0)
+            ? round(((ability.avoided + ability.misses) / total) * 100, 0) + '%'
+            : '–',
+        ),
+      );
+    }
     row.appendChild(el('span', 'dtable__cell', round(ability.dps, 1)));
     row.appendChild(el('span', 'dtable__cell', round(ability.share * 100, 0) + '%'));
     table.appendChild(row);
@@ -254,8 +318,16 @@ export function renderResultsPanel(result: SimResult): HTMLElement {
   if (result.resources.oomAt !== undefined) {
     lines.push('Ran out of mana about ' + round(result.resources.oomAt, 0) + ' seconds in.');
   }
+  if (result.resources.starvedFor > 1) {
+    lines.push(
+      round(result.resources.starvedFor, 0) + ' seconds went by wanting to act with an empty bar.',
+    );
+  }
   if (result.resources.timeIdle > 1) {
-    lines.push(round(result.resources.timeIdle, 0) + ' seconds went by with nothing to cast.');
+    lines.push(
+      round(result.resources.timeIdle, 0) + ' seconds went by with nothing worth pressing, ' +
+        'which for a warrior is most of a fight.',
+    );
   }
   for (const line of lines) {
     const warn = el('div', 'warn warn--warn');
@@ -477,8 +549,8 @@ export function renderUnsupported(specLabel: string): HTMLElement {
     el(
       'p',
       'drawer__hint',
-      'Frost Mage is the spec that works today. The rest of this page, your sheet and your gear ' +
-        'list, reads correctly for any class.',
+      'Frost Mage, Arms Warrior and Fury Warrior are the specs that work today. The rest of this ' +
+        'page, your sheet and your gear list, reads correctly for any class.',
     ),
   );
   panel.appendChild(body);

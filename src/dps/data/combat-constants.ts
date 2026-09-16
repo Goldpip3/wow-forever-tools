@@ -132,3 +132,60 @@ export const BOSS_DEFENSE_PER_LEVEL = classic(5);
 /** Everything on this page that has not been confirmed for Forever. */
 export const BASELINE_NOTE =
   'Classic level sixty numbers, unverified for Forever. Treat the result as an estimate.';
+
+/* --------------------------------------------------------------------- rage */
+
+/**
+ * The divisor that turns damage into rage at level sixty.
+ *
+ * Classic's formula is a curve fitted to the level: damage over this number,
+ * scaled by how slow the weapon is, and doubled on a critical strike. It has
+ * never been confirmed for Forever and Forever has already moved the rage
+ * talents around it, so it is the likeliest number on this page to be wrong.
+ */
+export const RAGE_CONVERSION = classic(230.6, 'The Classic level-sixty rage conversion value.');
+
+/** A swing is worth more rage than a strike you aimed, which is worth none. */
+export const RAGE_HIT_FACTOR_MAIN = classic(3.5);
+export const RAGE_HIT_FACTOR_OFF = classic(1.75);
+
+/** A critical strike earns twice the rage the same damage otherwise would. */
+export const RAGE_CRIT_MULTIPLIER = classic(2);
+
+/** The rage bar, before any talent widens it. */
+export const RAGE_MAX = classic(100);
+
+/** Rage from damage taken, which only matters when the fight sends any back. */
+export const RAGE_FROM_DAMAGE_TAKEN = classic(
+  2.5,
+  'Rage from damage taken is the Classic factor. It does nothing unless the fight ' +
+    'settings say damage is arriving.',
+);
+
+/* ------------------------------------------------------------------- energy */
+
+/**
+ * Rage, energy and anything else that trickles back share one heartbeat: the
+ * same two seconds the mana tick has always run on. Energy arrives in a lump on
+ * it rather than smoothly, which is what makes a rogue's rotation what it is.
+ */
+export const RESOURCE_TICK = classic(2);
+export const ENERGY_PER_TICK = classic(20);
+export const ENERGY_MAX = classic(100);
+export const COMBO_POINT_MAX = classic(5);
+
+/* -------------------------------------------------------------------- swings */
+
+/**
+ * The speed attack power is measured against when an ability is normalised, so
+ * that putting a slower weapon on does not hand a strike free damage.
+ */
+export const NORMALISED_SPEED = classic({
+  dagger: 1.7,
+  oneHand: 2.4,
+  twoHand: 3.3,
+  ranged: 2.8,
+});
+
+/** Attack power buys damage at this rate: fourteen points for one per second. */
+export const AP_PER_DPS = classic(14);

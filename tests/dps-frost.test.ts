@@ -41,7 +41,8 @@ describe('the registry', () => {
   });
 
   it('says nothing for a spec nobody has written yet', () => {
-    expect(specModule(164)).toBeUndefined();
+    // Protection Warrior: the tree exists, the simulation does not.
+    expect(specModule(163)).toBeUndefined();
   });
 });
 

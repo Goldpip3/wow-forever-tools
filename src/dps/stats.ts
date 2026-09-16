@@ -19,7 +19,9 @@ import { BASE_STATS } from './data/base-stats';
 import { CONVERSIONS, spiritRegenPer2s } from './data/conversions';
 import { buffById } from './data/buffs';
 import type { Character } from './types';
-import { emptyStatSheet, type FightConfig, type StatSheet } from './sim/types';
+import {
+  emptyStatSheet, type FightConfig, type Hand, type StatSheet, type WeaponStats,
+} from './sim/types';
 
 /** The school a spec cares about, for reading the right column off the sheet. */
 export const SPEC_SCHOOL: Record<number, School> = {
@@ -97,12 +99,22 @@ export function baselineStats(source: CharacterExport): StatBlock {
 
 /* -------------------------------------------------------------------- buffs */
 
+export interface BuffTotals {
+  /** Points added outright. */
+  stats: StatBlock;
+  /**
+   * Stats raised by a share. Kept apart from the flat ones because they have to
+   * be applied to what you already have, not to each other.
+   */
+  multipliers: Partial<Record<StatKey, number>>;
+  /** Names of buffs that were already up when the export ran. */
+  skipped: string[];
+}
+
 /** Stats from the fight's ticked buffs, skipping anything already on the sheet. */
-export function buffStats(
-  ids: string[],
-  activeBuffs: string[] = [],
-): { stats: StatBlock; skipped: string[] } {
+export function buffStats(ids: string[], activeBuffs: string[] = []): BuffTotals {
   const stats: StatBlock = {};
+  const multipliers: Partial<Record<StatKey, number>> = {};
   const skipped: string[] = [];
   const already = new Set(activeBuffs.map((b) => b.trim().toLowerCase()));
   const chosen = new Set(ids);
@@ -118,9 +130,12 @@ export function buffStats(
     const clash = buff.exclusiveWith?.find((other) => chosen.has(other) && other < id);
     if (clash) continue;
     addInto(stats, buff.stats);
+    for (const [key, factor] of Object.entries(buff.multipliers ?? {}) as Array<[StatKey, number]>) {
+      multipliers[key] = (multipliers[key] ?? 1) * factor;
+    }
   }
 
-  return { stats, skipped };
+  return { stats, multipliers, skipped };
 }
 
 /* -------------------------------------------------------------- conversions */
@@ -183,7 +198,7 @@ export function deriveStatSheet(
   const currentGear = equippedStats(source.equipped);
   const newGear = equippedStats(source.equipped, opts.gearOverride);
 
-  const { stats: buffs, skipped } = buffStats(
+  const { stats: buffs, multipliers, skipped } = buffStats(
     [...fight.buffs, ...fight.consumables, ...fight.debuffs],
     source.activeBuffs,
   );
@@ -194,6 +209,16 @@ export function deriveStatSheet(
   addInto(added, newGear);
   addInto(added, currentGear, -1);
   addInto(added, buffs);
+
+  // A percentage buff raises what you already have, so it is worked out against
+  // the whole of it and only the extra goes through the conversions. Kings on a
+  // sheet with a hundred strength is ten more strength, and those ten become
+  // attack power the same way ten off a ring would.
+  for (const [key, factor] of Object.entries(multipliers) as Array<[StatKey, number]>) {
+    const whole = (base[key] ?? 0) + (newGear[key] ?? 0) + (buffs[key] ?? 0);
+    added[key] = (added[key] ?? 0) + whole * (factor - 1);
+  }
+
   const converted = convert(classId, added);
 
   const sheet = emptyStatSheet(source.level);
@@ -210,8 +235,43 @@ export function deriveStatSheet(
 
   sheet.weaponSkill = weaponSkillFor(character, opts.gearOverride);
   sheet.level = source.level;
+  sheet.weapons = weaponsFor(character, opts.gearOverride);
 
   return sheet;
+}
+
+/** What is in each hand, for anyone who swings rather than casts. */
+export function weaponsFor(
+  character: Character,
+  override?: Partial<Record<Slot, ItemRef | null>>,
+): Partial<Record<Hand, WeaponStats>> {
+  const out: Partial<Record<Hand, WeaponStats>> = {};
+  const pairs: Array<[Hand, Slot]> = [['main', 'mainhand'], ['off', 'offhand'], ['ranged', 'ranged']];
+
+  for (const [hand, slot] of pairs) {
+    const item = override && slot in override ? override[slot] : character.source.equipped[slot];
+    const weapon = item?.weapon;
+    if (!item || !weapon || weapon.speed <= 0) continue;
+    out[hand] = {
+      min: weapon.min,
+      max: weapon.max,
+      speed: weapon.speed,
+      skill: skillWith(character, item),
+      type: weapon.type || item.subType || '',
+      twoHanded: weapon.hands === 'two',
+    };
+  }
+
+  return out;
+}
+
+/** Skill with one item, which is the weapon line plus anything the item grants. */
+function skillWith(character: Character, item: ItemRef): number {
+  const source = character.source;
+  const capped = source.level * 5;
+  const type = item.weapon?.type ?? item.subType ?? '';
+  const skill = source.skills[type] ?? source.skills[item.subType ?? ''] ?? capped;
+  return skill + (item.weaponSkill?.[type] ?? 0);
 }
 
 /** Skill with whatever is in the main hand, defaulting to the level cap for it. */

@@ -9,6 +9,7 @@ import { bgUrl, iconImg } from '../shared/icons';
 import { copyText } from '../shared/toast';
 import { ADDON_INFO } from './addon-info';
 import { SAMPLE_EXPORT } from './sample';
+import { SAMPLE_WARRIOR_EXPORT } from './sample-warrior';
 import type { ItemRef, Slot } from './export-format';
 import { SLOT_LABEL, STAT_KEYS, STAT_LABEL } from './export-format';
 import type { Character, ImportIssue } from './types';
@@ -17,7 +18,7 @@ import { candidatesFor, equippedIn, slotsInUse } from './gear';
 
 export interface DpsHandlers {
   onImport(text: string): void;
-  onLoadSample(): void;
+  onLoadSample(which: 'mage' | 'warrior'): void;
   onClear(): void;
   onSave(name: string): void;
   onLoadSaved(id: string): void;
@@ -212,7 +213,8 @@ export function renderHowTo(collapsed = false): HTMLElement {
   const sample = el(
     'p',
     'dstep__note',
-    'Not ready to install anything? Load a sample below and the whole tool works on a made-up mage.',
+    'Not ready to install anything? Load a sample below and the whole tool works on a made-up ' +
+      'mage or a made-up warrior.',
   );
 
   if (collapsed) {
@@ -261,14 +263,23 @@ export function renderImportPanel(handlers: DpsHandlers, hasCharacter: boolean):
     if (text) handlers.onImport(text);
   });
 
-  const sample = el('button', 'btn', 'Load a sample');
-  sample.title = 'A made-up mage, so you can try the tool without the addon';
-  sample.addEventListener('click', () => {
+  // Two samples rather than one: a mage and a warrior are opposite halves of
+  // the engine, and either one on its own leaves half the page untried.
+  const mage = el('button', 'btn', 'Load a sample mage');
+  mage.title = 'A made-up frost mage, so you can try the tool without the addon';
+  mage.addEventListener('click', () => {
     box.value = SAMPLE_EXPORT;
-    handlers.onLoadSample();
+    handlers.onLoadSample('mage');
   });
 
-  row.append(go, sample);
+  const warrior = el('button', 'btn', 'Load a sample warrior');
+  warrior.title = 'A made-up fury warrior, for the melee half of the page';
+  warrior.addEventListener('click', () => {
+    box.value = SAMPLE_WARRIOR_EXPORT;
+    handlers.onLoadSample('warrior');
+  });
+
+  row.append(go, mage, warrior);
 
   if (hasCharacter) {
     const clear = el('button', 'btn', 'Clear');

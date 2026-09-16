@@ -1,18 +1,20 @@
 /**
  * What a spec has to provide for the engine to run it.
  *
- * The engine knows about casts, cooldowns, mana and rolls. It knows nothing
- * about Frostbolt. Everything class-shaped lives behind this interface, so
- * adding a spec means writing one file and registering it.
+ * The engine knows about casts, swings, cooldowns, resources and rolls. It
+ * knows nothing about Frostbolt or Bloodthirst. Everything class-shaped lives
+ * behind this interface, so adding a spec means writing one file and
+ * registering it.
  */
 
 import type { ForeverStatus } from '../../raid/types';
+import type { BuffRole } from '../data/buffs';
 import type { School, StatKey } from '../export-format';
 import type { Actor } from './actor';
 import type { Rng } from './rng';
 import type { Rotation } from './rotation';
-import type { SpellDef, SpellMods, TalentHook } from './spells';
-import type { Outcome, SimConfig, StatSheet } from './types';
+import type { ResourceKind, SpellDef, SpellMods, TalentHook } from './spells';
+import type { Hand, Outcome, SimConfig, StatSheet, WeaponStats } from './types';
 
 /** A stat the weight pass will nudge, and how far to nudge it. */
 export interface WeightStat {
@@ -36,6 +38,19 @@ export interface LandEvent extends CastEvent {
   amount: number;
 }
 
+/** A weapon coming round, or an aimed strike resolving against one. */
+export interface SwingEvent extends LandEvent {
+  hand: Hand;
+  /** True for a swing that arrived on its own rather than one you pressed. */
+  white: boolean;
+  weapon: WeaponStats;
+  /**
+   * Start a bleed from this strike. Deep Wounds is why it exists: a talent can
+   * put damage over time on the target without any ability declaring it.
+   */
+  bleed(id: string, total: number, ticks: number, interval: number): void;
+}
+
 export interface CostEvent {
   spellId: string;
   baseCost: number;
@@ -51,6 +66,13 @@ export interface CritEvent {
   mods: SpellMods;
 }
 
+export interface ResourceTickEvent {
+  kind: ResourceKind;
+  actor: Actor;
+  now: number;
+  mods: SpellMods;
+}
+
 export interface ManaRegen {
   /** Mana every two seconds, once the five second rule has let go. */
   per2s: number;
@@ -58,11 +80,22 @@ export interface ManaRegen {
   castingFraction: number;
 }
 
+/** A stance or a form: a damage profile the character chooses before the pull. */
+export interface StanceOption {
+  id: string;
+  label: string;
+  mods: (mods: SpellMods) => void;
+}
+
 export interface SpecModule {
   specId: number;
   /** For the rotation picker, e.g. 'Frost Mage'. */
   label: string;
   spells: SpellDef[];
+  /** Which bar this spec pays out of. Mana unless it says otherwise. */
+  resource?: ResourceKind;
+  /** Which half of the buff list is worth offering in the fight settings. */
+  buffRole?: BuffRole;
   /** Keyed by the talent name exactly as the talent data spells it. */
   talentHooks: Record<string, TalentHook>;
   /** Named rotations, built once per run from the character's talents. */
@@ -72,11 +105,20 @@ export interface SpecModule {
   weightStats: WeightStat[];
   /** The stat other weights are shown relative to. */
   referenceStat: StatKey;
+  /** Stances the fight settings can pick between, when the spec has any. */
+  stance?: { label: string; options: StanceOption[] };
 
   /** Mana coming back on its own. */
   manaRegen?(stats: StatSheet, mods: SpellMods): ManaRegen;
 
-  /** Anything to set up at the start of a fight, such as a swing timer. */
+  /**
+   * Mods that come from the fight settings rather than from the talent tree,
+   * worked out once for the whole run. Anything that needs the actor belongs
+   * in init instead, because init runs again for every iteration.
+   */
+  configure?(config: SimConfig, mods: SpellMods): void;
+
+  /** Anything to set up at the start of a fight, such as arming the weapons. */
   init?(actor: Actor, config: SimConfig, mods: SpellMods): void;
 
   /** What this cast actually costs, for a proc that makes one free. */
@@ -85,7 +127,13 @@ export interface SpecModule {
   /** Extra percentage points of crit for this cast, from a debuff or a proc. */
   critBonusFor?(event: CritEvent): number;
 
-  /** The moment a cast begins, after its mana was paid. Consume procs here. */
+  /**
+   * A damage multiplier that can change during the fight, which a talent
+   * folded into the mods before it started cannot. Death Wish lives here.
+   */
+  damageBonusFor?(event: CritEvent): number;
+
+  /** The moment a cast begins, after its cost was paid. Consume procs here. */
   onCastStart?(event: CastEvent): void;
 
   /** After any cast finishes, whether or not it dealt damage. */
@@ -94,7 +142,34 @@ export interface SpecModule {
   /** After a damaging spell resolves, for procs and stacking debuffs. */
   onLand?(event: LandEvent): void;
 
+  /**
+   * After a weapon connects or fails to, both hands, every outcome. Flurry,
+   * Unbridled Wrath and anything that watches a dodge hang here.
+   */
+  onSwing?(event: SwingEvent): void;
+
+  /** A rage or energy heartbeat, for a talent that trickles the bar back. */
+  onResourceTick?(event: ResourceTickEvent): void;
+
+  /**
+   * Hands this strike should also land with, beyond the one it names. Raging
+   * Blows is why it exists: a talent, not the ability, is what decides that
+   * Whirlwind reaches the off hand too.
+   */
+  extraHandsFor?(spellId: string, mods: SpellMods, actor: Actor): Hand[];
+
+  /** The haste this spec has going right now, as a multiplier on swing speed. */
+  hasteFor?(actor: Actor, now: number, mods: SpellMods): number;
+
   forever: { status: ForeverStatus; note?: string };
+  /** Names for tallies that are not abilities, such as a bleed a talent starts. */
+  extraNames?: Record<string, string>;
   /** Anything the reader should know about this spec's model in particular. */
   notes?: string[];
+  /**
+   * Talents this spec knows about by name but does not model, with the reason.
+   * The run lists the ones the character actually took, so a build is never
+   * quietly worth more than the number says.
+   */
+  unmodelledTalents?: Record<string, string>;
 }

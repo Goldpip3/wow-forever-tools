@@ -33,7 +33,8 @@ export const SCHOOL_BY_INDEX: Record<string, School> = {
 /**
  * Every stat the site understands. Crit, hit and their spell versions are
  * percentages. weaponDps is the one key the addon never sends: the importer
- * works it out from the weapon damage line.
+ * works it out from the weapon damage line. Haste is another: no Classic item
+ * carries it, but a buff can, and the swing timers read it.
  */
 export const STAT_KEYS = [
   'strength', 'agility', 'stamina', 'intellect', 'spirit',
@@ -41,7 +42,7 @@ export const STAT_KEYS = [
   'crit', 'hit', 'spellCrit', 'spellHit',
   'spellPower', 'healing',
   'arcanePower', 'firePower', 'frostPower', 'naturePower', 'shadowPower', 'holyPower',
-  'mp5', 'armor', 'weaponDps',
+  'mp5', 'armor', 'weaponDps', 'haste',
 ] as const;
 
 export type StatKey = (typeof STAT_KEYS)[number];
@@ -55,7 +56,7 @@ export const STAT_LABEL: Record<StatKey, string> = {
   spellPower: 'Spell damage', healing: 'Healing',
   arcanePower: 'Arcane damage', firePower: 'Fire damage', frostPower: 'Frost damage',
   naturePower: 'Nature damage', shadowPower: 'Shadow damage', holyPower: 'Holy damage',
-  mp5: 'Mana per 5', armor: 'Armor', weaponDps: 'Weapon DPS',
+  mp5: 'Mana per 5', armor: 'Armor', weaponDps: 'Weapon DPS', haste: 'Haste %',
 };
 
 /** The stat key that carries each school's spell damage bonus. */

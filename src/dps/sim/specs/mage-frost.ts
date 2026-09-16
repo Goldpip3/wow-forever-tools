@@ -39,6 +39,8 @@ export const mageFrost: SpecModule = {
   specId: 61,
   label: 'Frost Mage',
   spells: MAGE_SPELLS,
+  resource: 'mana',
+  buffRole: 'caster',
   talentHooks: FROST_TALENT_HOOKS,
   referenceStat: 'spellPower',
 
@@ -81,9 +83,10 @@ export const mageFrost: SpecModule = {
   /**
    * Mage Armor is the only thing that keeps spirit flowing while casting, and
    * it changes what mana is worth enough that it belongs in the fight settings
-   * rather than being assumed either way.
+   * rather than being assumed either way. It reads the fight and nothing else,
+   * so it is worked out once for the run rather than once per iteration.
    */
-  init: (_actor, config, mods) => {
+  configure: (config, mods) => {
     if (config.fight.buffs.includes('mage-armor')) mods.flags.spiritWhileCasting = MAGE_ARMOR_REGEN;
   },
 

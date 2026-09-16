@@ -18,6 +18,11 @@ import {
   spellHitChance,
 } from '../src/dps/sim/tables';
 import { AuraTracker } from '../src/dps/sim/auras';
+import { Actor } from '../src/dps/sim/actor';
+import { simulate } from '../src/dps/sim/sim';
+import { priorityRotation } from '../src/dps/sim/rotation';
+import { emptyStatSheet, type SimConfig } from '../src/dps/sim/types';
+import type { SpecModule } from '../src/dps/sim/spec';
 
 describe('the random number generator', () => {
   it('gives the same stream for the same seed', () => {
@@ -359,5 +364,96 @@ describe('auras', () => {
     expect(auras.stacks('x', 6)).toBe(0);
     expect(auras.remaining('x', 6)).toBe(0);
     expect(auras.active(6)).toEqual([]);
+  });
+});
+
+/* ---------------------------------------------------------- energy and combo */
+
+/**
+ * The warrior does not use energy, so the engine's half of it is exercised here
+ * with a spec invented for the purpose: a hundred in the bar, twenty back every
+ * tick, and a finisher that spends what has been banked.
+ */
+describe('a bar that ticks rather than trickles', () => {
+  const builder: SpecModule = {
+    specId: 9101,
+    label: 'A bar and a finisher',
+    resource: 'energy',
+    spells: [
+      {
+        id: 'jab', name: 'Jab', school: 'physical', kind: 'melee', resource: 'energy',
+        castTime: 0, cost: 40, minDamage: 0, maxDamage: 0, coefficient: 0,
+        combo: { generates: 1 },
+        weapon: { hand: 'main', multiplier: 1, flat: 0, normalised: false },
+        forever: { status: 'unverified' },
+      },
+    ],
+    talentHooks: {},
+    rotations: { standard: () => priorityRotation([{ spellId: 'jab' }]) },
+    weightStats: [],
+    referenceStat: 'attackPower',
+    init: (actor, config) => {
+      const main = config.stats.weapons.main;
+      if (main) actor.arm('main', main.speed);
+    },
+    forever: { status: 'unverified' },
+  };
+
+  function config(duration: number): SimConfig {
+    const stats = emptyStatSheet(60);
+    stats.weaponSkill = 300;
+    stats.weapons = {
+      main: { min: 10, max: 10, speed: 2, skill: 300, type: 'Daggers', twoHanded: false },
+    };
+    return {
+      specId: 9101,
+      stats,
+      talents: {},
+      fight: {
+        duration,
+        iterations: 1,
+        seed: 1,
+        target: { level: 63, armor: 0, resistance: 0, behind: true, canParry: false, canBlock: false },
+        buffs: [], debuffs: [], consumables: [],
+        overrides: {
+          forceAverageDamage: true,
+          forceMeleeTable: { miss: 0, dodge: 0, parry: 0, glance: 0, block: 0, crit: 0 },
+        },
+      },
+    };
+  }
+
+  it('spends what it has and then waits for the tick', () => {
+    // A hundred energy pays for two Jabs at once, then twenty arrives every two
+    // seconds, so a third is affordable four seconds in.
+    const result = simulate(config(10), builder);
+    const jab = result.abilities.find((a) => a.id === 'jab')!;
+    expect(jab.casts).toBe(4);
+    expect(result.resources.energySpent).toBe(160);
+  });
+
+  it('reports the seconds it spent waiting on an empty bar', () => {
+    const result = simulate(config(10), builder);
+    expect(result.resources.starvedFor).toBeGreaterThan(0);
+  });
+
+  it('caps combo points rather than letting them run away', () => {
+    const actor = new Actor(emptyStatSheet(60));
+    for (let i = 0; i < 10; i += 1) actor.addCombo(1);
+    expect(actor.comboPoints).toBe(5);
+    expect(actor.spendCombo()).toBe(5);
+    expect(actor.comboPoints).toBe(0);
+  });
+
+  it('never lets a bar go below nothing or above its top', () => {
+    const actor = new Actor(emptyStatSheet(60));
+    expect(actor.rage.current).toBe(0);
+    actor.gain('rage', 250);
+    expect(actor.rage.current).toBe(100);
+    expect(actor.rage.gained).toBe(100);
+    expect(actor.spend('rage', 150, 0)).toBe(false);
+    expect(actor.rage.starvedAt).toBe(0);
+    expect(actor.spend('rage', 40, 1)).toBe(true);
+    expect(actor.rage.current).toBe(60);
   });
 });
