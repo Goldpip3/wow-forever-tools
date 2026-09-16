@@ -27,7 +27,7 @@ import { specFromSignup, specKeyForSpecId } from './groupbuilder';
  */
 export const API_BASE: string =
   (import.meta.env.VITE_API_BASE as string | undefined) ??
-  (import.meta.env.DEV ? 'http://localhost:3000' : 'https://api.foreverraid.gg');
+  (import.meta.env.DEV ? 'http://localhost:3000' : 'https://api.wowforever.us');
 
 /* ------------------------------------------------------------------ the link */
 
