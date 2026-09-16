@@ -301,3 +301,57 @@ reader does not re-open them:
 7. Scheduler reminder targets the roster, not the signups. (Bot)
 
 Steps 1–2 are testable with `curl` before any planner work exists.
+
+## 11. Testing without twelve people
+
+Roster mode is hard to try, because it needs an event that real people have really
+signed up to. Two answers, one on each side.
+
+### The planner: `#roster=demo` (built)
+
+`wowforever.us/raid.html#roster=demo` runs the whole interface against seventeen made-up
+signups held in `src/raid/roster-mode.ts`. No bot, no Discord account, no network call at
+all: the saver is never started and `canPublish` is false, so there is no path from the
+demo to a request. The bar says **Demo, nothing is saved** and Publish explains why it is
+disabled. The Roster page links to it.
+
+The seventeen are deliberately an awkward raid: three tanks, two healers, no Shaman at
+all, and several late or tentative signups, so the pool, the buff panel and the warnings
+all have something to say the moment it opens.
+
+### The bot: `/testcreate` (not built)
+
+The demo proves the interface. It cannot prove the round trip, which is where the bugs
+live: tokens, revisions, conflicts, and what a direct message actually looks like when it
+arrives. That needs a real event with real rows in the database and a real publish, but
+without messaging a guild full of people who did not volunteer.
+
+A command that makes a throwaway event:
+
+```
+/testcreate [size:20] [channel:#bot-testing]
+```
+
+1. Creates a normal event, posted like any other, with **`test: true`** stored on the row.
+2. Fills it with fabricated signups spread across classes, specs and roles, and a few on
+   `late` and `tentative` so the pool has something to show. Their user ids are synthetic
+   and marked as such.
+3. Titles it so nobody mistakes it for a raid: `TEST — <something>`.
+
+Then the rules that make it safe, which matter more than the command:
+
+- **Publishing a test event never messages a fabricated signup.** They have no Discord
+  account behind them, so a DM attempt would fail anyway and land in `couldNotDm`, which
+  is noise in exactly the field that has to stay trustworthy. Skip them, and report them
+  as skipped rather than as failures.
+- **The leader still gets their own message.** That is the thing worth seeing.
+- **The channel post says TEST in the embed**, not only in the title.
+- `/testcreate` is manager-only, like `/create`.
+- A test event is deletable with the ordinary event commands and does not appear in
+  attendance history.
+
+The planner needs no change for this. A test event is an ordinary event over the API, and
+roster mode will seat its signups like any other. The only visible difference is that
+publishing reports skipped fabricated members.
+
+---

@@ -34,6 +34,8 @@ import {
   readRosterLink,
   slotsFrom,
   stateFromPayload,
+  demoPayload,
+  isDemo,
   type ApiFailure,
   type RosterLink,
   type RosterState,
@@ -580,6 +582,10 @@ window.addEventListener('hashchange', () => {
     void enterRosterMode(arriving);
     return;
   }
+  if (/^#?roster=demo/.test(location.hash)) {
+    enterDemoMode();
+    return;
+  }
   if (/^#?roster/.test(location.hash)) {
     drawRosterIntro();
     return;
@@ -592,6 +598,7 @@ window.addEventListener('hashchange', () => {
    it has always been, with no network call and no account. */
 const rosterLink = readRosterLink();
 if (rosterLink) void enterRosterMode(rosterLink);
+else if (/^#?roster=demo/.test(location.hash)) enterDemoMode();
 else if (/^#?roster/.test(location.hash)) drawRosterIntro();
 else readHash();
 
@@ -887,6 +894,7 @@ function drawRoster(): void {
         status: rosterState.status,
         canEdit,
         canPublish: rosterState.permissions.canPublish && !publishing,
+        demo: isDemo(rosterState),
       },
       handlers,
     ),
@@ -952,6 +960,20 @@ function drawRosterIntro(): void {
   app.appendChild(renderFooter());
 }
 
+/**
+ * Roster mode against made-up signups, with no bot and no network.
+ *
+ * The saver is deliberately never started and canPublish is false, so there is no path
+ * from here to a request. Everything else is the real interface.
+ */
+function enterDemoMode(): void {
+  mode = 'roster';
+  link = null;
+  rosterState = stateFromPayload(demoPayload());
+  saveState = 'idle';
+  saveDetail = undefined;
+  draw();
+}
 /** Something went wrong before there is any roster to show. */
 function drawRosterError(message: string): void {
   if (!app) return;
@@ -1114,12 +1136,20 @@ export function renderRosterIntro(): HTMLElement {
     el(
       'p',
       '',
-      'The planner does everything except the messaging. Build a composition with invented players, check the buffs, and share it as a link.',
+      'The demo opens roster mode against seventeen made-up signups, so you can see the whole thing before installing anything. Nothing there is saved and nobody is messaged. The planner next to it does everything except the messaging, with players you invent yourself.',
     ),
   );
   const row = el('div', 'spec-picker');
+
+  /* The demo is the first button because it answers the question the page raises: what
+     does this actually look like. It needs no bot and no account. */
+  const demo = document.createElement('a');
+  demo.className = 'btn btn--gold';
+  demo.href = href('raid.html') + '#roster=demo';
+  demo.textContent = 'Try a demo roster';
+
   const open = document.createElement('a');
-  open.className = 'btn btn--gold';
+  open.className = 'btn';
   open.href = href('raid.html');
   open.textContent = 'Open the raid planner';
   const sample = document.createElement('a');
@@ -1131,7 +1161,7 @@ export function renderRosterIntro(): HTMLElement {
     location.hash = '';
     fillSample();
   });
-  row.append(open, sample);
+  row.append(demo, open, sample);
   nextBody.appendChild(row);
   next.appendChild(nextBody);
   wrap.appendChild(next);

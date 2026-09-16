@@ -1187,6 +1187,8 @@ export interface RosterBarView {
   status: string;
   canEdit: boolean;
   canPublish: boolean;
+  /** The made-up roster at #roster=demo, which never touches the network. */
+  demo?: boolean;
 }
 
 const SAVE_TEXT: Record<RosterBarView['saveState'], string> = {
@@ -1249,7 +1251,14 @@ export function renderRosterBar(view: RosterBarView, h: RaidHandlers): HTMLEleme
   bar.appendChild(mid);
 
   const right = el('div', 'rtoolbar__group');
+  if (view.demo) {
+    const pill = el('span', 'rbar__save', 'Demo, nothing is saved');
+    pill.dataset.state = 'demo';
+    pill.title = 'Made-up signups. This roster is not stored and cannot be published.';
+    right.appendChild(pill);
+  }
   const save = el('span', 'rbar__save', SAVE_TEXT[view.saveState]);
+  if (view.demo) save.hidden = true;
   save.dataset.state = view.saveState;
   if (view.saveDetail) save.title = view.saveDetail;
   right.appendChild(save);
@@ -1265,9 +1274,11 @@ export function renderRosterBar(view: RosterBarView, h: RaidHandlers): HTMLEleme
   publish.className = 'btn btn--gold';
   publish.textContent = 'Publish to Discord';
   publish.disabled = !view.canPublish || view.seated === 0;
-  publish.title = view.seated === 0
-    ? 'Seat somebody first'
-    : 'Post the roster and message everyone on it';
+  publish.title = view.demo
+    ? 'The demo has nobody real to message. Open a roster from Discord to publish one.'
+    : view.seated === 0
+      ? 'Seat somebody first'
+      : 'Post the roster and message everyone on it';
   publish.addEventListener('click', () => h.onPublish?.());
   right.appendChild(publish);
 

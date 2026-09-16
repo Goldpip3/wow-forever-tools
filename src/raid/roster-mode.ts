@@ -522,3 +522,71 @@ export function makeGuest(
 export function isGuest(player: Player): boolean {
   return !!player.discord && player.discord.userId.startsWith('guest:');
 }
+
+/* ------------------------------------------------------------------- the demo */
+
+/**
+ * A roster to look at without a bot, a Discord account or a network.
+ *
+ * Roster mode is otherwise unreachable until somebody has installed Group Builder, made
+ * an event and collected signups, which is a lot to ask of a person who only wants to see
+ * whether the tool is worth the trouble. `#roster=demo` runs the whole interface against
+ * made-up signups held in this file.
+ *
+ * The seventeen below are not a tidy raid on purpose. There are three tanks and only two
+ * healers, nobody has brought a Shaman for Windfury, and several people signed up late or
+ * as a maybe, so the pool, the buff panel and the warnings all have something to say the
+ * moment it opens.
+ */
+const DEMO_SIGNUPS: Array<[string, string, string | null, string, string]> = [
+  ['Grimbald', 'warrior', 'prot_war', 'tank', 'primary'],
+  ['Thornhoof', 'druid', 'guardian', 'tank', 'primary'],
+  ['Sanctia', 'paladin', 'prot_pal', 'tank', 'tentative'],
+  ['Redwake', 'warrior', 'arms', 'melee', 'primary'],
+  ['Morrik', 'warrior', 'fury', 'melee', 'primary'],
+  ['Sliphand', 'rogue', 'combat', 'melee', 'primary'],
+  ['Nettlebrand', 'rogue', 'assa', 'melee', 'late'],
+  ['Ashfen', 'druid', 'feral', 'melee', 'primary'],
+  ['Quillan', 'hunter', 'mm', 'ranged', 'primary'],
+  ['Brackwater', 'hunter', 'bm', 'ranged', 'bench'],
+  ['Emberly', 'mage', 'fire', 'ranged', 'primary'],
+  ['Hollowmere', 'mage', 'frost', 'ranged', 'primary'],
+  ['Vessk', 'warlock', 'destro', 'ranged', 'primary'],
+  ['Dreadnall', 'warlock', 'affli', 'ranged', 'tentative'],
+  ['Silentbell', 'priest', 'shadow', 'ranged', 'primary'],
+  ['Lucentia', 'priest', 'holy_priest', 'healer', 'primary'],
+  ['Wrenbough', 'druid', 'resto_druid', 'healer', 'late'],
+];
+
+/** The demo event, built fresh each time so nothing carries over between visits. */
+export function demoPayload(): RosterPayload {
+  const inTwoDays = Math.floor(Date.now() / 1000) + 60 * 60 * 48;
+  return {
+    event: {
+      id: 'demo',
+      title: 'Demo raid — Molten Core',
+      // Rounded to the hour so it reads like a scheduled raid rather than a timestamp.
+      startTime: inTwoDays - (inTwoDays % 3600),
+      guildId: 'demo',
+      channelId: 'demo',
+      size: 40,
+    },
+    signups: DEMO_SIGNUPS.map(([name, classKey, specKey, roleKey, status], i) => ({
+      signupId: i + 1,
+      userId: 'demo:' + (i + 1),
+      name,
+      classKey,
+      specKey,
+      roleKey,
+      status,
+      position: i + 1,
+    })),
+    roster: null,
+    permissions: { canEdit: true, canPublish: false },
+  };
+}
+
+/** True for the demo event, which must never reach the network. */
+export function isDemo(state: RosterState): boolean {
+  return state.event.id === 'demo';
+}

@@ -624,3 +624,5 @@
 }
 .rsteps__title { color: var(--gold); font-weight: 700; font-size: 13.5px; margin-bottom: 2px; }
 .rsteps__detail { color: var(--ink2); font-size: 13px; line-height: 1.5; }
+
+.rbar__save[data-state="demo"] { color: var(--blue); border-color: var(--blue); }
