@@ -247,9 +247,73 @@ const NUMBER = /\d+(?:\.\d+)?/g;
  * three land within Blizzard's own rounding. Improved Blizzard is the one that does not,
  * because its real progression is 15/30/40 rather than a straight multiple.
  */
+/**
+ * Nouns that a talent's numbers count, and so have to agree with them.
+ *
+ * Only words that are genuinely counted go in here. Rage, Energy, Mana and Armor are
+ * uncountable and stay as they are, and the game writes durations as "sec" and "min" at
+ * every value, so those are left alone too.
+ */
+const PLURALS: Record<string, string> = {
+  level: 'levels',
+  yard: 'yards',
+  yd: 'yds',
+  attack: 'attacks',
+  charge: 'charges',
+  time: 'times',
+  point: 'points',
+  enemy: 'enemies',
+  target: 'targets',
+  stack: 'stacks',
+  swing: 'swings',
+  orb: 'orbs',
+  spell: 'spells',
+  second: 'seconds',
+  minute: 'minutes',
+  ability: 'abilities',
+};
+const SINGULARS: Record<string, string> = Object.fromEntries(
+  Object.entries(PLURALS).map(([one, many]) => [many, one]),
+);
+
+/**
+ * Make the words agree with the numbers after a rank has been worked out.
+ *
+ * Scaling rewrites figures inside a sentence written for one particular rank, so the
+ * English around them goes stale: Feral Instinct read "as if you were 2 level higher" and
+ * Natural Reaction "a 80% chance". The numbers were right and the page still looked broken,
+ * which is worse than it sounds, because a reader who catches a sentence like that stops
+ * trusting the figures too.
+ *
+ * Two fixes, both mechanical. A counted noun follows its number, and the article before a
+ * number follows how the number is said rather than how it is spelt: an 8, an 11, an 18,
+ * an 80, and a 20.
+ */
+function agreeWithNumbers(text: string): string {
+  let out = text.replace(
+    /(\d+(?:\.\d+)?)(\s+)([A-Za-z]+)/g,
+    (whole, digits: string, gap: string, word: string) => {
+      const one = Math.abs(parseFloat(digits)) === 1;
+      const lower = word.toLowerCase();
+      const wanted = one ? SINGULARS[lower] : PLURALS[lower];
+      if (!wanted) return whole;
+      // Keep whatever capitalisation the sentence already had.
+      const cased = word[0] === word[0]?.toUpperCase() ? wanted[0]!.toUpperCase() + wanted.slice(1) : wanted;
+      return digits + gap + cased;
+    },
+  );
+
+  out = out.replace(/\b([Aa])n?(\s+)(\d+)/g, (_all, article: string, gap: string, digits: string) => {
+    const vowelSound = /^8/.test(digits) || /^1[18]$/.test(digits);
+    return article + (vowelSound ? 'n' : '') + gap + digits;
+  });
+
+  return out;
+}
+
 function scaleNumbers(text: string, idx: number[], factor: number): string {
   let seen = 0;
-  return text.replace(NUMBER, (match) => {
+  const scaledText = text.replace(NUMBER, (match) => {
     if (!idx.includes(seen++)) return match;
     const scaled = parseFloat(match) * factor;
     // A whole number stays whole; one that was written with a decimal keeps one.
@@ -257,6 +321,7 @@ function scaleNumbers(text: string, idx: number[], factor: number): string {
       ? String(Math.round(scaled * 10) / 10)
       : String(Math.round(scaled));
   });
+  return scaledText;
 }
 
 /**
@@ -337,8 +402,20 @@ function interpolateRank(
   return moved ? out : null;
 }
 
-/** Rank text for a talent, interpolating when only some ranks were read off the demo. */
+/**
+ * Rank text for a talent, interpolating when only some ranks were read off the demo.
+ *
+ * Every rank goes through `agreeWithNumbers`, read ranks included. Upstream transcribed
+ * these off video and a few carry "a 8% chance" as typed; the article follows the number
+ * whether we worked the number out or somebody read it, and correcting one is not
+ * rewriting what the spell does.
+ */
 export function rankText(talent: Talent, rank: number): RankText {
+  const out = computeRankText(talent, rank);
+  return { ...out, text: agreeWithNumbers(out.text) };
+}
+
+function computeRankText(talent: Talent, rank: number): RankText {
   const wanted = Math.max(1, Math.min(talent.max, rank));
   if (Array.isArray(talent.desc)) {
     const text = talent.desc[wanted - 1] ?? talent.desc[0] ?? '';

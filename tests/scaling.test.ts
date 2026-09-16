@@ -127,3 +127,45 @@ describe('what the reader ends up seeing', () => {
     expect(rankText(talent, 5).text).toContain('10% chance');
   });
 });
+
+describe('words agreeing with the numbers around them', () => {
+  it('pluralises a counted noun when a rank scales past one', () => {
+    const talent = find('Druid|Feral Instinct')!;
+    expect(rankText(talent, 1).text).toContain('1 level higher');
+    expect(rankText(talent, 2).text).toContain('2 levels higher');
+    expect(rankText(talent, 3).text).toContain('3 levels higher');
+  });
+
+  it('uses an before eighty', () => {
+    const talent = find('Druid|Natural Reaction')!;
+    expect(rankText(talent, 2).text).toContain('a 40% chance');
+    expect(rankText(talent, 4).text).toContain('an 80% chance');
+    expect(rankText(talent, 5).text).toContain('a 100% chance');
+  });
+
+  it('leaves uncountable things alone', () => {
+    const talent = find('Druid|Natural Reaction')!;
+    // Rage is not counted in the plural, and the game writes sec at every value.
+    for (let r = 1; r <= talent.max; r += 1) {
+      expect(rankText(talent, r).text, 'rank ' + r).toContain('5 Rage');
+    }
+  });
+
+  it('no talent in any class disagrees with its own numbers', () => {
+    const counted =
+      /\b([2-9]|[1-9][0-9]+)\s+(level|yard|attack|charge|time|point|enemy|target|stack|swing|orb|spell|second|minute|ability)\b/;
+    const article = /\ba\s+(8|11|18|8[0-9])\b|\ban\s+([2-79]|[2-79][0-9]*)\b/;
+    const bad: string[] = [];
+    for (const talent of ALL) {
+      for (let r = 1; r <= talent.max; r += 1) {
+        const text = rankText(talent, r).text;
+        const where = talent.classKey + '|' + talent.name + ' r' + r;
+        const a = text.match(counted);
+        if (a) bad.push(where + ': "' + a[0] + '"');
+        const b = text.match(article);
+        if (b) bad.push(where + ': "' + b[0] + '"');
+      }
+    }
+    expect(bad).toEqual([]);
+  });
+});
