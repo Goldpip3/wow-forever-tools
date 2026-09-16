@@ -4,6 +4,9 @@ import { iconImg } from '../shared/icons';
 import { choicesFor, petGatedFor, talentGatedFor } from './loadout';
 import { resetPlayerToSpec } from './codec';
 import { parseCode } from '../talents/codec';
+import { attachTooltips } from '../shared/tooltip';
+import { effectById } from './effects/index';
+import { buildSpellTip } from './render';
 
 function el(tag: string, cls?: string, text?: string): HTMLElement {
   const node = document.createElement(tag);
@@ -27,6 +30,7 @@ function section(title: string, hint?: string): { wrap: HTMLElement; body: HTMLE
 }
 
 function optionRow(
+  id: string,
   name: string,
   icon: string,
   selected: boolean,
@@ -34,6 +38,8 @@ function optionRow(
   onToggle: (next: boolean) => void,
 ): HTMLElement {
   const label = el('label', 'opt' + (selected ? ' opt--on' : ''));
+  // Read back by the tooltip below, so hovering Retribution Aura says what it does.
+  label.dataset.effect = id;
   const input = document.createElement('input');
   input.type = type;
   input.checked = selected;
@@ -120,6 +126,7 @@ export function renderDrawer(player: Player, h: DrawerHandlers): HTMLElement {
 
     for (const option of choice.options) {
       const row = optionRow(
+        option.id,
         option.name,
         option.icon,
         option.selected,
@@ -166,7 +173,7 @@ export function renderDrawer(player: Player, h: DrawerHandlers): HTMLElement {
     const list = el('div', 'opt-list');
     for (const t of talents) {
       list.appendChild(
-        optionRow(t.name, t.icon, t.on, 'checkbox', (next) => {
+        optionRow(t.id, t.name, t.icon, t.on, 'checkbox', (next) => {
           player.talentToggles[t.id] = next;
           h.onChange();
         }),
@@ -206,6 +213,18 @@ export function renderDrawer(player: Player, h: DrawerHandlers): HTMLElement {
   }
 
   panel.appendChild(body);
+
+  /* Hovering a buff shows the spell's own text, the same tooltip the coverage lists use.
+     Picking between six blessings means nothing if you have to already know what they do. */
+  attachTooltips(
+    panel,
+    (target) => (target.closest('.opt[data-effect]') as HTMLElement | null),
+    (row) => {
+      const effect = effectById(row.dataset.effect ?? '');
+      return effect ? buildSpellTip(effect) : null;
+    },
+  );
+
   overlay.appendChild(panel);
 
   overlay.addEventListener('click', (ev) => {

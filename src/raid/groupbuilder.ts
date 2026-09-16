@@ -1,7 +1,7 @@
 import type { Player, Roster } from './types';
 import { GROUP_SIZE } from './types';
 import { emptyRoster } from './engine';
-import { createPlayer } from './loadout';
+import { createPlayer, spreadChoices } from './loadout';
 import type { Archetype, ClassId } from '../shared/classes';
 import { CLASS_IDS, CLASSES } from '../shared/classes';
 
@@ -190,7 +190,12 @@ export function readSignups(payload: GroupBuilderPayload): ImportResult {
 
     const mapping = specOf(classId, row);
     const specId = mapping?.specId ?? DEFAULT_SPEC[classId];
-    const player = createPlayer(classId, specId, name || undefined);
+    /* Spread against everyone read so far, so an import of four Paladins arrives with
+       four different blessings rather than four of the same one. */
+    const player = spreadChoices(createPlayer(classId, specId, name || undefined), [
+      ...players,
+      ...bench,
+    ]);
     if (mapping?.role) player.role = mapping.role;
 
     if (status === 'absence' || status === 'tentative') {

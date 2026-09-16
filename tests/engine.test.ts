@@ -8,7 +8,7 @@ import {
   playersInRaid,
   providersOf,
 } from '../src/raid/engine';
-import { createPlayer } from '../src/raid/loadout';
+import { createPlayer, spreadChoices } from '../src/raid/loadout';
 import { effectById } from '../src/raid/effects/index';
 import { decodeRoster, encodeRoster } from '../src/raid/codec';
 import { ALL_SPECS, type ClassId } from '../src/shared/classes';
@@ -529,5 +529,78 @@ describe('available versus missing', () => {
         expect(state, spec.classId + ' ' + spec.name + ' -> ' + c.effect.id).toBe(true);
       }
     }
+  });
+});
+
+describe('spreading choices across classmates', () => {
+  /* Seat players the way the page does: each one is spread against whoever is already
+     on the roster, so the nth player of a class sees the n-1 before them. */
+  function fill(roster: Roster, classId: ClassId, specId: number, count: number): Player[] {
+    const out: Player[] = [];
+    for (let i = 0; i < count; i += 1) {
+      const here: Player[] = [];
+      for (const group of roster.groups) for (const p of group) if (p) here.push(p);
+      const player = spreadChoices(createPlayer(classId, specId), here);
+      roster.groups[Math.floor(i / 5)]![i % 5] = player;
+      out.push(player);
+    }
+    return out;
+  }
+
+  it('gives four Warlocks four different curses', () => {
+    const roster = emptyRoster(40);
+    const picks = fill(roster, 'warlock', 302, 4).map((p) => p.loadout['warlock-curse']?.[0]);
+    expect(new Set(picks).size).toBe(4);
+    expect(picks[0]).toBe('curse-of-the-elements');
+  });
+
+  it('gives four Paladins four different blessings', () => {
+    const roster = emptyRoster(40);
+    const picks = fill(roster, 'paladin', 382, 4).map((p) => p.loadout['paladin-blessing']?.[0]);
+    expect(new Set(picks).size).toBe(4);
+  });
+
+  it('gives two Hunters different stings', () => {
+    const roster = emptyRoster(40);
+    const picks = fill(roster, 'hunter', 361, 2).map((p) => p.loadout['hunter-sting']?.[0]);
+    expect(picks[0]).not.toBe(picks[1]);
+  });
+
+  it('leaves party buffs alone, because a second group needs its own', () => {
+    const roster = emptyRoster(40);
+    const paladins = fill(roster, 'paladin', 382, 3);
+    const auras = paladins.map((p) => p.loadout['paladin-aura']?.[0]);
+    // Devotion Aura in three different groups is three groups covered, not a mistake.
+    expect(new Set(auras).size).toBe(1);
+  });
+
+  it('leaves totems alone for the same reason', () => {
+    const roster = emptyRoster(40);
+    const shamans = fill(roster, 'shaman', 263, 3);
+    for (const group of ['shaman-earth', 'shaman-air', 'shaman-water', 'shaman-fire']) {
+      const picks = shamans.map((p) => p.loadout[group]?.[0]);
+      expect(new Set(picks).size, group).toBe(1);
+    }
+  });
+
+  it('does not touch a player who has no classmate yet', () => {
+    const roster = emptyRoster(40);
+    const alone = spreadChoices(createPlayer('warlock', 302), []);
+    expect(alone.loadout['warlock-curse']).toEqual(['curse-of-the-elements']);
+    expect(roster.groups[0]![0]).toBeNull();
+  });
+
+  it('keeps every curse in play once there are more Warlocks than curses', () => {
+    const roster = emptyRoster(40);
+    const picks = fill(roster, 'warlock', 302, 8).map((p) => p.loadout['warlock-curse']?.[0]);
+    // Past the end of the list the default stands rather than the slot emptying.
+    expect(picks.every((p) => typeof p === 'string' && p.length > 0)).toBe(true);
+  });
+
+  it('never picks a curse the Warlock would need a talent for', () => {
+    const roster = emptyRoster(40);
+    const picks = fill(roster, 'warlock', 302, 6).map((p) => p.loadout['warlock-curse']?.[0]);
+    // Curse of Exhaustion is an Affliction talent, so it is not something to assume.
+    expect(picks).not.toContain('curse-of-exhaustion');
   });
 });

@@ -31,9 +31,12 @@ const DEFAULT_CHOICES: Record<number, Record<string, string[]>> = {
   },
 
   /* Warlock: Affliction, Demonology, Destruction */
-  302: { 'warlock-curse': ['curse-of-the-elements'], 'warlock-bane': ['bane-of-agony'], 'warlock-pet': ['blood-pact'] },
-  303: { 'warlock-curse': ['curse-of-the-elements'], 'warlock-bane': ['bane-of-agony'], 'warlock-pet': ['blood-pact'] },
-  301: { 'warlock-curse': ['curse-of-shadow'], 'warlock-bane': ['bane-of-agony'], 'warlock-pet': ['blood-pact'] },
+  /* No default Bane: the only member of that group is Bane of Havoc, a Destruction talent.
+     The old default named bane-of-agony, which is not an effect at all, so the group read
+     as picked while nothing was. */
+  302: { 'warlock-curse': ['curse-of-the-elements'], 'warlock-pet': ['blood-pact'] },
+  303: { 'warlock-curse': ['curse-of-the-elements'], 'warlock-pet': ['blood-pact'] },
+  301: { 'warlock-curse': ['curse-of-shadow'], 'warlock-pet': ['blood-pact'] },
 
   /* Hunter: Beast Mastery, Marksmanship, Survival */
   361: { 'hunter-sting': ['scorpid-sting'], 'hunter-pet': ['furious-howl'] },
@@ -117,6 +120,67 @@ export function createPlayer(classId: ClassId, specId: number, name?: string): P
     loadout: defaultLoadout(specId),
     talentToggles: defaultTalentToggles(specId),
   };
+}
+
+/**
+ * Whether a duplicate pick in this group is wasted.
+ *
+ * Judged by scope rather than by a list of group names, so it stays right as the catalog
+ * changes: a raid buff or a debuff on the boss lands once however many people cast it, so a
+ * second Warlock on the curse the first already has adds nothing. Party-scope groups are
+ * deliberately excluded — two Paladins running Devotion Aura in two different groups is two
+ * groups covered, not a mistake, and every totem works the same way.
+ */
+function wastedWhenDuplicated(options: Array<{ id: string }>): boolean {
+  return options.every((o) => {
+    const scope = effectById(o.id)?.scope;
+    return scope === 'raid' || scope === 'target';
+  });
+}
+
+function needsTalent(classId: ClassId, effectId: string): boolean {
+  const effect = effectById(effectId);
+  return !!effect?.providers.some((p) => p.classId === classId && p.talent);
+}
+
+/**
+ * Move a newly added player off the picks their classmates already have.
+ *
+ * Drop in a second Warlock and they take the next curse rather than doubling up on the
+ * first one's. This runs at the moment the player is created, before anyone has opened
+ * their loadout, so it can only ever change an untouched default — it cannot overwrite a
+ * choice the leader made.
+ *
+ * `createPlayer` cannot do this itself because it is also called where there is no roster
+ * to read: building a list from Discord signups, or seeding one player from a pasted talent
+ * link. Call this wherever a player joins a roster.
+ */
+export function spreadChoices(player: Player, existing: Iterable<Player>): Player {
+  const classmates: Player[] = [];
+  for (const other of existing) {
+    if (other && other.classId === player.classId && other.id !== player.id) classmates.push(other);
+  }
+  if (!classmates.length) return player;
+
+  for (const choice of choicesFor(player)) {
+    if (choice.limit !== 1) continue;
+    if (!wastedWhenDuplicated(choice.options)) continue;
+
+    const taken = new Set<string>();
+    for (const mate of classmates) {
+      for (const id of mate.loadout[choice.group] ?? []) taken.add(id);
+    }
+
+    const current = (player.loadout[choice.group] ?? [])[0];
+    if (current && !taken.has(current)) continue;
+
+    /* Catalog order, so the second Warlock takes the next curse that actually matters
+       rather than the next one alphabetically. Talent-gated options are skipped: handing
+       someone a curse they may not have talented is a worse guess than leaving it be. */
+    const free = choice.options.find((o) => !taken.has(o.id) && !needsTalent(player.classId, o.id));
+    if (free) player.loadout[choice.group] = [free.id];
+  }
+  return player;
 }
 
 /** Choice groups this player has to pick from, with their options and current picks. */

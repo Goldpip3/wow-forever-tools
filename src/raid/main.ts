@@ -14,7 +14,7 @@ import { KEY_ROSTERS, readJson, writeJson } from '../shared/storage';
 import { CLASSES, type ClassId } from '../shared/classes';
 import { GROUP_COUNT, GROUP_SIZE, type Player, type Roster } from './types';
 import { computeCoverage, emptyRoster } from './engine';
-import { createPlayer } from './loadout';
+import { createPlayer, spreadChoices } from './loadout';
 import { decodeRoster, encodeRoster, isEmptyRoster } from './codec';
 import {
   renderAlertBar,
@@ -116,6 +116,14 @@ function savedRosters(): SavedRoster[] {
 
 /* ------------------------------------------------------------ roster helpers */
 
+/** Everyone currently on the roster, seated or benched. */
+function onRoster(): Player[] {
+  const out: Player[] = [];
+  for (const group of roster.groups) for (const p of group) if (p) out.push(p);
+  for (const p of roster.bench) out.push(p);
+  return out;
+}
+
 function findPlayer(id: string): { player: Player; group: number; slot: number } | null {
   for (let g = 0; g < roster.groups.length; g += 1) {
     for (let s = 0; s < GROUP_SIZE; s += 1) {
@@ -169,7 +177,7 @@ function fillSample(): void {
   comp.forEach(([classId, specId], i) => {
     const g = Math.floor(i / GROUP_SIZE);
     const s = i % GROUP_SIZE;
-    if (g < GROUP_COUNT) roster.groups[g]![s] = createPlayer(classId, specId);
+    if (g < GROUP_COUNT) roster.groups[g]![s] = spreadChoices(createPlayer(classId, specId), onRoster());
   });
   update();
   toast('Filled a sample 40-man');
@@ -181,7 +189,7 @@ const handlers: RaidHandlers = {
   onPickSeat: (group, slot) => openPicker(group, slot),
 
   onDropSpec: (classId, specId, group, slot) => {
-    roster.groups[group]![slot] = createPlayer(classId, specId);
+    roster.groups[group]![slot] = spreadChoices(createPlayer(classId, specId), onRoster());
     update();
   },
 
@@ -276,7 +284,7 @@ function openPicker(group: number, slot: number): void {
       group,
       slot,
       (classId, specId) => {
-        roster.groups[group]![slot] = createPlayer(classId, specId);
+        roster.groups[group]![slot] = spreadChoices(createPlayer(classId, specId), onRoster());
         closeOverlays();
         update();
       },

@@ -71,10 +71,19 @@
 .seat--empty { border: 1px dashed var(--line); }
 .seat--drop { border-color: var(--gold); background: #2f2a12; }
 .seat--misfit { box-shadow: inset 0 0 0 1px rgba(255, 77, 77, .4); }
-.seat--misfit::after {
-  content: '!'; position: absolute; right: 30px; top: 50%; transform: translateY(-50%);
-  color: var(--red); font-weight: 700; font-size: 11px;
+/*
+ * The warning sits in the button row, not over it. Absolutely positioned at right: 30px it
+ * landed on the gear, so the mark saying something was wrong covered the button you needed
+ * to fix it. Same width as a seat button, so the row stays put whether or not it is there.
+ */
+.seat__warn {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 15px; padding: 0 3px;
+  border: 1px solid transparent; border-radius: 3px;
+  color: var(--red); font-weight: 700; font-size: 11px; line-height: 1.5;
+  cursor: help;
 }
+.seat__warn:hover { border-color: rgba(255, 77, 77, .5); background: rgba(255, 77, 77, .12); }
 
 .seat__add {
   flex: 1; background: none; border: none; color: var(--muted);

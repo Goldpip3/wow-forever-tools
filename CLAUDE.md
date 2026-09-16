@@ -50,6 +50,12 @@ hypothetical.
   three separate additions: the roster handlers, the docs guard, and the session.
 - **Shared CSS belongs in `base.css`.** Classes used by more than one page have twice been
   left in `raid.css`, which only `raid.html` loads, and silently broke the other page.
+- **A player joining a roster goes through `spreadChoices`.** It moves the new player off
+  the raid-wide and boss-facing picks their classmates already hold, so a second Warlock
+  takes the next curse instead of doubling the first one's. `createPlayer` cannot do it
+  itself — it is also called where there is no roster to read. It keys off effect *scope*,
+  so it covers every class; party-scope groups like auras and totems are left alone on
+  purpose, because a second group needs its own.
 
 ## Commands
 

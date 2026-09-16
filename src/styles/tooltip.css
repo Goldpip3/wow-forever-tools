@@ -1,6 +1,8 @@
 .tip {
   position: fixed;
-  z-index: 400;
+  /* Above the drawer and the spec picker, which are both 500. A tooltip that renders
+     behind the thing it describes is no tooltip. It takes no clicks either way. */
+  z-index: 600;
   max-width: 340px;
   background: var(--tip-bg);
   border: 1px solid var(--tip-line);
@@ -30,7 +32,7 @@
 /* Mobile bottom sheet: same content, docked, taps pass through. */
 .sheet {
   position: fixed; left: 8px; right: 8px; bottom: 8px;
-  z-index: 400;
+  z-index: 600;
   background: rgba(14, 14, 16, .93);
   border: 1px solid var(--tip-line);
   border-radius: var(--radius);

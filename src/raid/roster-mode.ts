@@ -16,7 +16,7 @@
 import type { Player, Roster } from './types';
 import { GROUP_COUNT, GROUP_SIZE } from './types';
 import { emptyRoster } from './engine';
-import { createPlayer } from './loadout';
+import { createPlayer, spreadChoices } from './loadout';
 import { specFromSignup, specKeyForSpecId } from './groupbuilder';
 import { API_BASE } from '../shared/session';
 
@@ -228,10 +228,13 @@ function toPlayer(
   name: string,
   signupStatus: string,
   loadout?: Record<string, unknown>,
+  existing: Iterable<Player> = [],
 ): Player | null {
   const mapped = specFromSignup(source.classKey, source.specKey);
   if (!mapped) return null;
-  const player = createPlayer(mapped.classId, mapped.specId);
+  /* Spread first, merge the saved loadout second: a pick the leader already made and the
+     bot stored has to win over anything guessed here. */
+  const player = spreadChoices(createPlayer(mapped.classId, mapped.specId), existing);
   player.id = playerIdFor(source.userId);
   player.name = name;
   if (mapped.role) player.role = mapped.role;
@@ -287,6 +290,9 @@ export function stateFromPayload(payload: RosterPayload): RosterState {
   const roster = emptyRoster(size);
   const pool: Player[] = [];
   const cut: Player[] = [];
+  /* Everyone built so far, in the order they were built, so each new person can be moved
+     off the choices their classmates already hold. */
+  const everyone: Player[] = [];
   const unmapped: Signup[] = [];
   const statusOnly: Signup[] = [];
 
@@ -307,11 +313,13 @@ export function stateFromPayload(payload: RosterPayload): RosterState {
       slot.displayName,
       signup?.status ?? 'withdrawn',
       slot.loadout,
+      everyone,
     );
     if (!player) {
       if (signup) unmapped.push(signup);
       continue;
     }
+    everyone.push(player);
     placed.add(slot.userId);
     if (slot.decision === 'selected' && slot.groupIndex !== null && slot.slotIndex !== null) {
       const g = slot.groupIndex;
@@ -340,12 +348,15 @@ export function stateFromPayload(payload: RosterPayload): RosterState {
       },
       signup.name,
       signup.status,
+      undefined,
+      everyone,
     );
     if (!player) {
       if (isStatusOnly(signup)) statusOnly.push(signup);
       else unmapped.push(signup);
       continue;
     }
+    everyone.push(player);
     pool.push(player);
   }
 

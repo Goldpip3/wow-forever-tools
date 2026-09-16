@@ -1,4 +1,4 @@
-import type { Coverage, EffectCoverage, Player, Roster } from './types';
+import type { Coverage, Effect, EffectCoverage, Player, Roster } from './types';
 import { GROUP_COUNT, GROUP_SIZE } from './types';
 import {
   CLASSES,
@@ -171,12 +171,12 @@ function seatCard(
 
   // Flag a seat only when this group's party buffs do nothing at all for them.
   const wasted = !!profile && profile.buffs.length > 0 && seatValue(player, profile) === 0;
-  if (wasted) {
-    cell.classList.add('seat--misfit');
-    cell.title =
-      profile!.buffs.map((b) => b.name).join(', ') +
-      ' in this group does nothing for a ' + ARCHETYPE_LABEL[arch].toLowerCase().replace(/s$/, '') + '.';
-  }
+  const wastedWhy = wasted
+    ? profile!.buffs.map((b) => b.name).join(', ') +
+      ' in this group does nothing for a ' +
+      ARCHETYPE_LABEL[arch].toLowerCase().replace(/s$/, '') + '.'
+    : '';
+  if (wasted) cell.classList.add('seat--misfit');
 
   cell.appendChild(iconImg(spec?.icon ?? info.icon, '', 'seat__icon'));
 
@@ -208,6 +208,19 @@ function seatCard(
   cell.appendChild(body);
 
   const btns = el('div', 'seat__btns');
+
+  /* The warning takes its own place in the button row. As an absolutely positioned ::after
+     it landed on top of the gear, so the mark telling you something was wrong was also what
+     stopped you clicking through to fix it. */
+  if (wasted) {
+    const warn = el('span', 'seat__warn', '!');
+    warn.dataset.why = wastedWhy;
+    warn.setAttribute('role', 'img');
+    warn.setAttribute('aria-label', wastedWhy);
+    warn.title = wastedWhy;
+    btns.appendChild(warn);
+  }
+
   const gear = el('button', 'seat__btn', '⚙');
   gear.title = 'Buffs and loadout for ' + player.name;
   gear.setAttribute('aria-label', 'Loadout for ' + player.name);
@@ -276,9 +289,16 @@ export function renderGroups(roster: Roster, coverage: Coverage, h: RaidHandlers
 
   attachTooltips(
     wrap,
-    (target) => (target.closest('.group__buffs img') as HTMLElement | null),
-    (img) => {
-      const id = img.dataset.effect;
+    (target) => (target.closest('.group__buffs img, .seat__warn') as HTMLElement | null),
+    (node) => {
+      if (node.classList.contains('seat__warn')) {
+        const tip = el('div');
+        tip.appendChild(el('div', 'tip__name', 'Party buffs going to waste'));
+        tip.appendChild(el('div', 'tip__body', node.dataset.why ?? ''));
+        tip.appendChild(el('div', 'tip__note', 'Move them to a group whose buffs they use.'));
+        return tip;
+      }
+      const id = node.dataset.effect;
       const cov = id ? coverage.byEffect.get(id) : undefined;
       return cov ? buildEffectTip(cov, active) : null;
     },
@@ -564,11 +584,16 @@ const STATE_LABEL: Record<CoverState, string> = {
  * text. The wording comes from the imported data, not from anything written here,
  * so a talent reads as the talent does and a spellbook entry as the spellbook does.
  */
-export function buildEffectTip(cov: EffectCoverage, active: number): HTMLElement {
+/**
+ * The spell as the game words it: name, rank, cost, its real text, and the Classic version
+ * where they differ. No coverage in it, so the loadout drawer can show the same tooltip for
+ * a buff nobody has picked yet.
+ */
+export function buildSpellTip(effect: Effect): HTMLElement {
   const tip = el('div');
-  tip.appendChild(el('div', 'tip__name', cov.effect.name));
+  tip.appendChild(el('div', 'tip__name', effect.name));
 
-  const real = lookupEffectText(cov.effect);
+  const real = lookupEffectText(effect);
 
   if (real?.rank || real?.level) {
     const meta = el('div', 'tip__meta');
@@ -602,14 +627,21 @@ export function buildEffectTip(cov: EffectCoverage, active: number): HTMLElement
   tip.appendChild(el('div', 'tip__hr'));
 
   const scope =
-    cov.effect.scope === 'raid'
+    effect.scope === 'raid'
       ? 'Raid buff'
-      : cov.effect.scope === 'party'
+      : effect.scope === 'party'
         ? 'Party buff, caster group only'
-        : cov.effect.scope === 'target'
+        : effect.scope === 'target'
           ? 'Debuff on the target'
           : 'Self buff';
   tip.appendChild(el('div', 'tip__meta', scope));
+
+  return tip;
+}
+
+/** The same tooltip, plus who on this roster brings it and who does not. */
+export function buildEffectTip(cov: EffectCoverage, active: number): HTMLElement {
+  const tip = buildSpellTip(cov.effect);
 
   const state = coverState(cov);
   const cls = state === 'missing' ? 'tip__req' : state === 'available' ? 'tip__meta' : 'tip__next';
