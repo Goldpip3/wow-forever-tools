@@ -16,9 +16,7 @@ import {
   MAX_REPORTS, MAX_SAVED, decodeCharacter, decodeReport, encodeCharacter, encodeReport,
   summarise, type Report, type SavedCharacter, type SavedReport,
 } from './codec';
-import { SAMPLE_EXPORT } from './sample';
-import { SAMPLE_WARRIOR_EXPORT } from './sample-warrior';
-import { SAMPLE_ROGUE_EXPORT } from './sample-rogue';
+import { sampleByKey } from './samples';
 import {
   DEFAULT_BUFFS, DEFAULT_CONSUMABLES, defaultsFor, type BuffKind, type BuffRole,
 } from './data/buffs';
@@ -469,11 +467,10 @@ function confirmSwap(slot: Slot, item: ItemRef): void {
 const handlers: DpsHandlers = {
   onImport: (text) => importFromText(text),
 
-  onLoadSample: (which) => importFromText(
-    which === 'warrior' ? SAMPLE_WARRIOR_EXPORT
-      : which === 'rogue' ? SAMPLE_ROGUE_EXPORT
-        : SAMPLE_EXPORT,
-  ),
+  onLoadSample: (key) => {
+    const sample = sampleByKey(key);
+    if (sample) importFromText(sample.text);
+  },
 
   onClear: () => {
     character = null;

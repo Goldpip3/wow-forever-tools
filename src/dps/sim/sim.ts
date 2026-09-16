@@ -681,8 +681,10 @@ export function runIteration(
           const reach = spell.def.aoe ? Math.min(targets, spell.def.aoe.maxTargets) : 1;
           for (let i = 0; i < reach; i += 1) {
             const outcome = rollSpell(hitPctFor(), critPctFor(spell, now), rng);
-            const amount = damageOf(spell, outcome, powerFor(spell), now);
+            const amount = damageOf(spell, outcome, powerFor(spell), now)
+              * (spell.def.aoe?.falloff ?? 1) ** i;
             const t = tally(spell.def.id);
+            let echoed = false;
             trace?.push({ t: now, kind: 'land', id: spell.def.id, amount, outcome });
             if (outcome === 'miss') t.misses += 1;
             else {
@@ -706,6 +708,24 @@ export function runIteration(
               rng,
               mods,
               stats,
+              // A second copy of this spell, rolled on its own and billed to a
+              // row of its own. It cannot echo again.
+              echo: (multiplier: number) => {
+                if (echoed) return;
+                echoed = true;
+                const again = rollSpell(hitPctFor(), critPctFor(spell, now), rng);
+                const extra = damageOf(spell, again, powerFor(spell), now) * multiplier;
+                const e = tally(spell.def.id + '-echo');
+                e.casts += 1;
+                if (again === 'miss') e.misses += 1;
+                else {
+                  e.hits += 1;
+                  if (again === 'crit') e.crits += 1;
+                  e.damage += extra;
+                  total += extra;
+                }
+                trace?.push({ t: now, kind: 'land', id: spell.def.id + '-echo', amount: extra, outcome: again });
+              },
             });
           }
         }
@@ -866,7 +886,10 @@ export function runIteration(
       trace?.push({ t: now, kind: 'cooldown', id: spell.def.id, value: spell.def.cooldown });
     }
 
-    const finishAt = now + spell.castTime;
+    // Anything that speeds casting up now, such as Rage of the Farseer, shortens
+    // this cast. The global cooldown is not touched: in Classic it did not move.
+    const castSpeed = spell.castTime > 0 ? spec.castSpeedFor?.(actor, now, mods) ?? 1 : 1;
+    const finishAt = now + spell.castTime / Math.max(0.01, castSpeed);
     actor.busyUntil = finishAt;
     actor.gcdReadyAt = now + spell.gcd;
     queue.push(finishAt, { kind: 'cast-finish', spellId: spell.def.id });

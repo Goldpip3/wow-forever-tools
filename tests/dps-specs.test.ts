@@ -109,3 +109,27 @@ describe('every spec that has been written', () => {
     });
   }
 });
+
+describe('the samples', () => {
+  it('include a character of every class that has a simulation', async () => {
+    const { SAMPLES } = await import('../src/dps/samples');
+    const { parseCharacterExport } = await import('../src/dps/importer');
+
+    const sampled = new Set(SAMPLES.map((s) => parseCharacterExport(s.text).character!.classId));
+    for (const specId of supportedSpecs()) {
+      const classId = specById(specId)!.classId;
+      expect(sampled, 'no sample for ' + classId).toContain(classId);
+    }
+  });
+
+  it('each load as a spec that has a simulation', async () => {
+    const { SAMPLES } = await import('../src/dps/samples');
+    const { parseCharacterExport } = await import('../src/dps/importer');
+    for (const sample of SAMPLES) {
+      const imported = parseCharacterExport(sample.text);
+      expect(imported.error, sample.key).toBeUndefined();
+      expect(imported.skipped, sample.key).toEqual([]);
+      expect(specModule(imported.character!.specId), sample.key).toBeDefined();
+    }
+  });
+});

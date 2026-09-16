@@ -8,9 +8,7 @@ import { CLASSES, specById } from '../shared/classes';
 import { bgUrl, iconImg } from '../shared/icons';
 import { copyText } from '../shared/toast';
 import { ADDON_INFO } from './addon-info';
-import { SAMPLE_EXPORT } from './sample';
-import { SAMPLE_WARRIOR_EXPORT } from './sample-warrior';
-import { SAMPLE_ROGUE_EXPORT } from './sample-rogue';
+import { SAMPLES, sampleByKey } from './samples';
 import type { ItemRef, Slot } from './export-format';
 import { SLOT_LABEL, STAT_KEYS, STAT_LABEL } from './export-format';
 import type { Character, ImportIssue } from './types';
@@ -19,7 +17,7 @@ import { candidatesFor, equippedIn, slotsInUse } from './gear';
 
 export interface DpsHandlers {
   onImport(text: string): void;
-  onLoadSample(which: 'mage' | 'warrior' | 'rogue'): void;
+  onLoadSample(key: string): void;
   onClear(): void;
   onSave(name: string): void;
   onLoadSaved(id: string): void;
@@ -215,7 +213,7 @@ export function renderHowTo(collapsed = false): HTMLElement {
     'p',
     'dstep__note',
     'Not ready to install anything? Load a sample below and the whole tool works on a made-up ' +
-      'mage, a made-up warrior or a made-up rogue.',
+      'character of any class that has a simulation.',
   );
 
   if (collapsed) {
@@ -264,30 +262,28 @@ export function renderImportPanel(handlers: DpsHandlers, hasCharacter: boolean):
     if (text) handlers.onImport(text);
   });
 
-  // Two samples rather than one: a mage and a warrior are opposite halves of
-  // the engine, and either one on its own leaves half the page untried.
-  const mage = el('button', 'btn', 'Load a sample mage');
-  mage.title = 'A made-up frost mage, so you can try the tool without the addon';
-  mage.addEventListener('click', () => {
-    box.value = SAMPLE_EXPORT;
-    handlers.onLoadSample('mage');
+  // One sample per class that has a simulation: a mage, a warrior and a rogue
+  // each exercise a different half of the engine, so they are a choice rather
+  // than a single button.
+  const pick = document.createElement('select');
+  pick.className = 'btn';
+  for (const sample of SAMPLES) {
+    const option = document.createElement('option');
+    option.value = sample.key;
+    option.textContent = sample.label;
+    pick.appendChild(option);
+  }
+
+  const load = el('button', 'btn', 'Load this sample');
+  load.title = 'A made-up character, so you can try the tool without the addon';
+  load.addEventListener('click', () => {
+    const sample = sampleByKey(pick.value);
+    if (!sample) return;
+    box.value = sample.text;
+    handlers.onLoadSample(sample.key);
   });
 
-  const warrior = el('button', 'btn', 'Load a sample warrior');
-  warrior.title = 'A made-up fury warrior, for the melee half of the page';
-  warrior.addEventListener('click', () => {
-    box.value = SAMPLE_WARRIOR_EXPORT;
-    handlers.onLoadSample('warrior');
-  });
-
-  const rogue = el('button', 'btn', 'Load a sample rogue');
-  rogue.title = 'A made-up combat rogue, for the energy half of the engine';
-  rogue.addEventListener('click', () => {
-    box.value = SAMPLE_ROGUE_EXPORT;
-    handlers.onLoadSample('rogue');
-  });
-
-  row.append(go, mage, warrior, rogue);
+  row.append(go, pick, load);
 
   if (hasCharacter) {
     const clear = el('button', 'btn', 'Clear');

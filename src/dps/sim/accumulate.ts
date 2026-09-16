@@ -198,7 +198,10 @@ export function finishShard(shard: Shard, config: SimConfig, spec: SpecModule): 
   const abilities: AbilityStats[] = entries
     .map(([id, t]) => ({
       id,
-      name: names.get(id) ?? names.get(id.replace(/-dot$/, '')) ?? id,
+      name: names.get(id)
+        ?? (id.endsWith('-echo') && names.get(id.slice(0, -5)) ? names.get(id.slice(0, -5)) + ', again' : undefined)
+        ?? (id.endsWith('-dot') && names.get(id.slice(0, -4)) ? names.get(id.slice(0, -4)) + ', over time' : undefined)
+        ?? id,
       casts: t.casts / iterations,
       hits: t.hits / iterations,
       crits: t.crits / iterations,

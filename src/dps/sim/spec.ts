@@ -36,6 +36,11 @@ export interface LandEvent extends CastEvent {
   school: School;
   outcome: Outcome;
   amount: number;
+  /**
+   * Resolve this spell a second time at a share of its damage, rolled on its
+   * own. Lightning Overload is why it exists. Only offered for spells.
+   */
+  echo?(multiplier: number): void;
 }
 
 /** A weapon coming round, or an aimed strike resolving against one. */
@@ -168,6 +173,9 @@ export interface SpecModule {
    * Whirlwind reaches the off hand too.
    */
   extraHandsFor?(spellId: string, mods: SpellMods, actor: Actor): Hand[];
+
+  /** How much faster than written a cast goes right now, one being no change. */
+  castSpeedFor?(actor: Actor, now: number, mods: SpellMods): number;
 
   /** The haste this spec has going right now, as a multiplier on swing speed. */
   hasteFor?(actor: Actor, now: number, mods: SpellMods): number;

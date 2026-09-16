@@ -89,7 +89,11 @@ export interface AbilityDef {
    */
   comboDamage?: { min: number; max: number; apCoefficient?: number };
   /** How many things it reaches when more than one is standing there. */
-  aoe?: { maxTargets: number };
+  aoe?: {
+    maxTargets: number;
+    /** What each jump after the first keeps of the damage, for Chain Lightning. */
+    falloff?: number;
+  };
   /** Only usable once the target is below this share of its health. */
   execute?: { belowPct: number };
   /** Still usable while moving, which instants generally are. */

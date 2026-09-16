@@ -115,6 +115,7 @@
   "spell_arcane_blink",
   "spell_arcane_portalorgrimmar",
   "spell_arcane_teleportorgrimmar",
+  "spell_fire_flameshock",
   "spell_fire_sealoffire",
   "spell_fire_searingtotem",
   "spell_fire_selfdestruct",
@@ -168,6 +169,7 @@
   "spell_nature_astralrecal",
   "spell_nature_bloodlust",
   "spell_nature_brilliance",
+  "spell_nature_chainlightning",
   "spell_nature_crystalball",
   "spell_nature_diseasecleansingtotem",
   "spell_nature_drowsy",
@@ -235,5 +237,6 @@
   "spell_shadow_shadowworddominate",
   "spell_shadow_twilight",
   "spell_shadow_unholystrength",
-  "spell_shadow_unsummonbuilding"
+  "spell_shadow_unsummonbuilding",
+  "spell_shaman_lavaburst"
 ]
