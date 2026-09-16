@@ -37,6 +37,12 @@ export interface LandEvent extends CastEvent {
   outcome: Outcome;
   amount: number;
   /**
+   * Start damage over time from this hit. Deep Wounds is why it exists: a
+   * talent can put damage on the target that no ability declares. Ignite uses
+   * it with a school, which is what lets resistance and debuffs see it.
+   */
+  bleed?(id: string, total: number, ticks: number, interval: number, school?: School): void;
+  /**
    * Resolve this spell a second time at a share of its damage, rolled on its
    * own. Lightning Overload is why it exists. Only offered for spells.
    */
@@ -49,11 +55,8 @@ export interface SwingEvent extends LandEvent {
   /** True for a swing that arrived on its own rather than one you pressed. */
   white: boolean;
   weapon: WeaponStats;
-  /**
-   * Start a bleed from this strike. Deep Wounds is why it exists: a talent can
-   * put damage over time on the target without any ability declaring it.
-   */
-  bleed(id: string, total: number, ticks: number, interval: number): void;
+  /** Start a bleed from this strike, which a swing always offers. */
+  bleed(id: string, total: number, ticks: number, interval: number, school?: School): void;
   /**
    * Take one more main-hand swing now, with some attack power on top for that
    * swing alone. Windfury is why the bonus exists; a sword proc passes nothing.
@@ -186,7 +189,7 @@ export interface SpecModule {
   weaponsFor?(stats: StatSheet): StatSheet['weapons'];
 
   /** How much faster than written a cast goes right now, one being no change. */
-  castSpeedFor?(actor: Actor, now: number, mods: SpellMods): number;
+  castSpeedFor?(actor: Actor, now: number, mods: SpellMods, spellId: string): number;
 
   /** The haste this spec has going right now, as a multiplier on swing speed. */
   hasteFor?(actor: Actor, now: number, mods: SpellMods): number;

@@ -57,7 +57,7 @@ export const AUTO_ATTACK_ID: Record<Hand, string> = {
 type SimEvent =
   | { kind: 'decide' }
   | { kind: 'cast-finish'; spellId: string }
-  | { kind: 'dot-tick'; spellId: string; snapshotPower: number; left: number; perTick?: number }
+  | { kind: 'dot-tick'; spellId: string; snapshotPower: number; left: number; perTick?: number; generation?: number }
   | { kind: 'mana-tick' }
   | { kind: 'resource-tick' }
   | { kind: 'swing'; hand: Hand; version: number }
@@ -282,17 +282,24 @@ export function runIteration(
    * swinging at something else by the time the last tick lands.
    */
   const bleedAt = (at: number) =>
-    (id: string, whole: number, ticks: number, interval: number): void => {
+    (id: string, whole: number, ticks: number, interval: number, school: School = 'physical'): void => {
       if (whole <= 0 || ticks <= 0 || interval <= 0) return;
       BLEED_INTERVAL.set(id, interval);
+      const resist = school === 'physical' ? 1 : resistMultiplier(target.resistance, stats.level, target.level);
       queue.push(at + interval, {
         kind: 'dot-tick',
         spellId: id,
         snapshotPower: 0,
         left: ticks,
-        perTick: (whole / ticks) * (target.damageTaken.physical ?? 1),
+        perTick: (whole / ticks) * (target.damageTaken[school] ?? 1) * resist,
       });
     };
+
+  /**
+   * A spell's own damage over time replaces what it left before rather than
+   * running beside it, so each cast bumps a generation and older ticks stop.
+   */
+  const DOT_GENERATION = new Map<string, number>();
 
   /**
    * An effect went off. Damage lands now and is billed to the item, and an aura
@@ -736,10 +743,14 @@ export function runIteration(
           }
         } else if (spell.def.maxDamage > 0 || spell.def.coefficient > 0) {
           const reach = spell.def.aoe ? Math.min(targets, spell.def.aoe.maxTargets) : 1;
-          for (let i = 0; i < reach; i += 1) {
+          // A channel that deals damage, such as Arcane Missiles, is that many
+          // separate hits, each rolled on its own. They are resolved together
+          // when the channel ends.
+          const pieces = spell.def.channel ? spell.def.channel.ticks : 1;
+          for (let i = 0; i < reach * pieces; i += 1) {
             const outcome = rollSpell(hitPctFor(), critPctFor(spell, now), rng);
             const amount = damageOf(spell, outcome, powerFor(spell), now)
-              * (spell.def.aoe?.falloff ?? 1) ** i;
+              * (spell.def.aoe?.falloff ?? 1) ** Math.floor(i / pieces) / pieces;
             const t = tally(spell.def.id);
             let echoed = false;
             trace?.push({ t: now, kind: 'land', id: spell.def.id, amount, outcome });
@@ -765,6 +776,7 @@ export function runIteration(
               rng,
               mods,
               stats,
+              bleed: bleedAt(now),
               // A second copy of this spell, rolled on its own and billed to a
               // row of its own. It cannot echo again.
               echo: (multiplier: number) => {
@@ -789,11 +801,14 @@ export function runIteration(
 
         if (spell.def.dot) {
           const dot = spell.def.dot;
+          const generation = (DOT_GENERATION.get(spell.def.id) ?? 0) + 1;
+          DOT_GENERATION.set(spell.def.id, generation);
           queue.push(now + dot.interval, {
             kind: 'dot-tick',
             spellId: spell.def.id,
             snapshotPower: powerFor(spell),
             left: dot.ticks,
+            generation,
           });
         }
       }
@@ -826,7 +841,8 @@ export function runIteration(
 
       const spell = spells.get(data.spellId);
       const dot = spell?.def.dot;
-      if (spell && dot && data.left > 0) {
+      const current = data.generation === undefined || data.generation === DOT_GENERATION.get(data.spellId);
+      if (spell && dot && data.left > 0 && current) {
         const perTick =
           (dot.damage / dot.ticks + (data.snapshotPower * dot.coefficient) / dot.ticks) * spell.damageMultiplier;
         // A multiplier that comes and goes, such as Vengeance, counts when the
@@ -847,6 +863,7 @@ export function runIteration(
             spellId: data.spellId,
             snapshotPower: data.snapshotPower,
             left: data.left - 1,
+            generation: data.generation,
           });
         }
       }
@@ -953,7 +970,7 @@ export function runIteration(
 
     // Anything that speeds casting up now, such as Rage of the Farseer, shortens
     // this cast. The global cooldown is not touched: in Classic it did not move.
-    const castSpeed = spell.castTime > 0 ? spec.castSpeedFor?.(actor, now, mods) ?? 1 : 1;
+    const castSpeed = spell.castTime > 0 ? spec.castSpeedFor?.(actor, now, mods, spell.def.id) ?? 1 : 1;
     const finishAt = now + spell.castTime / Math.max(0.01, castSpeed);
     actor.busyUntil = finishAt;
     actor.gcdReadyAt = now + spell.gcd;
