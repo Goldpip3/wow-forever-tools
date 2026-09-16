@@ -1,4 +1,4 @@
-import { renderFooter, renderHeader } from '../shared/header';
+import { renderFooter, renderHeader, type AccountView } from '../shared/header';
 import { copyText, toast } from '../shared/toast';
 import { KEY_ROSTERS, readJson, writeJson } from '../shared/storage';
 import { CLASSES, type ClassId } from '../shared/classes';
@@ -109,6 +109,27 @@ function el(tag: string, cls?: string, text?: string): HTMLElement {
   if (cls) node.className = cls;
   if (text !== undefined) node.textContent = text;
   return node;
+}
+
+/**
+ * What the header shows on the right. A function declaration, so the calls made during
+ * bootstrap reach it, and one definition so signing out behaves the same from any page.
+ */
+function accountView(): AccountView {
+  return {
+    user: me ? { username: me.user.username, avatarUrl: me.user.avatarUrl } : null,
+    rosterHref: href('raid.html') + '#roster',
+    onSignIn: () => beginSignIn(),
+    onSignOut: () => {
+      void signOut().then(() => {
+        me = null;
+        meRequested = false;
+        guildEvents = {};
+        draw();
+        toast('Signed out');
+      });
+    },
+  };
 }
 
 function savedRosters(): SavedRoster[] {
@@ -479,9 +500,7 @@ function draw(): void {
   const coverage = computeCoverage(roster);
   const suggestions = suggestSwaps(roster, coverage);
 
-  renderHeader({
-    page: 'raid',
-  });
+  renderHeader({ page: 'raid', account: accountView() });
 
   app.appendChild(renderToolbar(roster, coverage, handlers));
   const alerts = renderAlertBar(coverage);
@@ -929,7 +948,7 @@ function drawRoster(): void {
   const suggestions = suggestSwaps(roster, coverage);
   const canEdit = rosterState.permissions.canEdit;
 
-  renderHeader({ page: 'roster' });
+  renderHeader({ page: 'roster', account: accountView() });
 
   app.appendChild(
     renderRosterBar(
@@ -1008,7 +1027,7 @@ function drawRosterIntro(): void {
   if (!app) return;
   mode = 'intro';
   app.replaceChildren();
-  renderHeader({ page: 'roster' });
+  renderHeader({ page: 'roster', account: accountView() });
   app.appendChild(renderRosterIntro());
   app.appendChild(renderFooter());
 
@@ -1046,7 +1065,7 @@ function enterDemoMode(): void {
 function drawRosterError(message: string): void {
   if (!app) return;
   app.replaceChildren();
-  renderHeader({ page: 'roster' });
+  renderHeader({ page: 'roster', account: accountView() });
   const panel = el('section', 'panel');
   panel.appendChild(el('div', 'panel__head', 'This roster did not open'));
   const body = el('div', 'panel__body');
@@ -1074,7 +1093,7 @@ async function enterRosterMode(found: RosterLink | null, eventId?: string): Prom
   access = accessFor(found, eventId);
   if (app) {
     app.replaceChildren();
-    renderHeader({ page: 'roster' });
+    renderHeader({ page: 'roster', account: accountView() });
     app.appendChild(el('p', 'drawer__hint', 'Opening the roster…'));
   }
   try {

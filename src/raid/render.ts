@@ -740,12 +740,28 @@ function panelHead(title: string, covered: number, total: number, extra?: HTMLEl
   return head;
 }
 
-/** Sorted so the gaps rise to the top of each section. */
+/**
+ * Grouped by state, then alphabetical inside each group.
+ *
+ * Sorting only on covered-or-not put the two uncovered states in one alphabetical run,
+ * so a Missing buff landed in the middle of the Not assigned ones: Arcane Intellect, grey
+ * and nobody can bring it, sat between the covered block and five blessings a Paladin
+ * could switch to in a second. They are different problems and they now read as different
+ * blocks, worst last.
+ */
+const STATE_ORDER: Record<CoverState, number> = {
+  covered: 0,
+  overlaps: 1,
+  available: 2,
+  missing: 3,
+};
+
 function ordered(rows: EffectCoverage[]): EffectCoverage[] {
   return rows
     .filter((c) => (buffFilter === 'all' ? true : !c.covered))
     .sort((a, b) => {
-      if (a.covered !== b.covered) return a.covered ? -1 : 1;
+      const rank = STATE_ORDER[coverState(a)] - STATE_ORDER[coverState(b)];
+      if (rank !== 0) return rank;
       return a.effect.name.localeCompare(b.effect.name);
     });
 }

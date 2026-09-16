@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "import": "node scripts/import-talentsforever.mjs",
+    "import": "node scripts/import-talentsforever.mjs && node scripts/scrub-sources.mjs",
     "assets": "node scripts/fetch-assets.mjs",
     "addon": "node scripts/pack-addon.mjs"
   },

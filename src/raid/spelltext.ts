@@ -27,8 +27,6 @@ export interface SpellText {
   level?: string;
   /** 'demo' when read off BlizzCon footage, 'classic' when carried over. */
   source?: string;
-  /** Where the demo text was read from, for anything read off a stream. */
-  readFrom?: string;
 }
 
 interface SpellDescEntry {
@@ -119,7 +117,6 @@ export function lookupEffectText(effect: Effect): SpellText | null {
         rank: entry.r || undefined,
         level: entry.lv || undefined,
         source: entry.s,
-        readFrom: entry.src || undefined,
       };
     }
   }

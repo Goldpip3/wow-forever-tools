@@ -20,6 +20,15 @@ export interface HeaderOptions {
   nav?: HTMLElement[];
   /** Which page is current, so its nav link can be marked. */
   page: 'home' | 'talents' | 'raid' | 'dps' | 'roster' | 'privacy';
+  /** Who is signed in, when the page knows. Omitted entirely on pages that never ask. */
+  account?: AccountView;
+}
+
+function el(tag: string, cls?: string, text?: string): HTMLElement {
+  const node = document.createElement(tag);
+  if (cls) node.className = cls;
+  if (text !== undefined) node.textContent = text;
+  return node;
 }
 
 const BASE = import.meta.env.BASE_URL ?? '/';
@@ -89,6 +98,12 @@ export function renderHeader(opts: HeaderOptions): HTMLElement {
   for (const el of opts.nav ?? []) nav.appendChild(el);
 
   inner.appendChild(nav);
+
+  /* Third column, so the tools stay centred whatever is on either side of them. */
+  const right = el('div', 'site-header__acct');
+  if (opts.account) right.appendChild(accountButton(opts.account));
+  inner.appendChild(right);
+
   header.appendChild(inner);
   return header;
 }
@@ -103,4 +118,111 @@ export function renderFooter(): HTMLElement {
     <p><a href="${href('privacy.html')}">Privacy</a></p>
   `;
   return footer;
+}
+
+/* ---------------------------------------------------------------- account */
+
+/**
+ * The Discord account button in the top right of every page.
+ *
+ * It sits opposite the mark on purpose: the name on the left says what the site is, this
+ * says who you are, and the tools sit between them. Signed out it is one button. Signed in
+ * it is your avatar and a menu, which is where sign-out and anything account-shaped goes,
+ * rather than spending a slot in the tool row on each.
+ *
+ * The header cannot fetch anything itself — it is drawn before any page decides what it
+ * is doing, and `shared/` has no business talking to the API. Each page hands in what it
+ * already knows, and passes nothing at all on the pages that never ask.
+ */
+export interface AccountView {
+  user?: { username: string; avatarUrl?: string } | null;
+  onSignIn?: () => void;
+  onSignOut?: () => void;
+  /** Where the account menu sends someone who wants their servers and events. */
+  rosterHref?: string;
+}
+
+function accountButton(view: AccountView): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'acctbtn';
+
+  if (!view.user) {
+    const signIn = document.createElement('button');
+    signIn.className = 'btn acctbtn__in';
+    signIn.textContent = 'Sign in';
+    signIn.title = 'Sign in with Discord to see your servers and their events';
+    signIn.addEventListener('click', () => view.onSignIn?.());
+    wrap.appendChild(signIn);
+    return wrap;
+  }
+
+  const toggle = document.createElement('button');
+  toggle.className = 'btn acctbtn__toggle';
+  toggle.setAttribute('aria-haspopup', 'menu');
+  toggle.setAttribute('aria-expanded', 'false');
+  if (view.user.avatarUrl) {
+    const img = document.createElement('img');
+    img.className = 'acctbtn__avatar';
+    img.src = view.user.avatarUrl;
+    img.alt = '';
+    toggle.appendChild(img);
+  }
+  toggle.appendChild(el('span', 'acctbtn__name', view.user.username));
+  toggle.appendChild(el('span', 'acctbtn__caret', '▾'));
+  wrap.appendChild(toggle);
+
+  const menu = document.createElement('div');
+  menu.className = 'acctmenu';
+  menu.hidden = true;
+  menu.setAttribute('role', 'menu');
+
+  const item = (label: string, onPick: () => void): HTMLElement => {
+    const button = document.createElement('button');
+    button.className = 'acctmenu__item';
+    button.setAttribute('role', 'menuitem');
+    button.textContent = label;
+    button.addEventListener('click', () => {
+      close();
+      onPick();
+    });
+    return button;
+  };
+
+  menu.appendChild(el('div', 'acctmenu__who', 'Signed in as ' + view.user.username));
+
+  const rosters = document.createElement('a');
+  rosters.className = 'acctmenu__item';
+  rosters.setAttribute('role', 'menuitem');
+  rosters.href = view.rosterHref ?? '#roster';
+  rosters.textContent = 'Your servers and events';
+  menu.appendChild(rosters);
+
+  menu.appendChild(item('Sign out', () => view.onSignOut?.()));
+  wrap.appendChild(menu);
+
+  function close(): void {
+    menu.hidden = true;
+    toggle.setAttribute('aria-expanded', 'false');
+    document.removeEventListener('click', onAway, true);
+    document.removeEventListener('keydown', onKey, true);
+  }
+  function onAway(ev: Event): void {
+    if (!wrap.contains(ev.target as Node)) close();
+  }
+  function onKey(ev: KeyboardEvent): void {
+    if (ev.key === 'Escape') close();
+  }
+  toggle.addEventListener('click', () => {
+    if (menu.hidden) {
+      menu.hidden = false;
+      toggle.setAttribute('aria-expanded', 'true');
+      // Captured, so a click anywhere else closes it before that click does its own work.
+      document.addEventListener('click', onAway, true);
+      document.addEventListener('keydown', onKey, true);
+    } else {
+      close();
+    }
+  });
+
+  return wrap;
 }

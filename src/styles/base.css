@@ -315,3 +315,52 @@ select.btn optgroup {
   background: var(--panel);
   color: var(--ink);
 }
+
+/* ---------- account button ----------
+   Opposite the mark: the name on the left says what the site is, this says who you are,
+   and the tools sit centred between them. */
+.site-header__acct { justify-self: end; position: relative; display: flex; align-items: center; }
+.acctbtn { position: relative; }
+.acctbtn__toggle { display: inline-flex; align-items: center; gap: 7px; }
+.acctbtn__avatar { width: 20px; height: 20px; border-radius: 50%; }
+.acctbtn__name { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acctbtn__caret { color: var(--muted); font-size: 10px; }
+
+.acctmenu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 210px;
+  z-index: 60;
+  background: var(--panel);
+  border: 1px solid var(--tip-line);
+  border-radius: var(--radius);
+  padding: 4px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .5);
+}
+.acctmenu__who {
+  color: var(--muted);
+  font-size: 11px;
+  padding: 5px 9px 7px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 4px;
+}
+.acctmenu__item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 13px;
+  padding: 7px 9px;
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+}
+.acctmenu__item:hover { background: var(--panel2); color: var(--gold); text-decoration: none; }
+
+@media (max-width: 640px) {
+  .site-header__acct { justify-self: center; }
+  .acctmenu { right: auto; left: 50%; transform: translateX(-50%); }
+}

@@ -158,12 +158,6 @@ export function renderSpellbook(book: Spellbook | undefined, className: string):
   if (!book) return null;
   const body = el('div');
 
-  if (book.seen) {
-    const note = el('p', 'hint', 'Seen at: ' + book.seen);
-    note.style.marginTop = '0';
-    body.appendChild(note);
-  }
-
   const cols = el('div', 'book');
   const addTab = (name: string, spells: Array<[string, string]>) => {
     if (!spells.length) return;
