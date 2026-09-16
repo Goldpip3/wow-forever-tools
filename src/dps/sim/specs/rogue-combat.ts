@@ -42,8 +42,7 @@ function applyHackAndSlash(mods: SpellMods, weapon: WeaponStats | undefined): vo
 
   if (type.includes('dagger') || type.includes('fist')) mods.meleeCrit += rank;
   else if (type.includes('mace')) mods.armorIgnored += 0.03 * rank;
-  // The axe and sword branch is an extra attack on a chance, which is a proc
-  // and is listed as not modelled rather than guessed at.
+  else if (type.includes('sword') || type.includes('axe')) mods.flags.hackAndSlashSword = 0.01 * rank;
 }
 
 export const rogueCombat: SpecModule = {
@@ -170,8 +169,15 @@ export const rogueCombat: SpecModule = {
     if (ruthless > 0 && rng.chance(Math.min(1, ruthless))) actor.addCombo(1, K.COMBO_POINT_MAX.value);
   },
 
-  /** Seal Fate hands a point back for a critical strike that earned one. */
-  onSwing: ({ spellId, outcome, actor, rng, mods }): void => {
+  /**
+   * Hack and Slash with a sword or an axe swings again on a chance, and Seal
+   * Fate hands a point back for a critical strike that earned one.
+   */
+  onSwing: ({ spellId, outcome, actor, rng, mods, extraAttack }): void => {
+    const connected = outcome !== 'miss' && outcome !== 'dodge' && outcome !== 'parry';
+    const sword = mods.flags.hackAndSlashSword ?? 0;
+    if (connected && sword > 0 && rng.chance(sword)) extraAttack();
+
     if (outcome !== 'crit') return;
     if (spellId !== 'sinister-strike' && spellId !== 'backstab') return;
     const chance = mods.flags[ROGUE_FLAGS.sealFateChance] ?? 0;
@@ -193,12 +199,6 @@ export const rogueCombat: SpecModule = {
     note:
       'Forever moved the rogue trees, so the talents here are read from its own text. The ' +
       'abilities the trees say nothing about are still Classic values.',
-  },
-
-  partlyModelledTalents: {
-    'Hack and Slash':
-      'the dagger and mace halves are modelled. The axe and sword half is an extra attack on a ' +
-      'chance, which is not simulated yet.',
   },
 
   unmodelledTalents: {

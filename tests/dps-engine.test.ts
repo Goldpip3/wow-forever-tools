@@ -456,3 +456,67 @@ describe('a bar that ticks rather than trickles', () => {
     expect(actor.rage.current).toBe(60);
   });
 });
+
+/* ------------------------------------------------------------ extra attacks */
+
+describe('an extra attack', () => {
+  const alwaysAgain: SpecModule = {
+    specId: 9102,
+    label: 'Swings twice every time',
+    resource: 'rage',
+    spells: [],
+    talentHooks: {},
+    rotations: { standard: () => [] },
+    weightStats: [{ stat: 'attackPower', step: 100 }],
+    referenceStat: 'attackPower',
+    init: (actor, config) => {
+      const main = config.stats.weapons.main;
+      if (main) actor.arm('main', main.speed);
+    },
+    onSwing: (event) => {
+      if (event.outcome !== 'miss') event.extraAttack(140);
+    },
+    forever: { status: 'unverified' },
+  };
+
+  function config(): SimConfig {
+    const stats = emptyStatSheet(60);
+    stats.weapons = {
+      main: { min: 100, max: 100, speed: 2, skill: 300, type: 'One-Handed Maces', twoHanded: false },
+    };
+    return {
+      specId: 9102,
+      stats,
+      talents: {},
+      fight: {
+        duration: 300,
+        iterations: 1,
+        seed: 1,
+        target: { level: 63, armor: 0, resistance: 0, behind: true, canParry: false, canBlock: false },
+        buffs: [], debuffs: [], consumables: [],
+        overrides: {
+          forceAverageDamage: true,
+          forceMeleeTable: { miss: 0, dodge: 0, parry: 0, glance: 0, block: 0, crit: 0 },
+        },
+      },
+    };
+  }
+
+  it('happens once per swing and never sets off another', () => {
+    const result = simulate(config(), alwaysAgain);
+    const swings = result.abilities.find((a) => a.id === 'auto-main')!;
+    const extra = result.abilities.find((a) => a.id === 'extra-attack')!;
+    // A hundred and fifty swings, each followed by exactly one more.
+    expect(swings.casts).toBe(150);
+    expect(extra.casts).toBe(150);
+  });
+
+  it('carries its attack power for that swing alone', () => {
+    const result = simulate(config(), alwaysAgain);
+    const swings = result.abilities.find((a) => a.id === 'auto-main')!;
+    const extra = result.abilities.find((a) => a.id === 'extra-attack')!;
+    // A hundred and forty attack power over a two second weapon is twenty more.
+    expect(swings.damage / swings.hits).toBeCloseTo(100, 6);
+    expect(extra.damage / extra.hits).toBeCloseTo(120, 6);
+  });
+});

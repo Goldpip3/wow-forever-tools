@@ -126,6 +126,7 @@ const AUTO_ATTACK_NAME: Record<string, string> = {
   'auto-main': 'Main hand',
   'auto-off': 'Off hand',
   'auto-ranged': 'Ranged',
+  'extra-attack': 'Extra attacks',
 };
 
 /** How many buckets the spread is drawn in. Forty is enough to see the shape. */

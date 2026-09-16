@@ -165,6 +165,7 @@ const base = {
     outcome: string; amount: number; hand: Hand; white: boolean; weapon: WeaponStats;
     actor: Actor; now: number; rng: { chance(p: number): boolean }; mods: SpellMods;
     bleed(id: string, total: number, ticks: number, interval: number): void;
+    extraAttack(bonusAttackPower?: number, id?: string): void;
   }): void => {
     const { actor, now, mods, rng, outcome } = event;
     const flurryRank = mods.flags[WARRIOR_FLAGS.flurryRank] ?? 0;
@@ -192,6 +193,11 @@ const base = {
         event.bleed(DEEP_WOUNDS_ID, average * share, DEEP_WOUNDS.ticks, DEEP_WOUNDS.interval);
       }
     }
+
+    // Weaponmaster with a sword: a chance on any landing to swing again. The
+    // extra swing cannot set off another, which the engine enforces.
+    const sword = mods.flags[WARRIOR_FLAGS.swordSpecChance] ?? 0;
+    if (connected && sword > 0 && rng.chance(sword)) event.extraAttack();
 
     if (connected) {
       const chance = mods.flags[WARRIOR_FLAGS.unbridledChance] ?? 0;
@@ -229,12 +235,6 @@ const base = {
     note:
       'Forever moved the warrior trees, so the talents here are read from its own text rather ' +
       'than from Classic. The abilities the trees say nothing about are still Classic values.',
-  },
-
-  partlyModelledTalents: {
-    Weaponmaster:
-      'the axe and mace halves are modelled. The sword half is an extra attack on a chance, ' +
-      'which is not simulated yet.',
   },
 
   unmodelledTalents: {

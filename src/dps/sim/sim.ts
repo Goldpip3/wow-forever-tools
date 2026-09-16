@@ -44,6 +44,9 @@ const MANA_TICK = 2;
 const IDLE_POLL = 0.1;
 
 /** The ids white swings are tallied under, which no spec declares itself. */
+/** Where extra attacks are billed, so they do not inflate the count of swings. */
+export const EXTRA_ATTACK_ID = 'extra-attack';
+
 export const AUTO_ATTACK_ID: Record<Hand, string> = {
   main: 'auto-main',
   off: 'auto-off',
@@ -278,11 +281,12 @@ export function runIteration(
    * gets a real expiry event, because the stats it added have to come back off
    * rather than be noticed as gone on the next read.
    */
-  const settle = (fired: EffectFired[]): void => {
+  const settle = (fired: EffectFired[], now_: number): void => {
     for (const one of fired) {
       if (one.expiresAt !== undefined && one.auraId) {
         queue.push(one.expiresAt, { kind: 'effect-expire', auraId: one.auraId });
       }
+      for (let n = 0; n < (one.extraAttacks ?? 0); n += 1) extraAttack(now_, 0, EXTRA_ATTACK_ID);
       if (one.damage) {
         const amount = one.damage.amount * (target.damageTaken.physical ?? 1);
         const t = tally(one.damage.id);
@@ -460,7 +464,7 @@ export function runIteration(
           swing.outcome === 'crit' ? 'melee-crit' : 'melee-hit',
           now, actor, rng, params.weapon, hand,
         );
-        settle(fired);
+        settle(fired, now);
         retime(now);
       }
 
@@ -478,6 +482,7 @@ export function runIteration(
         white: ability === null,
         weapon: params.weapon,
         bleed: bleedAt(now),
+        extraAttack: (bonus = 0, id = EXTRA_ATTACK_ID) => extraAttack(now, bonus, id),
         now,
         actor,
         rng,
@@ -489,6 +494,25 @@ export function runIteration(
     retime(now);
     return dealt;
   };
+
+  /**
+   * One more swing of the main hand, straight away, which is what Windfury, a
+   * sword that swings twice and Hand of Justice all are.
+   *
+   * It cannot set off another one. In Classic an extra attack from Windfury
+   * could not proc Windfury, and letting any of them chain would turn a small
+   * chance into an occasional runaway that no player has ever seen.
+   */
+  let extraDepth = 0;
+  function extraAttack(now: number, bonusAttackPower: number, id: string): void {
+    if (extraDepth > 0 || !actor.swings.main) return;
+    extraDepth = 1;
+    const bonus = { attackPower: bonusAttackPower };
+    if (bonusAttackPower) actor.addBonus(bonus, 1);
+    strike('main', now, null, id);
+    if (bonusAttackPower) actor.addBonus(bonus, -1);
+    extraDepth = 0;
+  }
 
   const ctxFor = (now: number): RotationCtx => ({
     now,
@@ -669,7 +693,7 @@ export function runIteration(
             }
             if (effects.any && outcome !== 'miss') {
               const fired = effects.onTrigger('spell-hit', now, actor, rng, undefined, 'main');
-              settle(fired);
+              settle(fired, now);
             }
 
             spec.onLand?.({
@@ -762,7 +786,7 @@ export function runIteration(
         if (!aura || fight.duration - now < Math.min(aura.duration, 5)) continue;
         const fired = effects.use(ready.name, now, actor, rng);
         if (fired) {
-          settle([fired]);
+          settle([fired], now);
           retime(now);
         }
       }

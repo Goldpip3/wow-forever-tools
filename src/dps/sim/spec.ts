@@ -49,6 +49,11 @@ export interface SwingEvent extends LandEvent {
    * put damage over time on the target without any ability declaring it.
    */
   bleed(id: string, total: number, ticks: number, interval: number): void;
+  /**
+   * Take one more main-hand swing now, with some attack power on top for that
+   * swing alone. Windfury is why the bonus exists; a sword proc passes nothing.
+   */
+  extraAttack(bonusAttackPower?: number, id?: string): void;
 }
 
 export interface CostEvent {
