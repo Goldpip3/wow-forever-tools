@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Page not found — WoW Forever Tools</title>
+<meta name="robots" content="noindex" />
+<!--
+  Cloudflare Pages serves this file, with a real 404 status, for any path that does not
+  match a built page. Without it Pages falls back to index.html with a 200, so every
+  mistyped URL and every dead link looked like the front page to a reader and like a
+  second copy of the front page to a crawler.
+
+  It is deliberately self-contained: no module, no hashed stylesheet, no shared CSS.
+  Pages serves this same file at /nope and at /a/b/c/nope, and the rest of the site is
+  built with a relative base, so a relative asset path resolves differently depending on
+  how deep the bad URL was. Everything it needs is either inline or absolute.
+
+  There is no AdSense snippet here on purpose. Google's policies do not allow ads on
+  error pages, which have no content of their own.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Alegreya:ital,wght@0,400;0,500;0,700;0,800;1,400&family=Almendra:wght@400;700&display=swap" rel="stylesheet" />
+<style>
+  /* The same two faces the rest of the site uses, by the same three-step fallback as
+     fonts.css: the installed font, then a copy in public/assets/fonts/, then the free
+     stand-in from Google Fonts. */
+  @font-face {
+    font-family: 'Friz Quadrata TT';
+    src: local('Friz Quadrata TT'), local('FrizQuadrataTT'), local('Friz Quadrata'),
+         url('/assets/fonts/FRIZQT__.TTF') format('truetype');
+    font-weight: 400; font-style: normal; font-display: swap;
+  }
+  @font-face {
+    font-family: 'Morpheus';
+    src: local('Morpheus'), local('MORPHEUS'),
+         url('/assets/fonts/MORPHEUS.TTF') format('truetype');
+    font-weight: 400 700; font-style: normal; font-display: swap;
+  }
+
+  /* Values copied from tokens.css rather than imported, for the reason in the comment
+     above. If the palette there changes, this page keeps the old one until it is
+     changed too — a stale 404 page is a small price for one that always renders. */
+  :root {
+    --bg: #121212;
+    --panel: #1e1e1e;
+    --line: #3a3a3a;
+    --ink: #e8e8e8;
+    --ink2: #bdbdbd;
+    --muted: #8a8a8a;
+    --gold: #ffd100;
+    --radius: 6px;
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg); color: var(--ink);
+    font-family: 'Friz Quadrata TT', Alegreya, Georgia, 'Times New Roman', serif;
+    font-size: 14px; line-height: 1.45;
+    -webkit-text-size-adjust: 100%;
+  }
+  a { color: var(--gold); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  .nf {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 18vh 16px 40px;
+  }
+  .nf__mark {
+    font-family: Morpheus, Almendra, Georgia, serif;
+    color: var(--gold);
+    font-size: 18px;
+    letter-spacing: .5px;
+    margin: 0 0 28px;
+  }
+  .nf__title {
+    font-family: Morpheus, Almendra, Georgia, serif;
+    color: var(--gold);
+    font-size: clamp(26px, 5vw, 38px);
+    line-height: 1.15;
+    margin: 0 0 10px;
+  }
+  .nf__lead { color: var(--ink2); font-size: 15px; margin: 0 0 22px; }
+
+  .nf__links { display: flex; gap: 10px; flex-wrap: wrap; }
+  .nf__links a {
+    display: inline-block;
+    padding: 9px 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel);
+    color: var(--ink);
+  }
+  .nf__links a:hover { text-decoration: none; border-color: var(--gold); color: var(--gold); }
+
+  .nf__home { margin: 22px 0 0; color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main class="nf">
+  <p class="nf__mark">WoW Forever Tools</p>
+  <h1 class="nf__title">That page is not here</h1>
+  <p class="nf__lead">Nothing is served at that address. The tools are all where they were.</p>
+  <div class="nf__links">
+    <a href="/talents.html">Talent calculator</a>
+    <a href="/raid.html">Raid planner</a>
+    <a href="/dps.html">Gear &amp; DPS</a>
+  </div>
+  <p class="nf__home"><a href="/">Back to the front page</a> · <a href="/privacy.html">Privacy</a></p>
+</main>
+</body>
+</html>
