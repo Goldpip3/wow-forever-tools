@@ -61,7 +61,7 @@ hypothetical.
 
 ```
 npm run dev      # vite on 5273
-npm test         # vitest, 671 tests
+npm test         # vitest, 706 tests
 npm run build    # typecheck, then dist/
 npm run import   # refetch talent data after the beta changes
 ```

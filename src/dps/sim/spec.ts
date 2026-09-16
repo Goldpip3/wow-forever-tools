@@ -82,6 +82,17 @@ export interface CritEvent {
   actor: Actor;
   now: number;
   mods: SpellMods;
+  /** True for a tick of damage over time rather than the hit that started it. */
+  periodic?: boolean;
+}
+
+export interface TickEvent {
+  spellId: string;
+  amount: number;
+  now: number;
+  actor: Actor;
+  rng: Rng;
+  mods: SpellMods;
 }
 
 export interface ResourceTickEvent {
@@ -171,6 +182,9 @@ export interface SpecModule {
    * Unbridled Wrath and anything that watches a dodge hang here.
    */
   onSwing?(event: SwingEvent): void;
+
+  /** A tick of a spell's damage over time, for Nightfall and anything like it. */
+  onTick?(event: TickEvent): void;
 
   /** A rage or energy heartbeat, for a talent that trickles the bar back. */
   onResourceTick?(event: ResourceTickEvent): void;

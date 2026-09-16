@@ -741,7 +741,11 @@ export function runIteration(
           for (const extra of spec.extraHandsFor?.(spell.def.id, mods, actor) ?? []) {
             if (extra !== hand && actor.swings[extra]) strike(extra, now, spell, spell.def.id);
           }
-        } else if (spell.def.maxDamage > 0 || spell.def.coefficient > 0) {
+        }
+        // Whether the spell reached the target, which decides whether any damage
+        // over time it carries goes on.
+        let landed = true;
+        if (!spell.physical && (spell.def.maxDamage > 0 || spell.def.coefficient > 0)) {
           const reach = spell.def.aoe ? Math.min(targets, spell.def.aoe.maxTargets) : 1;
           // A channel that deals damage, such as Arcane Missiles, is that many
           // separate hits, each rolled on its own. They are resolved together
@@ -749,6 +753,7 @@ export function runIteration(
           const pieces = spell.def.channel ? spell.def.channel.ticks : 1;
           for (let i = 0; i < reach * pieces; i += 1) {
             const outcome = rollSpell(hitPctFor(), critPctFor(spell, now), rng);
+            if (i === 0) landed = outcome !== 'miss';
             const amount = damageOf(spell, outcome, powerFor(spell), now)
               * (spell.def.aoe?.falloff ?? 1) ** Math.floor(i / pieces) / pieces;
             const t = tally(spell.def.id);
@@ -797,10 +802,21 @@ export function runIteration(
               },
             });
           }
+        } else if (!spell.physical && spell.def.dot && !spell.def.aoe) {
+          // A spell that is only damage over time, such as Corruption, still has
+          // to hit. One laid on the ground, such as Consecration, does not.
+          const outcome = rollSpell(hitPctFor(), 0, rng);
+          landed = outcome !== 'miss';
+          const t = tally(spell.def.id);
+          if (landed) t.hits += 1;
+          else t.misses += 1;
+          trace?.push({ t: now, kind: 'land', id: spell.def.id, amount: 0, outcome });
         }
 
-        if (spell.def.dot) {
+        if (spell.def.dot && landed) {
           const dot = spell.def.dot;
+          // The target shows it for as long as it runs, so a rotation can ask.
+          actor.targetAuras.apply(spell.def.id, now, { duration: dot.ticks * dot.interval });
           const generation = (DOT_GENERATION.get(spell.def.id) ?? 0) + 1;
           DOT_GENERATION.set(spell.def.id, generation);
           queue.push(now + dot.interval, {
@@ -841,14 +857,17 @@ export function runIteration(
 
       const spell = spells.get(data.spellId);
       const dot = spell?.def.dot;
-      const current = data.generation === undefined || data.generation === DOT_GENERATION.get(data.spellId);
+      // A newer cast replaced it, or something took it off the target early, as
+      // Conflagrate does to Immolate.
+      const current = (data.generation === undefined || data.generation === DOT_GENERATION.get(data.spellId))
+        && actor.targetAuras.remaining(data.spellId, now - 1e-6) > 0;
       if (spell && dot && data.left > 0 && current) {
         const perTick =
           (dot.damage / dot.ticks + (data.snapshotPower * dot.coefficient) / dot.ticks) * spell.damageMultiplier;
         // A multiplier that comes and goes, such as Vengeance, counts when the
         // tick lands rather than when the spell went out.
         const live = spec.damageBonusFor?.(
-          { spellId: spell.def.id, school: spell.def.school, actor, now, mods },
+          { spellId: spell.def.id, school: spell.def.school, actor, now, mods, periodic: true },
         ) ?? 1;
         const amount = perTick * live
           * resistMultiplier(target.resistance, stats.level, target.level)
@@ -857,6 +876,7 @@ export function runIteration(
         t.hits += 1;
         t.damage += amount;
         total += amount;
+        spec.onTick?.({ spellId: spell.def.id, amount, now, actor, rng, mods });
         if (data.left > 1) {
           queue.push(now + dot.interval, {
             kind: 'dot-tick',

@@ -12,6 +12,7 @@ import { SAMPLE_MAGE_FIRE_EXPORT } from './sample-mage-fire';
 import { SAMPLE_PALADIN_EXPORT } from './sample-paladin';
 import { SAMPLE_ROGUE_EXPORT } from './sample-rogue';
 import { SAMPLE_SHAMAN_EXPORT } from './sample-shaman';
+import { SAMPLE_WARLOCK_EXPORT } from './sample-warlock';
 import { SAMPLE_WARRIOR_EXPORT } from './sample-warrior';
 
 export interface Sample {
@@ -30,6 +31,7 @@ export const SAMPLES: Sample[] = [
   { key: 'druid', label: 'A feral druid', text: SAMPLE_DRUID_EXPORT },
   { key: 'hunter', label: 'A marksmanship hunter', text: SAMPLE_HUNTER_EXPORT },
   { key: 'mage-fire', label: 'A fire mage', text: SAMPLE_MAGE_FIRE_EXPORT },
+  { key: 'warlock', label: 'An affliction warlock', text: SAMPLE_WARLOCK_EXPORT },
 ];
 
 export function sampleByKey(key: string): Sample | undefined {
