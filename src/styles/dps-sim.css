@@ -159,3 +159,110 @@
   .dtable--melee .dtable__row { grid-template-columns: minmax(0, 1.4fr) repeat(6, minmax(0, 1fr)); }
   .dtable--melee .dtable__cell { font-size: 10.5px; }
 }
+
+/* ---------- the pictures ----------
+   Inline SVG that stretches to the panel, so the width is the browser's problem
+   and the height is fixed. */
+.dchart { margin: 10px 0; }
+.dchart__head {
+  display: flex; align-items: baseline; gap: 8px;
+  font-family: var(--font-narrow);
+  font-size: 11px; text-transform: uppercase; letter-spacing: .6px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.dchart__note { text-transform: none; letter-spacing: 0; font-size: 11px; color: var(--muted); }
+.dchart__svg {
+  display: block;
+  width: 100%;
+  height: 120px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.dchart__bar { fill: var(--gold2); }
+.dchart__mean { stroke: var(--ink); stroke-width: 1.5; stroke-dasharray: 3 3; }
+.dchart__line { fill: none; stroke: var(--blue); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.dchart__axis {
+  display: flex; justify-content: space-between; gap: 8px;
+  font-family: var(--font-narrow);
+  font-size: 11px;
+  color: var(--muted);
+  padding: 2px 2px 0;
+}
+.dchart__axis-mid { color: var(--ink2); }
+
+.dtimeline { display: flex; flex-direction: column; gap: 2px; }
+.dtimeline__row { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 6px; align-items: center; }
+.dtimeline__name {
+  font-family: var(--font-narrow);
+  font-size: 11.5px;
+  color: var(--ink2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.dtimeline__track {
+  display: block;
+  width: 100%;
+  height: 14px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+}
+.dtimeline__mark { fill: var(--ink2); }
+.dtimeline__mark--crit { fill: var(--gold); }
+.dtimeline__mark--missed { fill: var(--red); }
+
+.duptimes { display: flex; flex-direction: column; gap: 3px; }
+.duptime { display: grid; grid-template-columns: 130px minmax(0, 1fr) 44px; gap: 8px; align-items: center; }
+.duptime__name {
+  font-size: 12.5px; color: var(--ink2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.duptime__bar {
+  display: block; height: 10px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.duptime__fill { display: block; height: 100%; background: var(--grad-gold); }
+.duptime__value {
+  font-family: var(--font-narrow); font-size: 11.5px; color: var(--muted); text-align: right;
+}
+
+@media (max-width: 620px) {
+  .dchart__svg { height: 90px; }
+  .dtimeline__row { grid-template-columns: 78px minmax(0, 1fr); }
+  .duptime { grid-template-columns: 90px minmax(0, 1fr) 38px; }
+}
+
+/* Runs this device has done, newest first. */
+.druns { display: flex; flex-direction: column; gap: 2px; }
+.drun {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 62px 150px;
+  gap: 8px;
+  align-items: baseline;
+  width: 100%;
+  padding: 4px 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.drun:hover { background: var(--panel2); border-color: var(--line); }
+.drun__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.drun__dps {
+  font-family: var(--font-narrow); font-weight: 700; font-size: 13px;
+  color: var(--gold); text-align: right;
+}
+.drun__when {
+  font-family: var(--font-narrow); font-size: 11px; color: var(--muted); text-align: right;
+}
+@media (max-width: 620px) {
+  .drun { grid-template-columns: minmax(0, 1fr) 56px; }
+  .drun__when { display: none; }
+}

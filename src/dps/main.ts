@@ -1,7 +1,7 @@
 import { renderFooter, renderHeader } from '../shared/header';
 import { accountView, loadUser } from '../shared/session';
 import { copyText, toast } from '../shared/toast';
-import { KEY_CHARACTERS, KEY_PREFS, readJson, writeJson } from '../shared/storage';
+import { KEY_CHARACTERS, KEY_PREFS, KEY_REPORTS, readJson, writeJson } from '../shared/storage';
 import { attachTooltips } from '../shared/tooltip';
 import { CLASSES, specById } from '../shared/classes';
 import type { TalentData } from '../talents/types';
@@ -12,7 +12,10 @@ import type { ItemRef, Slot, StatKey } from './export-format';
 import type { Character, ImportIssue } from './types';
 import { parseCharacterExport, parseCharacterValue } from './importer';
 import { buildCodeFromExport } from './talents';
-import { MAX_SAVED, decodeCharacter, encodeCharacter, type SavedCharacter } from './codec';
+import {
+  MAX_REPORTS, MAX_SAVED, decodeCharacter, decodeReport, encodeCharacter, encodeReport,
+  summarise, type Report, type SavedCharacter, type SavedReport,
+} from './codec';
 import { SAMPLE_EXPORT } from './sample';
 import { SAMPLE_WARRIOR_EXPORT } from './sample-warrior';
 import {
@@ -23,6 +26,11 @@ import { dpsPerPoint, weightTable, normalise, type WeightResult, type WeightTabl
 import type { SwapResult } from './compare';
 import type { FightConfig, SimResult } from './sim/types';
 import { specModule } from './sim/specs';
+import { traceIteration } from './sim/sim';
+import { buildNotes } from './sim/notes';
+import { targetStateFor } from './sim/target';
+import type { TraceEvent } from './sim/trace';
+import { deriveStatSheet } from './stats';
 import { runCompare, runSimulation, runWeights } from './client';
 import {
   itemForCell,
@@ -66,6 +74,8 @@ let weights: WeightResult | null = null;
 let overrides: WeightTable = {};
 const confirmed = new Map<string, SwapResult>();
 let busy: Busy | null = null;
+/** One fight from the last run, replayed for the timeline. */
+let trace: TraceEvent[] | null = null;
 /** The run in flight, so changing the fight or the character can call it off. */
 let running: AbortController | null = null;
 
@@ -104,9 +114,20 @@ function savePrefs(patch: DpsPrefs): void {
   writeJson(KEY_PREFS, all);
 }
 
+/**
+ * Reads a fight that was written down earlier, whether in a link or in this
+ * browser's preferences. Anything the shape has gained since is filled in from
+ * the defaults rather than arriving undefined.
+ */
+function migrateFight(saved: Partial<FightConfig> | undefined): FightConfig {
+  const base = defaultFight();
+  if (!saved) return base;
+  return { ...base, ...saved, target: { ...base.target, ...saved.target } };
+}
+
 function loadPrefs(): void {
   const saved = prefs();
-  if (saved.fight) fight = { ...defaultFight(), ...saved.fight, target: { ...defaultFight().target, ...saved.fight.target } };
+  if (saved.fight) fight = migrateFight(saved.fight);
   if (saved.rotation) rotation = saved.rotation;
 }
 
@@ -138,6 +159,7 @@ function update(): void {
 function clearResults(): void {
   cancelRun();
   result = null;
+  trace = null;
   weights = null;
   confirmed.clear();
   busy = null;
@@ -247,9 +269,108 @@ function runSim(): void {
     .then((res) => {
       if (!finished(controller)) return;
       result = res;
+      trace = replayMiddle(res);
+      rememberReport(res);
       draw();
     })
     .catch(fail);
+}
+
+/**
+ * Runs the one fight that came out closest to the middle again, with a record
+ * kept this time. The seed is the whole of the randomness, so this is not a
+ * similar fight, it is that fight.
+ */
+function replayMiddle(res: SimResult): TraceEvent[] | null {
+  if (!character) return null;
+  const spec = specModule(character.specId);
+  if (!spec) return null;
+  try {
+    const single = { ...fight, iterations: 1 };
+    const config = {
+      specId: character.specId,
+      stats: deriveStatSheet(character, single),
+      talents: character.talentRanks,
+      fight: single,
+      ...(rotation ? { rotation } : {}),
+    };
+    return traceIteration(config, spec, res.representative.seed);
+  } catch {
+    // A picture is worth having and never worth failing a run over.
+    return null;
+  }
+}
+
+/* ------------------------------------------------------------------ reports */
+
+function savedReports(): SavedReport[] {
+  return readJson<SavedReport[]>(KEY_REPORTS, []);
+}
+
+function reportFor(res: SimResult): Report | null {
+  if (!character) return null;
+  return {
+    character: character.source,
+    fight: { ...fight },
+    ...(rotation ? { rotation } : {}),
+    summary: summarise(res),
+  };
+}
+
+/** Every run this device has seen lately, newest first. */
+function rememberReport(res: SimResult): void {
+  const report = reportFor(res);
+  if (!report || !character) return;
+
+  const spec = specById(character.specId);
+  const entry: SavedReport = {
+    id: 'r' + Date.now().toString(36),
+    name: character.source.name + (spec ? ', ' + spec.name + ' ' + CLASSES[character.classId].name : ''),
+    specId: character.specId,
+    dps: res.dps,
+    at: new Date().toISOString(),
+    code: encodeReport(report),
+  };
+  writeJson(KEY_REPORTS, [entry, ...savedReports()].slice(0, MAX_REPORTS));
+}
+
+function copyReportLink(): void {
+  if (!result) return;
+  const report = reportFor(result);
+  if (!report) return;
+  const url = location.origin + location.pathname + '#r=' + encodeReport(report);
+  void copyText(url, 'Link to this run copied');
+}
+
+/** Opens a run somebody shared, or one this device ran earlier. */
+function openReport(code: string): boolean {
+  const report = decodeReport(code);
+  if (!report) return false;
+  if (!adopt(parseCharacterValue(report.character, classTalentsFor(report.character.classId)), true)) {
+    return false;
+  }
+
+  fight = migrateFight(report.fight);
+  if (report.rotation) rotation = report.rotation;
+
+  // The summary carries everything but the notes, which are rebuilt from the
+  // spec and the fight so an old link picks up a caveat added since.
+  const spec = specModule(character!.specId);
+  result = {
+    ...report.summary,
+    notes: spec ? buildNotes(
+      {
+        specId: character!.specId,
+        stats: deriveStatSheet(character!, fight),
+        talents: character!.talentRanks,
+        fight,
+      },
+      spec,
+      targetStateFor(fight),
+    ) : [],
+  };
+  trace = replayMiddle(result);
+  return true;
 }
 
 function deriveWeightsNow(): void {
@@ -480,6 +601,8 @@ function draw(): void {
     app.appendChild(renderImportPanel(handlers, false));
     const saved = savedCharacters();
     if (saved.length) app.appendChild(renderSavedOnly(saved));
+    const recent = renderRecentRuns();
+    if (recent) app.appendChild(recent);
     app.appendChild(renderFooter());
     window.scrollTo(0, scroll);
     return;
@@ -514,7 +637,24 @@ function draw(): void {
 
   if (module) {
     right.appendChild(renderFightPanel(fight, module, rotation, fightHandlers, busy));
-    if (result) right.appendChild(renderResultsPanel(result));
+    if (result) {
+      const names = new Map(module.spells.map((sp) => [sp.id, sp.name]));
+      names.set('auto-main', 'Main hand');
+      names.set('auto-off', 'Off hand');
+      names.set('auto-ranged', 'Ranged');
+      for (const [id, name] of Object.entries(module.extraNames ?? {})) names.set(id, name);
+
+      right.appendChild(
+        renderResultsPanel(result, {
+          ...(trace ? { trace } : {}),
+          names,
+          resourceLabel: module.resource === 'rage'
+            ? 'Rage, all the way through'
+            : module.resource === 'energy' ? 'Energy, all the way through' : 'Mana, all the way through',
+          onCopyReport: copyReportLink,
+        }),
+      );
+    }
     if (weights) right.appendChild(renderWeightsPanel(weights, overrides, fightHandlers));
   } else {
     right.appendChild(renderUnsupported(spec ? spec.name + ' ' + info!.name : info!.name));
@@ -523,6 +663,8 @@ function draw(): void {
   right.appendChild(renderSheetPanel(character));
   right.appendChild(renderSaveBar(handlers, savedCharacters(), character.source.name));
   right.appendChild(renderImportPanel(handlers, true));
+  const recent = renderRecentRuns();
+  if (recent) right.appendChild(recent);
   right.appendChild(renderHowTo(true));
   main.appendChild(right);
 
@@ -539,6 +681,69 @@ function draw(): void {
   );
 
   window.scrollTo(0, scroll);
+}
+
+/** The runs this device has done lately, so one can be opened again. */
+function renderRecentRuns(): HTMLElement | null {
+  const reports = savedReports();
+  if (!reports.length) return null;
+
+  const panel = document.createElement('section');
+  panel.className = 'panel';
+  const head = document.createElement('div');
+  head.className = 'panel__head';
+  head.textContent = 'Runs on this device';
+  panel.appendChild(head);
+
+  const body = document.createElement('div');
+  body.className = 'panel__body';
+
+  const list = document.createElement('div');
+  list.className = 'druns';
+  for (const entry of reports) {
+    const row = document.createElement('button');
+    row.className = 'drun';
+    row.type = 'button';
+
+    const name = document.createElement('span');
+    name.className = 'drun__name';
+    name.textContent = entry.name;
+    row.appendChild(name);
+
+    const dps = document.createElement('span');
+    dps.className = 'drun__dps';
+    dps.textContent = entry.dps.toFixed(1);
+    row.appendChild(dps);
+
+    const when = document.createElement('span');
+    when.className = 'drun__when';
+    when.textContent = new Date(entry.at).toLocaleString();
+    row.appendChild(when);
+
+    row.addEventListener('click', () => {
+      if (!openReport(entry.code)) {
+        toast('That run would not open');
+        return;
+      }
+      draw();
+      toast('Opened ' + entry.name);
+    });
+    list.appendChild(row);
+  }
+
+  body.appendChild(list);
+  body.appendChild(
+    (() => {
+      const hint = document.createElement('p');
+      hint.className = 'drawer__hint';
+      hint.textContent =
+        'The last ' + MAX_REPORTS + ' runs, kept in this browser. Copy a link to one and it ' +
+        'opens anywhere.';
+      return hint;
+    })(),
+  );
+  panel.appendChild(body);
+  return panel;
 }
 
 function renderSavedOnly(saved: SavedCharacter[]): HTMLElement {
@@ -583,6 +788,17 @@ function renderSavedOnly(saved: SavedCharacter[]): HTMLElement {
 
 function readHash(): void {
   const hash = location.hash.replace(/^#/, '');
+
+  if (hash.startsWith('r=')) {
+    if (!openReport(hash.slice(2))) {
+      draw();
+      toast('That link to a run would not open');
+      return;
+    }
+    draw();
+    return;
+  }
+
   if (!hash.startsWith('c=')) {
     draw();
     return;

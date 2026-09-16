@@ -21,6 +21,7 @@ import type { SpecModule } from './spec';
 import type { Rotation, RotationCtx } from './rotation';
 import { resistMultiplier, rollSpell, spellCritChance, spellHitChance } from './tables';
 import { emptyShard, emptyTally, finishShard, type Shard, type Tally } from './accumulate';
+import { collectTrace, type TraceEvent, type TraceSink } from './trace';
 
 export type { Shard };
 import {
@@ -56,6 +57,8 @@ type SimEvent =
 
 export interface IterationResult {
   damage: number;
+  /** Seconds each aura spent up, player and target together. */
+  auraUptime: Map<string, number>;
   abilities: Map<string, Tally>;
   idleTime: number;
   starvedTime: number;
@@ -171,6 +174,7 @@ export function runIteration(
   spec: SpecModule,
   seed: number,
   prepared: Prepared = prepare(config, spec),
+  trace?: TraceSink,
 ): IterationResult {
   const { mods, spells, rotation, target } = prepared;
 
@@ -338,6 +342,14 @@ export function runIteration(
         amount *= physicalMultiplier(target, stats.level, mods.armorIgnored);
       }
 
+      trace?.push({
+        t: now,
+        kind: 'swing',
+        id: tallyId,
+        amount: amount,
+        outcome: swing.outcome,
+      });
+
       if (swing.outcome === 'miss') t.misses += 1;
       else if (AVOIDED.has(swing.outcome)) t.avoided += 1;
       else {
@@ -433,6 +445,9 @@ export function runIteration(
       const fromSpirit = regen.per2s * (casting ? regen.castingFraction : 1);
       const fromGear = (stats.mp5 * MANA_TICK) / 5;
       actor.restore(fromSpirit + fromGear);
+      if (trace && (spec.resource ?? 'mana') === 'mana') {
+        trace.push({ t: now, kind: 'resource', id: 'mana', value: actor.mana });
+      }
       queue.push(now + MANA_TICK, { kind: 'mana-tick' });
       event = queue.pop();
       continue;
@@ -445,6 +460,15 @@ export function runIteration(
         actor.gain('rage', rageFromDamageTaken(fight.incoming.damagePerSecond * interval));
       }
       spec.onResourceTick?.({ kind: spec.resource ?? 'mana', actor, now, mods });
+      if (trace) {
+        const bar = actor.resource(spec.resource ?? 'mana');
+        trace.push({
+          t: now,
+          kind: 'resource',
+          id: spec.resource ?? 'mana',
+          value: bar ? bar.current : actor.mana,
+        });
+      }
       queue.push(now + interval, { kind: 'resource-tick' });
       event = queue.pop();
       continue;
@@ -505,6 +529,7 @@ export function runIteration(
             const outcome = rollSpell(hitPctFor(), critPctFor(spell, now), rng);
             const amount = damageOf(spell, outcome, powerFor(spell), now);
             const t = tally(spell.def.id);
+            trace?.push({ t: now, kind: 'land', id: spell.def.id, amount, outcome });
             if (outcome === 'miss') t.misses += 1;
             else {
               t.hits += 1;
@@ -655,8 +680,12 @@ export function runIteration(
     }
 
     tally(spell.def.id).casts += 1;
+    trace?.push({ t: now, kind: 'cast', id: spell.def.id });
     spec.onCastStart?.({ spellId: spell.def.id, now, actor, rng, mods, stats });
-    if (spell.def.cooldown) actor.startCooldown(spell.def.id, now, spell.def.cooldown);
+    if (spell.def.cooldown) {
+      actor.startCooldown(spell.def.id, now, spell.def.cooldown);
+      trace?.push({ t: now, kind: 'cooldown', id: spell.def.id, value: spell.def.cooldown });
+    }
 
     const finishAt = now + spell.castTime;
     actor.busyUntil = finishAt;
@@ -667,8 +696,16 @@ export function runIteration(
     event = queue.pop();
   }
 
+  actor.auras.closeAll(fight.duration);
+  actor.targetAuras.closeAll(fight.duration);
+  const auraUptime = actor.auras.uptimes();
+  for (const [id, seconds] of actor.targetAuras.uptimes()) {
+    auraUptime.set(id, (auraUptime.get(id) ?? 0) + seconds);
+  }
+
   return {
     damage: total,
+    auraUptime,
     abilities,
     idleTime: actor.idleTime,
     starvedTime: actor.starvedTime,
@@ -711,6 +748,9 @@ export function runShard(
   for (let i = start; i < end; i += 1) {
     const result = runIteration(config, spec, splitSeed(config.fight.seed, i), prepared);
     shard.series.push(result.damage / duration);
+    for (const [id, seconds] of result.auraUptime) {
+      shard.auraUptime[id] = (shard.auraUptime[id] ?? 0) + seconds;
+    }
     shard.idle += result.idleTime;
     shard.starved += result.starvedTime;
     shard.manaSpent += result.manaSpent;
@@ -736,6 +776,19 @@ export function runShard(
   }
 
   return shard;
+}
+
+/**
+ * One fight, written down as it happened.
+ *
+ * Given the seed of an iteration that already ran, this replays exactly that
+ * fight: the same rolls in the same order, because the seed is the whole of the
+ * randomness. That is why a result carries a seed rather than a list of events.
+ */
+export function traceIteration(config: SimConfig, spec: SpecModule, seed: number): TraceEvent[] {
+  const events = collectTrace();
+  runIteration(config, spec, seed, prepare(config, spec), events);
+  return events;
 }
 
 /**

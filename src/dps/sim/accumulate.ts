@@ -15,6 +15,7 @@
  * histogram the results panel wants needs those figures anyway.
  */
 
+import { splitSeed } from './rng';
 import { buildNotes } from './notes';
 import { targetStateFor } from './target';
 import type { SpecModule } from './spec';
@@ -44,6 +45,8 @@ export interface Shard {
   /** Damage per second of each iteration, in iteration order. */
   series: number[];
   abilities: Record<string, Tally>;
+  /** Seconds each aura spent up, summed over the iterations in this slice. */
+  auraUptime: Record<string, number>;
   idle: number;
   starved: number;
   manaSpent: number;
@@ -59,6 +62,7 @@ export function emptyShard(start = 0): Shard {
     start,
     series: [],
     abilities: {},
+    auraUptime: {},
     idle: 0,
     starved: 0,
     manaSpent: 0,
@@ -96,6 +100,9 @@ export function mergeShards(parts: Shard[]): Shard {
   for (const part of ordered) {
     out.series.push(...part.series);
     addTallies(out.abilities, part.abilities);
+    for (const [id, seconds] of Object.entries(part.auraUptime)) {
+      out.auraUptime[id] = (out.auraUptime[id] ?? 0) + seconds;
+    }
     out.idle += part.idle;
     out.starved += part.starved;
     out.manaSpent += part.manaSpent;
@@ -108,12 +115,60 @@ export function mergeShards(parts: Shard[]): Shard {
   return out;
 }
 
+/** An aura id nobody named: 'winters-chill' reads as Winters chill. */
+function auraName(id: string): string {
+  const words = id.replace(/-/g, ' ');
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
 /** The ids white swings are tallied under, so their names can be filled in. */
 const AUTO_ATTACK_NAME: Record<string, string> = {
   'auto-main': 'Main hand',
   'auto-off': 'Off hand',
   'auto-ranged': 'Ranged',
 };
+
+/** How many buckets the spread is drawn in. Forty is enough to see the shape. */
+const BINS = 40;
+
+function histogramOf(series: number[]): { min: number; max: number; bins: number[] } {
+  const bins = new Array<number>(BINS).fill(0);
+  if (!series.length) return { min: 0, max: 0, bins };
+
+  const min = Math.min(...series);
+  const max = Math.max(...series);
+  if (max <= min) {
+    bins[0] = series.length;
+    return { min, max, bins };
+  }
+
+  const width = (max - min) / BINS;
+  for (const value of series) {
+    // The top of the range belongs in the last bucket rather than one past it.
+    const at = Math.min(BINS - 1, Math.floor((value - min) / width));
+    bins[at] += 1;
+  }
+  return { min, max, bins };
+}
+
+/** The run that came out closest to the middle of the pack. */
+function representativeOf(series: number[], seed: number): { index: number; seed: number; dps: number } {
+  if (!series.length) return { index: 0, seed: splitSeed(seed, 0), dps: 0 };
+
+  const sorted = [...series].sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)]!;
+
+  let best = 0;
+  let bestGap = Infinity;
+  for (let i = 0; i < series.length; i += 1) {
+    const gap = Math.abs(series[i]! - median);
+    if (gap < bestGap) {
+      bestGap = gap;
+      best = i;
+    }
+  }
+  return { index: best, seed: splitSeed(seed, best), dps: series[best]! };
+}
 
 /** Turns a finished shard into the result the page reads. */
 export function finishShard(shard: Shard, config: SimConfig, spec: SpecModule): SimResult {
@@ -160,6 +215,13 @@ export function finishShard(shard: Shard, config: SimConfig, spec: SpecModule): 
   };
   if (shard.oomCount > 0) resources.oomAt = shard.oomSum / shard.oomCount;
 
+  // Only auras worth naming: anything that was up for less than a tenth of a
+  // second in an average run is noise from the last moments of a fight.
+  const auras = Object.entries(shard.auraUptime)
+    .map(([id, seconds]) => ({ id, name: names.get(id) ?? auraName(id), uptime: seconds / iterations }))
+    .filter((a) => a.uptime >= 0.1)
+    .sort((a, b) => b.uptime - a.uptime);
+
   return {
     dps: mean,
     dpsStdev: stdev,
@@ -168,6 +230,9 @@ export function finishShard(shard: Shard, config: SimConfig, spec: SpecModule): 
     duration,
     abilities,
     resources,
+    histogram: histogramOf(shard.series),
+    auras,
+    representative: representativeOf(shard.series, config.fight.seed),
     notes: buildNotes(config, spec, targetStateFor(config.fight)),
   };
 }

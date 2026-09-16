@@ -175,6 +175,20 @@ export interface SimResult {
     /** Seconds spent wanting to act with nothing in the bar to pay for it. */
     starvedFor: number;
   };
+  /**
+   * Where the runs landed, in forty buckets. It is the shape of the spread
+   * rather than one number for it, which is what shows a rotation that usually
+   * goes well and occasionally falls apart.
+   */
+  histogram: { min: number; max: number; bins: number[] };
+  /** Seconds each aura was up in an average run, for the ones worth naming. */
+  auras: Array<{ id: string; name: string; uptime: number }>;
+  /**
+   * The run that came out closest to the middle. Its seed is kept rather than
+   * its events, because the same seed gives the same fight, so a record of it
+   * can be made again whenever one is wanted.
+   */
+  representative: { index: number; seed: number; dps: number };
   /** Anything the reader should know before trusting the number. */
   notes: string[];
 }

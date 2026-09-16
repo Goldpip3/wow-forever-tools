@@ -18,6 +18,10 @@ import type { FightConfig, SimResult } from './sim/types';
 import type { SpecModule } from './sim/spec';
 import { isNoisy, type WeightResult, type WeightTable } from './weights';
 import { el, qualityColor } from './render';
+import {
+  renderHistogram, renderResourceLine, renderTimeline, renderUptimes,
+} from './render-report';
+import type { TraceEvent } from './sim/trace';
 
 export interface FightHandlers {
   onFightChange(patch: Partial<FightConfig>): void;
@@ -256,7 +260,17 @@ export function renderFightPanel(
 
 /* ----------------------------------------------------------------- results */
 
-export function renderResultsPanel(result: SimResult): HTMLElement {
+export interface ResultsExtras {
+  /** One fight's events, for the timeline. Absent until it has been replayed. */
+  trace?: TraceEvent[];
+  /** Ability names, so the timeline can label its rows. */
+  names?: Map<string, string>;
+  /** Which bar the resource line is drawing. */
+  resourceLabel?: string;
+  onCopyReport?: () => void;
+}
+
+export function renderResultsPanel(result: SimResult, extras: ResultsExtras = {}): HTMLElement {
   const panel = el('section', 'panel');
   const head = el('div', 'panel__head', 'Damage');
   head.appendChild(
@@ -279,6 +293,18 @@ export function renderResultsPanel(result: SimResult): HTMLElement {
         ' either side of that, which is the dice rather than your gear.',
     ),
   );
+
+  if (extras.onCopyReport) {
+    const share = el('div', 'spec-picker');
+    const copy = el('button', 'btn btn--sm', 'Copy a link to this run');
+    copy.title = 'Carries the character, the fight settings and this result';
+    copy.addEventListener('click', extras.onCopyReport);
+    share.appendChild(copy);
+    body.appendChild(share);
+  }
+
+  const spread = renderHistogram(result);
+  if (spread) body.appendChild(spread);
 
   // A weapon can be dodged, parried or graze the target, and a spell cannot, so
   // those two columns only appear for somebody who swings one.
@@ -325,6 +351,21 @@ export function renderResultsPanel(result: SimResult): HTMLElement {
     table.appendChild(row);
   }
   body.appendChild(table);
+
+  if (extras.trace?.length) {
+    const timeline = renderTimeline(extras.trace, result.duration, extras.names ?? new Map());
+    if (timeline) body.appendChild(timeline);
+
+    const resource = renderResourceLine(
+      extras.trace,
+      result.duration,
+      extras.resourceLabel ?? 'What was in the bar',
+    );
+    if (resource) body.appendChild(resource);
+  }
+
+  const uptimes = renderUptimes(result);
+  if (uptimes) body.appendChild(uptimes);
 
   const lines: string[] = [];
   if (result.resources.oomAt !== undefined) {

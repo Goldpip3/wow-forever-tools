@@ -31,3 +31,4 @@ export const KEY_BUILDS = 'wf.builds';
 export const KEY_ROSTERS = 'wf.rosters';
 export const KEY_CHARACTERS = 'wf.characters';
 export const KEY_PREFS = 'wf.prefs';
+export const KEY_REPORTS = 'wf.reports';
