@@ -32,9 +32,11 @@ export const shamanElemental: SpecModule = {
   rotations: {
     standard: (talents): PriorityEntry[] => [
       {
+        // Recast once it is gone, not before: a new Flame Shock replaces the old
+        // burn, so recasting with a tick still to come throws that tick away.
         spellId: 'flame-shock',
-        when: (ctx) => ctx.remainingOnTarget(SHAMAN_AURAS.flameShock) < 1,
-        text: 'debuff.flame-shock.remains < 1',
+        when: (ctx) => !ctx.onTarget(SHAMAN_AURAS.flameShock),
+        text: 'not debuff.flame-shock.up',
       },
       {
         // Lava Burst is a talent, so the line is skipped for anyone without it.

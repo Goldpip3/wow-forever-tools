@@ -157,6 +157,23 @@ describe('the shocks', () => {
   });
 });
 
+describe('Flame Shock', () => {
+  it('is left to finish before it is cast again, so no tick is thrown away', () => {
+    const line = shamanElemental.rotations.standard!({}).find((e) => e.spellId === 'flame-shock')!;
+    const result = simulate(
+      {
+        specId: 261, stats: caster(), talents: {}, fight: fight(),
+        apl: [{ spellId: 'flame-shock', text: line.text }, { spellId: 'lightning-bolt' }],
+      },
+      shamanElemental,
+    );
+    const casts = result.abilities.find((a) => a.id === 'flame-shock')!.casts;
+    const ticks = result.abilities.find((a) => a.id === 'flame-shock-dot')!.hits;
+    // Four ticks each, less whatever the end of the fight cuts off the last.
+    expect(ticks).toBeGreaterThanOrEqual(casts * 4 - 4);
+  });
+});
+
 describe('Windfury Weapon', () => {
   it('carries more attack power with Elemental Weapons, rank by rank as the tree gives it', () => {
     const mods = emptyMods();
