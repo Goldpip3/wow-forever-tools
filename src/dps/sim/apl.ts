@@ -185,7 +185,7 @@ export function variableNames(): string[] {
     'buff.<name>.up', 'buff.<name>.remains', 'buff.<name>.stacks',
     'debuff.<name>.up', 'debuff.<name>.remains', 'debuff.<name>.stacks',
     'cooldown.<name>.ready', 'cooldown.<name>.remains',
-    'swing.main.remains', 'swing.off.remains',
+    'swing.main.remains', 'swing.off.remains', 'swing.ranged.remains',
     'talent.<name>',
   ];
 }
@@ -225,7 +225,7 @@ function readerFor(name: string, opts: CompileOptions): Reader {
   }
 
   if (parts[0] === 'swing' && parts.length === 3 && parts[2] === 'remains') {
-    const hand = parts[1] === 'off' ? 'off' : 'main';
+    const hand = parts[1] === 'off' ? 'off' : parts[1] === 'ranged' ? 'ranged' : 'main';
     return (ctx) => {
       const left = ctx.swingIn(hand);
       return Number.isFinite(left) ? left : 999;

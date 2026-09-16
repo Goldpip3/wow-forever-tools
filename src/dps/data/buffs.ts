@@ -261,8 +261,11 @@ export const BUFFS: BuffDef[] = [
     icon: 'ability_trueshot',
     from: 'Marksmanship Hunter',
     roles: ['melee'],
-    stats: { attackPower: 100 },
-    forever: unverified(),
+    stats: { rangedAttackPower: 30 },
+    forever: {
+      status: 'changed',
+      note: 'Thirty ranged attack power and nothing for melee, which is what the Marksmanship tree says.',
+    },
   },
   {
     id: 'warchiefs-blessing',

@@ -81,6 +81,7 @@ export function bandsFor(params: SwingParams, aimed: boolean): AttackTable {
     behind: params.behind,
     canParry: params.canParry,
     canBlock: params.canBlock,
+    ranged: params.hand === 'ranged',
   };
 
   const table = meleeAttackTable(attack, aimed);

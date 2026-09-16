@@ -53,6 +53,8 @@ export interface AttackParams {
   behind?: boolean;
   canParry?: boolean;
   canBlock?: boolean;
+  /** A shot from a bow, gun or crossbow, which cannot be dodged, parried or glance. */
+  ranged?: boolean;
 }
 
 /**
@@ -106,9 +108,9 @@ export function meleeAttackTable(params: AttackParams, yellow = false): AttackTa
   const { skill, defense } = params;
 
   const miss = missChance(skill, defense, params.hitPct, !yellow && params.dualWield);
-  const dodge = dodgeChance(skill, defense);
-  const parry = params.behind || params.canParry === false ? 0 : K.MELEE_BOSS_PARRY.value;
-  const glance = yellow ? 0 : glancingChance(skill, defense);
+  const dodge = params.ranged ? 0 : dodgeChance(skill, defense);
+  const parry = params.ranged || params.behind || params.canParry === false ? 0 : K.MELEE_BOSS_PARRY.value;
+  const glance = yellow || params.ranged ? 0 : glancingChance(skill, defense);
   const block =
     params.behind || !params.canBlock
       ? 0

@@ -381,7 +381,7 @@ export function runIteration(
       weapon,
       hand,
       stats,
-      attackPower: actor.statAt('attackPower'),
+      attackPower: actor.statAt(hand === 'ranged' ? 'rangedAttackPower' : 'attackPower'),
       target,
       hitBonus: mods.meleeHit + (hand === 'off' ? mods.offhandHit : 0),
       hitLive: actor.statAt('hit') - stats.hit,
@@ -439,12 +439,17 @@ export function runIteration(
       if (amount > 0) {
         amount *= ability?.damageMultiplier ?? mods.physicalDamage;
         amount *= spec.damageBonusFor?.(
-          { spellId: ability?.def.id ?? AUTO_ATTACK_ID[hand], school: 'physical', actor, now, mods },
+          { spellId: ability?.def.id ?? AUTO_ATTACK_ID[hand], school: ability?.def.school ?? 'physical', actor, now, mods },
         ) ?? 1;
         if (hand === 'off') amount *= 0.5 * mods.offhandDamage;
         if (swing.outcome === 'crit') amount *= ability?.critMultiplier
           ?? (K.MELEE_CRIT_MULTIPLIER.value + mods.meleeCritBonus);
-        amount *= physicalMultiplier(target, stats.level, mods.armorIgnored);
+        // A shot of another school, such as Arcane Shot, goes past armor and
+        // meets the target's resistance instead.
+        const school = ability?.def.school ?? 'physical';
+        amount *= school === 'physical'
+          ? physicalMultiplier(target, stats.level, mods.armorIgnored)
+          : resistMultiplier(target.resistance, stats.level, target.level) * (target.damageTaken[school] ?? 1);
       }
 
       trace?.push({
@@ -938,6 +943,8 @@ export function runIteration(
     tally(spell.def.id).casts += 1;
     trace?.push({ t: now, kind: 'cast', id: spell.def.id });
     spec.onCastStart?.({ spellId: spell.def.id, now, actor, rng, mods, stats });
+    // A cast can put up haste, such as Rapid Fire, or move a swing itself.
+    retime(now);
     syncSwings(now);
     if (spell.def.cooldown) {
       actor.startCooldown(spell.def.id, now, spell.def.cooldown);

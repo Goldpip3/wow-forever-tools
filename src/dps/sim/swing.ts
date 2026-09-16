@@ -67,6 +67,16 @@ export class SwingTimer {
     this.version += 1;
   }
 
+  /**
+   * Hold the next swing until at least then, for a cast it cannot go off
+   * during. A swing already due later is left alone.
+   */
+  delayUntil(at: number): void {
+    if (this.nextAt >= at) return;
+    this.nextAt = at;
+    this.version += 1;
+  }
+
   /** Seconds until it comes round, never below zero. */
   remaining(now: number): number {
     return Math.max(0, this.nextAt - now);
