@@ -14,6 +14,7 @@ export async function loadTalentData(): Promise<TalentData> {
       return res.json() as Promise<TalentData>;
     })
     .then((data) => {
+      stampClasses(data);
       cache = data;
       inflight = null;
       return data;
@@ -23,6 +24,21 @@ export async function loadTalentData(): Promise<TalentData> {
       throw err;
     });
   return inflight;
+}
+
+/**
+ * Write each talent's class onto it, once, as the data comes in.
+ *
+ * Nothing upstream carries it, and by the time a talent reaches a tooltip it has been
+ * passed down far enough that the class is no longer in scope. Anything that needs to
+ * identify a talent needs both, because two names are shared between classes.
+ */
+function stampClasses(data: TalentData): void {
+  for (const [classKey, cls] of Object.entries(data.talents ?? {})) {
+    for (const tree of cls.trees ?? []) {
+      for (const talent of tree.talents ?? []) talent.classKey = classKey;
+    }
+  }
 }
 
 export function classTalents(data: TalentData, classKey: string): ClassTalents | undefined {

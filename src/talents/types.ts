@@ -34,6 +34,13 @@ export interface Talent {
   cost?: string;
   fixed?: string[];
   scaleIdx?: number[];
+  /**
+   * Which class's tree this came from, stamped on load rather than present upstream.
+   *
+   * Two talent names are used by two classes each - Vengeance by Paladin and Druid,
+   * Dual Wield Specialization by Warrior and Rogue - so a name alone cannot identify one.
+   */
+  classKey?: string;
   classic?: ClassicRef;
 }
 

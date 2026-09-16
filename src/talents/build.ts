@@ -1,4 +1,5 @@
 import type { ClassTalents, Talent, Tree } from './types';
+import { SCALE_INDICES } from './scaling';
 
 export const MAX_POINTS = 51;
 export const MIN_LEVEL = 10;
@@ -270,7 +271,12 @@ function scaleNumbers(text: string, idx: number[], factor: number): string {
  */
 function scaleTargets(talent: Talent, text: string): number[] | null {
   if (talent.scaleIdx?.length) return talent.scaleIdx;
-  return (text.match(NUMBER) ?? []).length === 1 ? [0] : null;
+  // One number in the sentence is unambiguous: there is nothing else rank could move.
+  if ((text.match(NUMBER) ?? []).length === 1) return [0];
+  /* Two or more, and the data does not say which. scaling.ts answers that for the talents
+     where the sentence settles it, and stays quiet for the six where it does not. */
+  const curated = talent.classKey ? SCALE_INDICES[talent.classKey + '|' + talent.name] : undefined;
+  return curated ?? null;
 }
 
 export interface RankText {
