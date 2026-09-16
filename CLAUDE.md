@@ -9,6 +9,9 @@ mode, which edits a real Discord event through the Group Builder bot.
 - **[WRITING.md](WRITING.md) — read it before writing a single word a visitor will see.**
   Headlines, buttons, hints, errors, empty states. It is not a style preference; the
   first version of this site read like a brochure and had to be rewritten.
+- [AUTH-SPEC.md](AUTH-SPEC.md) — signing in with Discord and who may do what. Not built.
+  The rule it turns on: the bot decides, the website only asks. Do not grow a second
+  permission model in the planner.
 - [ROSTER-SPEC.md](ROSTER-SPEC.md) — the contract between this planner and the Group
   Builder bot. Where it disagrees with the deployed API, the API wins.
 - [INTEGRATION.md](INTEGRATION.md) — the older copy-paste handoff, still supported.
