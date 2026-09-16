@@ -19,6 +19,12 @@ export class SwingTimer {
   nextAt: number;
   /** When the swing in progress started. */
   startedAt: number;
+  /**
+   * Goes up whenever the next swing moves, landing included. Any event queued
+   * for an older version is stale, so a swing the engine queued and then moved
+   * can never land twice.
+   */
+  version = 0;
 
   constructor(base: number, startAt = 0, hasteMultiplier = 1) {
     this.base = base;
@@ -44,18 +50,21 @@ export class SwingTimer {
     const spent = 1 - remaining / this.speed;
     this.speed = speed;
     this.nextAt = now + speed * (1 - spent);
+    this.version += 1;
   }
 
   /** The swing landed; start the next one. */
   advance(now: number): void {
     this.startedAt = now;
     this.nextAt = now + this.speed;
+    this.version += 1;
   }
 
   /** Start the swing over from here, for an extra attack or a weapon change. */
   reset(now: number): void {
     this.startedAt = now;
     this.nextAt = now + this.speed;
+    this.version += 1;
   }
 
   /** Seconds until it comes round, never below zero. */

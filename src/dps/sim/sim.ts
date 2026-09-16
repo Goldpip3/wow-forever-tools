@@ -60,7 +60,7 @@ type SimEvent =
   | { kind: 'dot-tick'; spellId: string; snapshotPower: number; left: number; perTick?: number }
   | { kind: 'mana-tick' }
   | { kind: 'resource-tick' }
-  | { kind: 'swing'; hand: Hand }
+  | { kind: 'swing'; hand: Hand; version: number }
   | { kind: 'effect-expire'; auraId: string }
   | { kind: 'move'; moving: boolean };
 
@@ -245,7 +245,18 @@ export function runIteration(
   if (armed.length || spec.resource === 'energy' || fight.incoming) {
     queue.push(K.RESOURCE_TICK.value, { kind: 'resource-tick' });
   }
-  for (const hand of armed) queue.push(actor.swings[hand]!.nextAt, { kind: 'swing', hand });
+  // The version each hand's queued swing was made for. A timer that moved
+  // since then has its old event ignored and a new one queued.
+  const queuedVersion: Partial<Record<Hand, number>> = {};
+  const syncSwings = (now: number): void => {
+    for (const hand of armed) {
+      const timer = actor.swings[hand]!;
+      if (queuedVersion[hand] === timer.version) continue;
+      queuedVersion[hand] = timer.version;
+      queue.push(Math.max(now, timer.nextAt), { kind: 'swing', hand, version: timer.version });
+    }
+  };
+  syncSwings(0);
   if (style.kind === 'movement' && style.every > 0 && style.for > 0) {
     queue.push(style.every, { kind: 'move', moving: true });
   }
@@ -311,6 +322,7 @@ export function runIteration(
   const retime = (now: number): void => {
     if (!armed.length || !spec.hasteFor) return;
     actor.retimeSwings(now, hasteNow(now));
+    syncSwings(now);
   };
 
   /** Damage for one landing of a spell, with the roll already made. */
@@ -655,7 +667,7 @@ export function runIteration(
 
     if (data.kind === 'swing') {
       const timer = actor.swings[data.hand];
-      if (!timer) {
+      if (!timer || data.version !== timer.version) {
         event = queue.pop();
         continue;
       }
@@ -663,7 +675,7 @@ export function runIteration(
       // Out of range of the boss, so the swing waits rather than missing.
       if (actor.movingUntil > now) {
         actor.idleTime += Math.min(actor.movingUntil, fight.duration) - now;
-        queue.push(actor.movingUntil, { kind: 'swing', hand: data.hand });
+        queue.push(actor.movingUntil, { kind: 'swing', hand: data.hand, version: data.version });
         event = queue.pop();
         continue;
       }
@@ -687,8 +699,11 @@ export function runIteration(
         strike(data.hand, now, null, AUTO_ATTACK_ID[data.hand]);
       }
 
+      // A strike can have moved this timer itself; advancing puts it back in
+      // step with the swing that just landed.
       timer.advance(now);
-      queue.push(timer.nextAt, { kind: 'swing', hand: data.hand });
+      queuedVersion[data.hand] = timer.version;
+      queue.push(timer.nextAt, { kind: 'swing', hand: data.hand, version: timer.version });
       event = queue.pop();
       continue;
     }
@@ -703,6 +718,7 @@ export function runIteration(
         }
 
         spec.onCastFinish?.({ spellId: spell.def.id, now, actor, rng, mods, stats });
+        syncSwings(now);
 
         if (spell.physical) {
           const hand = spell.def.weapon?.hand ?? 'main';
@@ -922,6 +938,7 @@ export function runIteration(
     tally(spell.def.id).casts += 1;
     trace?.push({ t: now, kind: 'cast', id: spell.def.id });
     spec.onCastStart?.({ spellId: spell.def.id, now, actor, rng, mods, stats });
+    syncSwings(now);
     if (spell.def.cooldown) {
       actor.startCooldown(spell.def.id, now, spell.def.cooldown);
       trace?.push({ t: now, kind: 'cooldown', id: spell.def.id, value: spell.def.cooldown });

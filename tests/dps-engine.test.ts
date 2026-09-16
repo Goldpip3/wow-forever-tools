@@ -520,3 +520,53 @@ describe('an extra attack', () => {
     expect(extra.damage / extra.hits).toBeCloseTo(120, 6);
   });
 });
+
+describe('a swing that is re-timed halfway', () => {
+  // Presses one button a second in, which doubles the weapon's speed.
+  const hurries: SpecModule = {
+    specId: 9103,
+    label: 'Hurries once',
+    resource: 'rage',
+    spells: [{
+      id: 'hurry', name: 'Hurry', school: 'physical', kind: 'item', castTime: 0, gcd: 0, cost: 0,
+      cooldown: 1000, minDamage: 0, maxDamage: 0, coefficient: 0, forever: { status: 'unverified' },
+    }],
+    talentHooks: {},
+    rotations: { standard: () => [{ spellId: 'hurry', when: (ctx) => ctx.now >= 1, text: 'time >= 1' }] },
+    weightStats: [{ stat: 'attackPower', step: 100 }],
+    referenceStat: 'attackPower',
+    init: (actor, config) => {
+      const main = config.stats.weapons.main;
+      if (main) actor.arm('main', main.speed);
+    },
+    onCastStart: ({ actor, now }) => actor.retimeSwings(now, 2),
+    forever: { status: 'unverified' },
+  };
+
+  it('lands at the new time, not the one it was queued for', () => {
+    const stats = emptyStatSheet(60);
+    stats.weapons = {
+      main: { min: 100, max: 100, speed: 2, skill: 300, type: 'One-Handed Maces', twoHanded: false },
+    };
+    const result = simulate({
+      specId: 9103,
+      stats,
+      talents: {},
+      fight: {
+        duration: 2.9,
+        iterations: 1,
+        seed: 1,
+        target: { level: 63, armor: 0, resistance: 0, behind: true, canParry: false, canBlock: false },
+        buffs: [], debuffs: [], consumables: [],
+        overrides: {
+          forceAverageDamage: true,
+          forceMeleeTable: { miss: 0, dodge: 0, parry: 0, glance: 0, block: 0, crit: 0 },
+        },
+      },
+    }, hurries);
+    // Half the swing was spent when it doubled, so it lands at one and a half
+    // seconds and again at two and a half. Left queued for two, it would have
+    // landed once.
+    expect(result.abilities.find((a) => a.id === 'auto-main')!.casts).toBe(2);
+  });
+});
