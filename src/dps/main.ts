@@ -63,6 +63,9 @@ let overrides: WeightTable = {};
 const confirmed = new Map<string, SwapResult>();
 let busy: Busy | null = null;
 
+/** The slot whose other items are showing under the character sheet. */
+let openSlot: Slot | null = null;
+
 function defaultFight(): FightConfig {
   return {
     duration: 300,
@@ -140,6 +143,7 @@ function adopt(imported: ReturnType<typeof parseCharacterExport>, quiet = false)
   skipped = imported.skipped;
   warnings = imported.warnings;
   overrides = prefs().overrides?.[character.specId] ?? {};
+  openSlot = null;
   clearResults();
   return true;
 }
@@ -253,6 +257,7 @@ const handlers: DpsHandlers = {
     skipped = [];
     warnings = [];
     clearResults();
+    openSlot = null;
     update();
     toast('Cleared');
   },
@@ -358,6 +363,12 @@ const fightHandlers: FightHandlers = {
   onConfirmSwap: confirmSwap,
 };
 
+/** Clicking a slot on the character sheet opens what else fits it, and closes it again. */
+function selectSlot(slot: Slot): void {
+  openSlot = openSlot === slot ? null : slot;
+  draw();
+}
+
 /* -------------------------------------------------------------------- draw */
 
 /** Repaints only the progress bar, so a long run does not rebuild the page. */
@@ -435,7 +446,7 @@ function draw(): void {
       renderUpgradesPanel(upgrades(character, table), confirmed, fightHandlers, busy, scale),
     );
   }
-  left.appendChild(renderGearPanel(character, table ? gearExtras(rankings, scale) : {}));
+  left.appendChild(renderGearPanel(character, table ? gearExtras(rankings, scale) : {}, openSlot, selectSlot));
   main.appendChild(left);
 
   const right = document.createElement('div');
@@ -460,7 +471,7 @@ function draw(): void {
 
   attachTooltips(
     main,
-    (target) => (target as Element).closest<HTMLElement>('.ditem'),
+    (target) => (target as Element).closest<HTMLElement>('.ditem, .dcell'),
     (node) => {
       const item = itemForCell(node);
       return item ? itemTip(item) : null;

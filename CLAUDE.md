@@ -43,6 +43,11 @@ hypothetical.
 - **Never auto-retry a 409.** Refetch and tell the leader their copy was stale.
 - **Estimated numbers say so.** Scaled figures and unknown ranks are labelled differently
   and must stay that way.
+- **Module state goes at the top of `main.ts`, above the functions.** `raid.html` runs
+  work during bootstrap, so a `let` declared further down the file is still in its
+  temporal dead zone when a boot-time function reads it. The page then dies with
+  "Cannot access X before initialization" and renders the wrong mode. This has caught
+  three separate additions: the roster handlers, the docs guard, and the session.
 - **Shared CSS belongs in `base.css`.** Classes used by more than one page have twice been
   left in `raid.css`, which only `raid.html` loads, and silently broke the other page.
 
@@ -50,7 +55,7 @@ hypothetical.
 
 ```
 npm run dev      # vite on 5273
-npm test         # vitest, 317 tests
+npm test         # vitest, 323 tests
 npm run build    # typecheck, then dist/
 npm run import   # refetch talent data after the beta changes
 ```

@@ -112,26 +112,133 @@
   color: var(--ink);
 }
 
-/* ----------------------------------------------------------------- the gear */
+/* -----------------------------------------------------------------  the gear
+   Laid out the way the character sheet in game is: a column down each side,
+   weapons in a row underneath, the spec's artwork showing through the middle
+   where the model would stand. */
 
-.dslot {
+.doll {
   display: grid;
-  grid-template-columns: 78px minmax(0, 1fr);
-  gap: 6px;
-  padding: 5px 0;
-  border-bottom: 1px solid var(--line);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-areas:
+    'left right'
+    'weapons weapons';
+  column-gap: clamp(10px, 7%, 72px);
+  row-gap: 4px;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background-color: var(--panel2);
+  background-size: cover;
+  background-position: center 20%;
 }
-.dslot:last-child { border-bottom: 0; }
-.dslot__label {
+/* Six squares on the left against eight on the right, so the shorter column
+   spreads rather than leaving a hole under it. */
+.doll__col {
+  display: flex; flex-direction: column; justify-content: space-between; gap: 4px;
+  min-width: 0;
+}
+.doll__col--left { grid-area: left; }
+.doll__col--right { grid-area: right; }
+
+/* The right column is mirrored in game: icon outermost, text reading inwards. */
+.doll__col--right .dcell { flex-direction: row-reverse; text-align: right; }
+.doll__col--right .dcell__text { align-items: flex-end; }
+
+.doll__weapons {
+  grid-area: weapons;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  width: min(100%, 560px);
+  margin: 10px auto 0;
+}
+
+/* One square of the sheet. A button, because clicking it opens the tray. */
+.dcell {
+  display: flex; align-items: center; gap: 7px;
+  width: 100%;
+  padding: 4px 5px;
+  background: rgba(14, 14, 14, .55);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+}
+.dcell:hover { border-color: var(--gold2); background: rgba(38, 38, 38, .82); }
+.dcell:focus-visible { outline: 1px solid var(--gold); outline-offset: 1px; }
+.dcell--open { border-color: var(--gold); background: rgba(38, 38, 38, .9); }
+.dcell--empty { border-style: dashed; }
+
+.dcell__icon {
+  width: 32px; height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  flex: none;
+  display: block;
+}
+.dcell__icon--empty { background: rgba(0, 0, 0, .45); }
+
+.dcell__text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.dcell__slot {
+  font-family: var(--font-narrow);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  color: var(--muted);
+  line-height: 1.3;
+}
+.dcell__name {
+  font-size: 12.5px;
+  line-height: 1.25;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  max-width: 100%;
+}
+.dcell__name--none { color: var(--muted); }
+.dcell__note {
+  font-family: var(--font-narrow);
+  font-size: 10.5px;
+  color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  max-width: 100%;
+}
+/* How many of the ones you own beat what is in the slot. */
+.dcell__up {
+  font-family: var(--font-narrow);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--green2);
+  flex: none;
+}
+
+/* What else fits the slot you clicked. */
+.dtray { margin-top: 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.dtray__head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 8px;
+  background: var(--bar);
+  border-bottom: 1px solid var(--line);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+.dtray__slot {
   font-family: var(--font-narrow);
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: .6px;
-  color: var(--muted);
-  padding-top: 7px;
+  color: var(--gold);
 }
-.dslot__main { min-width: 0; }
-.dslot__empty { color: var(--muted); font-size: 12.5px; padding: 6px 4px; }
+.dtray__count { color: var(--muted); font-size: 11.5px; font-family: var(--font-narrow); }
+.dtray .btn { margin-left: auto; }
+.dtray__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 2px;
+  padding: 6px;
+}
+.dtray .empty-note { padding: 8px; margin: 0; }
 
 .ditem {
   display: flex; align-items: center; gap: 7px;
@@ -160,17 +267,17 @@
 }
 .ditem--up .ditem__note { color: var(--green2); }
 
-.dalt { margin: 2px 0 0 4px; }
-.dalt summary {
-  cursor: pointer;
-  font-family: var(--font-narrow);
-  font-size: 11px;
-  color: var(--muted);
-  padding: 2px 0;
+/* Two narrow columns stop being readable long before the page does, so the
+   sheet folds into one and the mirrored side turns back round. */
+@media (max-width: 1120px) and (min-width: 961px), (max-width: 620px) {
+  .doll {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: 'left' 'right' 'weapons';
+  }
+  .doll__col--right .dcell { flex-direction: row; text-align: left; }
+  .doll__col--right .dcell__text { align-items: flex-start; }
+  .doll__weapons { grid-template-columns: minmax(0, 1fr); width: 100%; }
 }
-.dalt summary:hover { color: var(--ink2); }
-.dalt__summary--up { color: var(--green2) !important; }
-.dalt[open] { padding-bottom: 4px; }
 
 /* -------------------------------------------------------------- the notes */
 

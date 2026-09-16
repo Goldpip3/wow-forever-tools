@@ -40,7 +40,16 @@ import {
   type RosterLink,
   type RosterState,
   fetchCommandDocs,
+  fetchMe,
+  fetchGuildEvents,
+  beginSignIn,
+  signOut,
+  takeSignInOutcome,
+  SIGN_IN_MESSAGE,
   type CommandDocs,
+  type RosterAccess,
+  type Me,
+  type GuildEvent,
   type SaveState,
 } from './roster-mode';
 import { renderDrawer } from './drawer';
@@ -74,6 +83,8 @@ let suppressHash = false;
  */
 let mode: 'planner' | 'roster' | 'intro' = 'planner';
 let link: RosterLink | null = null;
+/* How this roster is authorised: a signed link, a session, or both. */
+let access: RosterAccess | null = null;
 let rosterState: RosterState | null = null;
 let saver: Saver | null = null;
 let saveState: SaveState = 'idle';
@@ -85,6 +96,13 @@ let lastRail = 0;
    down the file is still in its dead zone when it is first read. */
 let docsRequested = false;
 let cachedDocs: CommandDocs | null = null;
+/** Open events per guild, filled in only when somebody asks for them. */
+let guildEvents: Record<string, GuildEvent[]> = {};
+/* Declared here, not beside renderAccount. Module state read by a function that runs
+   during bootstrap must be declared above it, or it is still in its dead zone. That has
+   now caught three separate additions to this file. */
+let me: Me | null = null;
+let meRequested = false;
 
 function el(tag: string, cls?: string, text?: string): HTMLElement {
   const node = document.createElement(tag);
@@ -623,6 +641,11 @@ window.addEventListener('hashchange', () => {
 /* A signed roster link wins over every other reading of the hash. #roster with no token
    is the nav button, which lands on the explainer. Without either the page is exactly what
    it has always been, with no network call and no account. */
+/* The sign-in callback comes back with #signin=ok|cancelled|expired|failed. Read and
+   clear it before anything routes on the hash, or it looks like an unknown roster. */
+const signIn = takeSignInOutcome();
+if (signIn) window.setTimeout(() => toast(SIGN_IN_MESSAGE[signIn]), 0);
+
 lastRail = railPosition(location.hash);
 const rosterLink = readRosterLink();
 if (rosterLink) void enterRosterMode(rosterLink);
@@ -819,7 +842,7 @@ function handleFailure(failure: ApiFailure): void {
 async function reloadRoster(note?: string): Promise<void> {
   if (!link) return;
   try {
-    const payload = await fetchRoster(link);
+    const payload = await fetchRoster(access!);
     rosterState = stateFromPayload(payload);
     startSaver();
     saveState = 'idle';
@@ -836,7 +859,7 @@ function startSaver(): void {
   if (!link || !rosterState?.permissions.canEdit) return;
   saver?.dispose();
   saver = new Saver(
-    link,
+    access!,
     () => ({ slots: slotsFrom(rosterState!), revision: rosterState!.revision }),
     (revision, status) => {
       if (!rosterState) return;
@@ -880,7 +903,7 @@ async function doPublish(): Promise<void> {
   try {
     // Land any pending edit first, so what is published is what is on screen.
     saver?.flush();
-    const result = await publishRoster(link, rosterState.revision);
+    const result = await publishRoster(access!, rosterState.revision);
     rosterState.revision = result.revision;
     rosterState.status = 'published';
     draw();
@@ -989,6 +1012,8 @@ function drawRosterIntro(): void {
   app.appendChild(renderRosterIntro());
   app.appendChild(renderFooter());
 
+  void loadMe();
+
   /* The bot describes its own commands, so the steps above stop being this page's guess.
      Fired after the render and ignored if it fails: most people reading this have not set
      the bot up yet, so being unreachable is the normal case rather than an error. */
@@ -1038,17 +1063,22 @@ function drawRosterError(message: string): void {
   app.appendChild(renderFooter());
 }
 
-/** Enter roster mode. Only ever called when the hash carried a signed link. */
-async function enterRosterMode(found: RosterLink): Promise<void> {
+function accessFor(found: RosterLink | null, eventId?: string): RosterAccess {
+  return { eventId: found?.eventId ?? eventId ?? '', link: found };
+}
+
+/** Enter roster mode, by signed link or by session. */
+async function enterRosterMode(found: RosterLink | null, eventId?: string): Promise<void> {
   mode = 'roster';
   link = found;
+  access = accessFor(found, eventId);
   if (app) {
     app.replaceChildren();
     renderHeader({ page: 'roster' });
     app.appendChild(el('p', 'drawer__hint', 'Opening the roster…'));
   }
   try {
-    const payload = await fetchRoster(found);
+    const payload = await fetchRoster(access!);
     rosterState = stateFromPayload(payload);
     startSaver();
     draw();
@@ -1079,6 +1109,8 @@ document.addEventListener('visibilitychange', () => {
  */
 export function renderRosterIntro(): HTMLElement {
   const wrap = el('div');
+
+  wrap.appendChild(renderAccount());
 
   const intro = el('section', 'panel');
   intro.appendChild(el('div', 'panel__head', 'Rosters'));
@@ -1353,4 +1385,187 @@ function enhanceRosterIntro(docs: CommandDocs): void {
     gotchas.appendChild(gbody);
     anchor?.parentNode?.insertBefore(gotchas, anchor);
   }
+}
+
+/* ========================================================================
+   Signed in
+   ======================================================================== */
+
+const ROLE_LABEL_WEB: Record<Me['guilds'][number]['role'], string> = {
+  admin: 'Administrator',
+  manager: 'Manager',
+  assistant: 'Assistant',
+  member: 'Member',
+};
+
+/**
+ * Whoever is signed in, fetched once.
+ *
+ * A 401 is the ordinary signed-out state and resolves null, so this never throws and the
+ * explainer never waits on it. Roster mode does not need it at all: a signed link
+ * authorises by itself.
+ */
+async function loadMe(): Promise<void> {
+  if (meRequested) return;
+  meRequested = true;
+  me = await fetchMe();
+  if (mode === 'intro') drawRosterIntro();
+}
+
+/** The panel at the top of the Roster page: who you are, or a way to become somebody. */
+function renderAccount(): HTMLElement {
+  const panel = el('section', 'panel');
+  const head = el('div', 'panel__head');
+  head.appendChild(el('span', '', me ? 'Signed in' : 'Your servers'));
+  panel.appendChild(head);
+  const body = el('div', 'panel__body');
+
+  if (!me) {
+    body.appendChild(
+      el(
+        'p',
+        '',
+        'Sign in with Discord and the servers you help run appear here, with their events, so you can open a roster without waiting for a link.',
+      ),
+    );
+    body.appendChild(
+      el(
+        'p',
+        'drawer__hint',
+        'Discord is asked only to confirm who you are. What you are allowed to do comes from your roles in each server, read at the moment you click.',
+      ),
+    );
+    const row = el('div', 'spec-picker');
+    const go = el('button', 'btn btn--gold', 'Sign in with Discord');
+    go.addEventListener('click', () => beginSignIn());
+    row.appendChild(go);
+    body.appendChild(row);
+    panel.appendChild(body);
+    return panel;
+  }
+
+  const who = el('div', 'acct');
+  if (me.user.avatarUrl) {
+    const img = document.createElement('img');
+    img.className = 'acct__avatar';
+    img.src = me.user.avatarUrl;
+    img.alt = '';
+    who.appendChild(img);
+  }
+  who.appendChild(el('div', 'acct__name', me.user.username));
+  const out = el('button', 'btn btn--sm', 'Sign out');
+  out.addEventListener('click', () => {
+    void signOut().then(() => {
+      me = null;
+      meRequested = false;
+      guildEvents = {};
+      drawRosterIntro();
+      toast('Signed out');
+    });
+  });
+  who.appendChild(out);
+  body.appendChild(who);
+
+  if (!me.guilds.length) {
+    body.appendChild(
+      el(
+        'p',
+        'drawer__hint',
+        'None of your servers have the bot in them yet. Invite it to one and its events appear here.',
+      ),
+    );
+    panel.appendChild(body);
+    return panel;
+  }
+
+  for (const guild of me.guilds) {
+    const row = el('div', 'guildrow');
+    const title = el('div', 'guildrow__head');
+    title.appendChild(el('span', 'guildrow__name', guild.name));
+    const pill = el('span', 'pill', ROLE_LABEL_WEB[guild.role]);
+    pill.classList.add(guild.role === 'member' ? 'pill--same' : 'pill--new');
+    title.appendChild(pill);
+    row.appendChild(title);
+
+    /* A guild where somebody is only a member is listed rather than hidden. Being told
+       "you are in this server but not an officer" is an answer; a missing server is a
+       puzzle they write to the raid leader about. */
+    if (guild.role === 'member') {
+      row.appendChild(
+        el(
+          'div',
+          'drawer__hint',
+          'You are in this server but not an officer, so you cannot build its rosters.',
+        ),
+      );
+      body.appendChild(row);
+      continue;
+    }
+
+    const events = guildEvents[guild.id];
+    if (events === undefined) {
+      const load = el('button', 'btn btn--sm', 'Show events');
+      load.addEventListener('click', () => {
+        load.textContent = 'Loading…';
+        void fetchGuildEvents(guild.id)
+          .then((list) => {
+            guildEvents[guild.id] = list;
+            drawRosterIntro();
+          })
+          .catch(() => {
+            guildEvents[guild.id] = [];
+            drawRosterIntro();
+            toast('Could not read that server’s events.');
+          });
+      });
+      row.appendChild(load);
+    } else if (!events.length) {
+      row.appendChild(el('div', 'drawer__hint', 'No open events in this server.'));
+    } else {
+      const list = el('div', 'evlist');
+      for (const ev of events) list.appendChild(eventRow(ev));
+      row.appendChild(list);
+    }
+
+    body.appendChild(row);
+  }
+
+  panel.appendChild(body);
+  return panel;
+}
+
+function eventRow(ev: GuildEvent): HTMLElement {
+  const row = el('div', 'evrow');
+  const left = el('div', 'evrow__body');
+  const title = el('div', 'evrow__title');
+  title.appendChild(el('span', '', ev.title));
+  if (ev.isTest) {
+    const pill = el('span', 'pill pill--changed', 'test');
+    pill.title = 'A throwaway event. Its signups are invented.';
+    title.appendChild(pill);
+  }
+  left.appendChild(title);
+  left.appendChild(
+    el(
+      'div',
+      'evrow__meta',
+      new Date(ev.startTime * 1000).toLocaleString(undefined, {
+        weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+      }) + ' · ' + ev.signups + (ev.signups === 1 ? ' signup' : ' signups'),
+    ),
+  );
+  row.appendChild(left);
+
+  if (ev.canEdit) {
+    const open = el('button', 'btn btn--sm btn--gold', 'Build roster');
+    open.addEventListener('click', () => {
+      // The session authorises this; there is no token and nothing goes in the URL.
+      void enterRosterMode(null, ev.id);
+    });
+    row.appendChild(open);
+  } else {
+    const note = el('span', 'drawer__hint', 'Not yours to edit');
+    row.appendChild(note);
+  }
+  return row;
 }

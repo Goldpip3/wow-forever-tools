@@ -5,7 +5,7 @@
  */
 
 import { CLASSES, specById } from '../shared/classes';
-import { iconImg } from '../shared/icons';
+import { bgUrl, iconImg } from '../shared/icons';
 import { copyText } from '../shared/toast';
 import { ADDON_INFO } from './addon-info';
 import { SAMPLE_EXPORT } from './sample';
@@ -416,6 +416,19 @@ export interface SlotRowExtras {
   candidates?: Array<{ item: ItemRef; note: string; better: boolean }>;
 }
 
+/**
+ * The character sheet's own arrangement: head down to wrist on the left, hands
+ * down to trinkets on the right, weapons in a row underneath.
+ *
+ * Shirt and tabard sit in the left column in game and are missing here, because
+ * neither carries a stat and the addon does not send them.
+ */
+export const PAPERDOLL: { left: Slot[]; right: Slot[]; weapons: Slot[] } = {
+  left: ['head', 'neck', 'shoulder', 'back', 'chest', 'wrist'],
+  right: ['hands', 'waist', 'legs', 'feet', 'finger1', 'finger2', 'trinket1', 'trinket2'],
+  weapons: ['mainhand', 'offhand', 'ranged'],
+};
+
 function itemCell(item: ItemRef, note?: string): HTMLElement {
   const cell = el('div', 'ditem');
   cell.dataset.item = itemRefId(item);
@@ -449,9 +462,129 @@ export function resetItemIndex(): void {
   itemSeq = 0;
 }
 
+interface Alternative {
+  item: ItemRef;
+  note: string;
+  better: boolean;
+}
+
+/** What else fits this slot, scored once the weights are in and plain before that. */
+function alternativesFor(character: Character, slot: Slot, extra?: SlotRowExtras): Alternative[] {
+  return (
+    extra?.candidates ?? candidatesFor(character, slot).map((item) => ({ item, note: '', better: false }))
+  );
+}
+
+/** How the alternatives are announced, on the cell and again above the tray. */
+function alternativesLine(alternatives: Alternative[]): string {
+  const better = alternatives.filter((a) => a.better).length;
+  if (better) return better + ' of ' + alternatives.length + ' you own score higher';
+  return alternatives.length + ' other' + (alternatives.length === 1 ? '' : 's') + ' you own';
+}
+
+/**
+ * One square of the sheet. It is a button because clicking a slot is how you
+ * reach everything else you own that fits it.
+ */
+function slotCell(
+  character: Character,
+  slot: Slot,
+  extra: SlotRowExtras | undefined,
+  open: boolean,
+  onSelect: (slot: Slot) => void,
+): HTMLElement {
+  const worn = equippedIn(character, slot);
+  const alternatives = alternativesFor(character, slot, extra);
+  const better = alternatives.filter((a) => a.better).length;
+
+  const cell = document.createElement('button');
+  cell.type = 'button';
+  cell.className = 'dcell';
+  if (!worn) cell.classList.add('dcell--empty');
+  if (open) cell.classList.add('dcell--open');
+  cell.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (worn) cell.dataset.item = itemRefId(worn);
+
+  if (worn) cell.appendChild(iconImg(worn.icon, worn.name, 'dcell__icon'));
+  else cell.appendChild(el('span', 'dcell__icon dcell__icon--empty'));
+
+  const text = el('span', 'dcell__text');
+  text.appendChild(el('span', 'dcell__slot', SLOT_LABEL[slot]));
+
+  if (worn) {
+    const name = el('span', 'dcell__name', worn.name);
+    name.style.color = qualityColor(worn.quality);
+    text.appendChild(name);
+    if (extra?.note) text.appendChild(el('span', 'dcell__note', extra.note));
+  } else {
+    text.appendChild(el('span', 'dcell__name dcell__name--none', 'Nothing equipped'));
+  }
+  cell.appendChild(text);
+
+  if (better) {
+    const badge = el('span', 'dcell__up', '↑' + better);
+    badge.setAttribute('aria-label', alternativesLine(alternatives));
+    cell.appendChild(badge);
+  }
+
+  cell.addEventListener('click', () => onSelect(slot));
+  return cell;
+}
+
+function slotColumn(
+  character: Character,
+  slots: Slot[],
+  extras: Partial<Record<Slot, SlotRowExtras>>,
+  selected: Slot | null,
+  onSelect: (slot: Slot) => void,
+  cls: string,
+): HTMLElement {
+  const column = el('div', cls);
+  for (const slot of slots) {
+    column.appendChild(slotCell(character, slot, extras[slot], slot === selected, onSelect));
+  }
+  return column;
+}
+
+/** Everything else you own that fits the slot you clicked. */
+function altTray(
+  character: Character,
+  slot: Slot,
+  extra: SlotRowExtras | undefined,
+  onSelect: (slot: Slot) => void,
+): HTMLElement {
+  const tray = el('div', 'dtray');
+  const alternatives = alternativesFor(character, slot, extra);
+
+  const head = el('div', 'dtray__head');
+  head.appendChild(el('span', 'dtray__slot', SLOT_LABEL[slot]));
+  if (alternatives.length) head.appendChild(el('span', 'dtray__count', alternativesLine(alternatives)));
+
+  const close = el('button', 'btn btn--sm', 'Close');
+  close.addEventListener('click', () => onSelect(slot));
+  head.appendChild(close);
+  tray.appendChild(head);
+
+  if (!alternatives.length) {
+    tray.appendChild(el('p', 'empty-note', 'Nothing else you own fits here.'));
+    return tray;
+  }
+
+  const list = el('div', 'dtray__list');
+  for (const alt of alternatives) {
+    const cell = itemCell(alt.item, alt.note);
+    if (alt.better) cell.classList.add('ditem--up');
+    list.appendChild(cell);
+  }
+  tray.appendChild(list);
+  return tray;
+}
+
 export function renderGearPanel(
   character: Character,
   extras: Partial<Record<Slot, SlotRowExtras>> = {},
+  selected: Slot | null = null,
+  onSelect: (slot: Slot) => void = () => {},
 ): HTMLElement {
   const panel = el('section', 'panel');
   const head = el('div', 'panel__head', 'Gear');
@@ -459,47 +592,28 @@ export function renderGearPanel(
   panel.appendChild(head);
   const body = el('div', 'panel__body');
 
-  const slots = slotsInUse(character);
-  if (!slots.length) {
+  if (!slotsInUse(character).length) {
     body.appendChild(el('p', 'empty-note', 'No gear came through in that export.'));
     panel.appendChild(body);
     return panel;
   }
 
-  for (const slot of slots) {
-    const worn = equippedIn(character, slot);
-    const extra = extras[slot];
-    const alternatives = extra?.candidates ?? candidatesFor(character, slot).map((item) => ({ item, note: '', better: false }));
+  const doll = el('div', 'doll');
+  // The spec's own talent artwork, the same picture the calculator puts behind a
+  // tree, dimmed far enough that item names stay readable on top of it.
+  doll.style.backgroundImage =
+    'linear-gradient(rgba(18,18,18,.80), rgba(18,18,18,.90)), url(' + bgUrl(character.specId) + ')';
 
-    const row = el('div', 'dslot');
-    const label = el('div', 'dslot__label', SLOT_LABEL[slot]);
-    row.appendChild(label);
+  doll.appendChild(
+    slotColumn(character, PAPERDOLL.left, extras, selected, onSelect, 'doll__col doll__col--left'),
+  );
+  doll.appendChild(
+    slotColumn(character, PAPERDOLL.right, extras, selected, onSelect, 'doll__col doll__col--right'),
+  );
+  doll.appendChild(slotColumn(character, PAPERDOLL.weapons, extras, selected, onSelect, 'doll__weapons'));
 
-    const main = el('div', 'dslot__main');
-    if (worn) main.appendChild(itemCell(worn, extra?.note));
-    else main.appendChild(el('div', 'dslot__empty', 'Nothing equipped'));
-    row.appendChild(main);
-
-    if (alternatives.length) {
-      const details = document.createElement('details');
-      details.className = 'dalt';
-      const summary = document.createElement('summary');
-      const better = alternatives.filter((a) => a.better).length;
-      summary.textContent = better
-        ? better + ' of ' + alternatives.length + ' you own score higher'
-        : alternatives.length + ' other' + (alternatives.length === 1 ? '' : 's') + ' you own';
-      if (better) summary.className = 'dalt__summary--up';
-      details.appendChild(summary);
-      for (const alt of alternatives) {
-        const cell = itemCell(alt.item, alt.note);
-        if (alt.better) cell.classList.add('ditem--up');
-        details.appendChild(cell);
-      }
-      row.appendChild(details);
-    }
-
-    body.appendChild(row);
-  }
+  body.appendChild(doll);
+  if (selected) body.appendChild(altTray(character, selected, extras[selected], onSelect));
 
   panel.appendChild(body);
   return panel;

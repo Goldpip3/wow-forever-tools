@@ -660,3 +660,30 @@
 }
 .rcmd__desc { color: var(--ink2); font-size: 13px; line-height: 1.5; margin: 0 0 4px; }
 .rcmd__subs { color: var(--muted); font-size: 11.5px; font-family: var(--font-narrow); }
+
+/* ---------- signed in ---------- */
+.acct { display: flex; align-items: center; gap: 9px; margin-bottom: 10px; }
+.acct__avatar { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--line); }
+.acct__name { font-weight: 700; color: var(--ink); flex: 1; }
+
+.guildrow {
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.guildrow__head { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+.guildrow__name { font-weight: 700; color: var(--gold); }
+
+.evlist { display: grid; gap: 4px; margin-top: 6px; }
+.evrow {
+  display: flex; align-items: center; gap: 9px;
+  padding: 6px 8px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.evrow__body { flex: 1; min-width: 0; }
+.evrow__title { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; }
+.evrow__meta { color: var(--muted); font-size: 11.5px; font-family: var(--font-narrow); }
