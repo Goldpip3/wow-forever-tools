@@ -478,44 +478,59 @@ export function seatAll(
     const list = blocks.get(key) ?? [];
     if (!list.length) continue;
 
-    /* Groups this block may use: ones already mostly this kind first, then whatever is
-       still free, so a block stays together rather than scattering. */
+    /*
+     * Groups this block may use, best first: ones already mostly this kind, then ones
+     * nobody has touched, and only then somebody else's leftovers.
+     *
+     * The middle rank matters. Without it a block spilled into whatever seats the previous
+     * block happened to leave, which put the casters' Elemental Shaman and Moonkin into the
+     * hunters' group and left five mages sitting in a group with no buffs at all. A carrier
+     * has to anchor a group its own people will fill.
+     */
+    const rank = (g: number): number => {
+      if (claimed.get(g) === key) return 0;
+      return (seatsByGroup.get(g)?.length ?? 0) === GROUP_SIZE ? 1 : 2;
+    };
     const mine = [...seatsByGroup.keys()]
       .filter((g) => seatsByGroup.get(g)!.length)
-      .sort((a, b) => {
-        const aMine = claimed.get(a) === key ? 0 : 1;
-        const bMine = claimed.get(b) === key ? 0 : 1;
-        if (aMine !== bMine) return aMine - bMine;
-        return a - b;
-      });
+      .sort((a, b) => rank(a) - rank(b) || a - b);
 
     const need = Math.ceil(list.length / GROUP_SIZE);
     const using = mine.slice(0, Math.max(1, need));
 
-    // Round-robin, so the carriers at the front of the list land in different groups.
-    let i = 0;
-    for (const player of list) {
-      let placed = false;
-      for (let tries = 0; tries < using.length && !placed; tries += 1) {
-        const g = using[(i + tries) % using.length]!;
-        const seat = seatsByGroup.get(g)?.pop();
-        if (!seat) continue;
-        roster.groups[seat.group]![seat.slot] = player;
-        seated.push(player);
-        placed = true;
+    const place = (player: Player, group: number | undefined): boolean => {
+      const seat = group === undefined ? undefined : seatsByGroup.get(group)?.pop();
+      const spare = seat ?? [...seatsByGroup.values()].find((rest) => rest.length)?.pop();
+      if (!spare) {
+        left.push(player);
+        return false;
       }
-      if (!placed) {
-        // The block's own groups filled up; take the next free seat anywhere.
-        const spare = [...seatsByGroup.values()].find((list2) => list2.length)?.pop();
-        if (!spare) {
-          left.push(player);
-          continue;
-        }
-        roster.groups[spare.group]![spare.slot] = player;
-        seated.push(player);
+      roster.groups[spare.group]![spare.slot] = player;
+      seated.push(player);
+      return true;
+    };
+
+    /*
+     * One carrier per group, then fill each carrier's group up before opening the next.
+     *
+     * Dealing the whole block round-robin was wrong with a single carrier: Windfury only
+     * reaches the Shaman's own group, so six melee and one Enhancement Shaman spread over
+     * two groups left three of them swinging without it. Anchoring a group on each carrier
+     * and filling it to capacity puts as many beneficiaries as will fit next to the totem,
+     * and only the overflow goes somewhere else.
+     */
+    const carriers = list.filter((p) => servesArchetype(p) === key);
+    const rest = list.filter((p) => servesArchetype(p) !== key);
+
+    carriers.forEach((player, idx) => place(player, using[idx % using.length]));
+
+    for (const group of using) {
+      while (rest.length && (seatsByGroup.get(group)?.length ?? 0) > 0) {
+        place(rest.shift()!, group);
       }
-      i += 1;
     }
+    // Anyone the block's own groups could not hold takes a seat wherever one is left.
+    for (const player of rest) place(player, undefined);
   }
 
   return { seated, left };

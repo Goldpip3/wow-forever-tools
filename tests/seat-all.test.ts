@@ -156,3 +156,66 @@ describe('seating everyone at once', () => {
     expect(groups[0]).not.toBe(groups[1]);
   });
 });
+
+describe('seating around the party buff that matters most', () => {
+  /** The group a player ended up in, or -1. */
+  function groupOf(roster: Roster, p: Player): number {
+    for (let g = 0; g < 8; g += 1) {
+      if ((roster.groups[g] ?? []).some((x) => x?.id === p.id)) return g;
+    }
+    return -1;
+  }
+
+  it('packs the melee around the one Enhancement Shaman', () => {
+    /* Windfury Totem only reaches the Shaman's own group, so with six melee and one
+       Shaman the answer is five of them beside the totem and one left over, not three
+       and three. */
+    const roster = emptyRoster(20);
+    const waiting: Player[] = [];
+    const shaman = spreadChoices(createPlayer('shaman', 263), waiting);
+    waiting.push(shaman);
+    for (const [c, s] of [
+      ['warrior', 161], ['warrior', 161], ['rogue', 181], ['rogue', 183], ['paladin', 383],
+    ] as Array<[ClassId, number]>) {
+      waiting.push(spreadChoices(createPlayer(c, s), waiting));
+    }
+    seatAll(roster, waiting);
+
+    const shamanGroup = groupOf(roster, shaman);
+    const withHim = waiting.filter((p) => p !== shaman && groupOf(roster, p) === shamanGroup);
+    expect(withHim.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it('gives two Enhancement Shamans a group each rather than one group both', () => {
+    const roster = emptyRoster(40);
+    const waiting: Player[] = [];
+    const a = spreadChoices(createPlayer('shaman', 263), waiting); waiting.push(a);
+    const b = spreadChoices(createPlayer('shaman', 263), waiting); waiting.push(b);
+    for (let i = 0; i < 8; i += 1) {
+      waiting.push(spreadChoices(createPlayer('warrior', 161), waiting));
+    }
+    seatAll(roster, waiting);
+    expect(groupOf(roster, a)).not.toBe(groupOf(roster, b));
+  });
+
+  it('wastes no melee seat on the roster the raid leader was looking at', () => {
+    const roster = emptyRoster(20);
+    const waiting: Player[] = [];
+    for (const [c, s] of [
+      ['hunter', 361], ['paladin', 383], ['rogue', 181],
+      ['warrior', 161], ['rogue', 183], ['warrior', 161], ['shaman', 263],
+      ['warlock', 302], ['priest', 203], ['druid', 282], ['druid', 282],
+    ] as Array<[ClassId, number]>) {
+      waiting.push(spreadChoices(createPlayer(c, s), waiting));
+    }
+    seatAll(roster, waiting);
+
+    const shaman = waiting.find((p) => p.specId === 263)!;
+    const shamanGroup = groupOf(roster, shaman);
+    const meleeWithHim = (roster.groups[shamanGroup] ?? []).filter(
+      (p) => p && p !== shaman && ['melee', 'tank'].includes(archetypeFor(p)),
+    ).length;
+    // Four seats beside him, and melee to fill them.
+    expect(meleeWithHim).toBeGreaterThanOrEqual(3);
+  });
+});
