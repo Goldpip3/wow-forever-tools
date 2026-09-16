@@ -84,7 +84,9 @@ async function main() {
     attribution: data.attribution,
     source: SOURCE,
     talents: data.talents,
-    spellbooks: data.spellbooks,
+    /* No spellbooks. The level 38 spellbook had one reader, the section under Talents, and
+       that section is gone. It was 18 KB of a 373 KB file that every visitor downloaded and
+       nothing opened. spell_desc stays: it is what the raid tooltips read. */
     spell_desc: data.spell_desc,
     racials: data.racials,
     class_racials: data.class_racials,

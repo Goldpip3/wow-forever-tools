@@ -75,21 +75,6 @@ export interface RaceInfo {
   abilities: Array<[string, string, string]>;
 }
 
-export interface SpellbookTab {
-  name: string;
-  /** [name, rank] */
-  spells: Array<[string, string]>;
-}
-
-export interface Spellbook {
-  race: string;
-  level: number;
-  seen?: string;
-  missing?: string[];
-  general?: Array<[string, string]>;
-  tabs: SpellbookTab[];
-}
-
 export interface LegacyTree {
   name: string;
   icon: string;
@@ -110,7 +95,6 @@ export interface TalentData {
   attribution: string;
   source: string;
   talents: Record<string, ClassTalents>;
-  spellbooks: Record<string, Spellbook>;
   spell_desc: Record<string, unknown>;
   racials: Record<string, Record<string, RaceInfo>>;
   class_racials?: Record<string, unknown>;

@@ -500,3 +500,24 @@ describe('ranks between two read ranks', () => {
     expect(percents).toEqual(['4', '8', '12', '16', '20']);
   });
 });
+
+describe('what actually ships in the data file', () => {
+  it('does not carry the level 38 spellbook any more', () => {
+    /* It had one reader, the section under Talents, and that section is gone. 18 KB of a
+       373 KB file that every visitor downloaded and nothing opened. This fails loudly if a
+       re-import puts it back, because the importer is the only thing stopping it. */
+    expect((DATA as Record<string, unknown>).spellbooks).toBeUndefined();
+  });
+
+  it('still carries what the raid tooltips read', () => {
+    // spell_desc is a different key and is what puts real game text in the drawer.
+    expect(Object.keys(DATA.spell_desc ?? {}).length).toBeGreaterThan(100);
+  });
+
+  it('still carries everything the Talents page draws', () => {
+    expect(Object.keys(DATA.talents).length).toBe(9);
+    expect(DATA.racials).toBeTruthy();
+    expect(DATA.class_abilities).toBeTruthy();
+    expect(DATA.legacy?.trees?.length).toBeGreaterThan(0);
+  });
+});
