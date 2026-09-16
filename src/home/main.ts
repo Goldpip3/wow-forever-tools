@@ -1,4 +1,5 @@
 import { renderHeader, renderFooter } from '../shared/header';
+import { accountView, loadUser } from '../shared/session';
 import { CLASS_LIST } from '../shared/classes';
 import { iconImg } from '../shared/icons';
 
@@ -205,7 +206,7 @@ function render(): void {
   if (!app) return;
   app.replaceChildren();
 
-  renderHeader({ page: 'home' });
+  renderHeader({ page: 'home', account: accountView(render) });
 
   app.appendChild(hero());
   app.appendChild(features());
@@ -216,3 +217,6 @@ function render(): void {
 }
 
 render();
+
+/* Ask once who is signed in, and repaint the header when the answer lands. */
+void loadUser(render);

@@ -1,4 +1,5 @@
 import { renderFooter, renderHeader } from '../shared/header';
+import { accountView, loadUser } from '../shared/session';
 import { copyText, toast } from '../shared/toast';
 import { KEY_CHARACTERS, KEY_PREFS, readJson, writeJson } from '../shared/storage';
 import { attachTooltips } from '../shared/tooltip';
@@ -413,6 +414,7 @@ function draw(): void {
 
   renderHeader({
     page: 'dps',
+    account: accountView(draw),
   });
 
   if (!character) {
@@ -544,6 +546,9 @@ window.addEventListener('hashchange', () => {
 
 loadPrefs();
 readHash();
+
+/* Ask once who is signed in, and repaint the header when the answer lands. */
+void loadUser(draw);
 
 // The build code needs the talent file, which lands after the first paint.
 void loadTalentData()

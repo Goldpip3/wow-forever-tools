@@ -1,4 +1,5 @@
 import { renderFooter, renderHeader } from '../shared/header';
+import { accountView, loadUser } from '../shared/session';
 import { CLASSES, type ClassId } from '../shared/classes';
 import { copyText, toast } from '../shared/toast';
 import { KEY_BUILDS, KEY_PREFS, readJson, writeJson } from '../shared/storage';
@@ -144,7 +145,7 @@ function draw(): void {
   const scrollY = window.scrollY;
   app.replaceChildren();
 
-  renderHeader({ page: 'talents' });
+  renderHeader({ page: 'talents', account: accountView(draw) });
 
   app.appendChild(renderClassTabs(build.classKey));
 
@@ -339,6 +340,7 @@ async function start(): Promise<void> {
     app.replaceChildren();
     renderHeader({
       page: 'talents',
+      account: accountView(draw),
     });
     app.appendChild(
       el(
@@ -360,3 +362,8 @@ async function start(): Promise<void> {
 }
 
 void start();
+
+/* Ask once who is signed in, and repaint the header when the answer lands. */
+void loadUser(() => {
+  if (data) draw();
+});

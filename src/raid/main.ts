@@ -1,4 +1,14 @@
-import { renderFooter, renderHeader, type AccountView } from '../shared/header';
+import { renderFooter, renderHeader } from '../shared/header';
+import {
+  accountView,
+  currentUser,
+  loadUser,
+  takeSignInOutcome,
+  beginSignIn,
+  signOut,
+  SIGN_IN_MESSAGE,
+  type Me,
+} from '../shared/session';
 import { copyText, toast } from '../shared/toast';
 import { KEY_ROSTERS, readJson, writeJson } from '../shared/storage';
 import { CLASSES, type ClassId } from '../shared/classes';
@@ -40,15 +50,9 @@ import {
   type RosterLink,
   type RosterState,
   fetchCommandDocs,
-  fetchMe,
   fetchGuildEvents,
-  beginSignIn,
-  signOut,
-  takeSignInOutcome,
-  SIGN_IN_MESSAGE,
   type CommandDocs,
   type RosterAccess,
-  type Me,
   type GuildEvent,
   type SaveState,
 } from './roster-mode';
@@ -98,38 +102,12 @@ let docsRequested = false;
 let cachedDocs: CommandDocs | null = null;
 /** Open events per guild, filled in only when somebody asks for them. */
 let guildEvents: Record<string, GuildEvent[]> = {};
-/* Declared here, not beside renderAccount. Module state read by a function that runs
-   during bootstrap must be declared above it, or it is still in its dead zone. That has
-   now caught three separate additions to this file. */
-let me: Me | null = null;
-let meRequested = false;
 
 function el(tag: string, cls?: string, text?: string): HTMLElement {
   const node = document.createElement(tag);
   if (cls) node.className = cls;
   if (text !== undefined) node.textContent = text;
   return node;
-}
-
-/**
- * What the header shows on the right. A function declaration, so the calls made during
- * bootstrap reach it, and one definition so signing out behaves the same from any page.
- */
-function accountView(): AccountView {
-  return {
-    user: me ? { username: me.user.username, avatarUrl: me.user.avatarUrl } : null,
-    rosterHref: href('raid.html') + '#roster',
-    onSignIn: () => beginSignIn(),
-    onSignOut: () => {
-      void signOut().then(() => {
-        me = null;
-        meRequested = false;
-        guildEvents = {};
-        draw();
-        toast('Signed out');
-      });
-    },
-  };
 }
 
 function savedRosters(): SavedRoster[] {
@@ -500,7 +478,7 @@ function draw(): void {
   const coverage = computeCoverage(roster);
   const suggestions = suggestSwaps(roster, coverage);
 
-  renderHeader({ page: 'raid', account: accountView() });
+  renderHeader({ page: 'raid', account: accountView(draw) });
 
   app.appendChild(renderToolbar(roster, coverage, handlers));
   const alerts = renderAlertBar(coverage);
@@ -948,7 +926,7 @@ function drawRoster(): void {
   const suggestions = suggestSwaps(roster, coverage);
   const canEdit = rosterState.permissions.canEdit;
 
-  renderHeader({ page: 'roster', account: accountView() });
+  renderHeader({ page: 'roster', account: accountView(draw) });
 
   app.appendChild(
     renderRosterBar(
@@ -1027,11 +1005,11 @@ function drawRosterIntro(): void {
   if (!app) return;
   mode = 'intro';
   app.replaceChildren();
-  renderHeader({ page: 'roster', account: accountView() });
+  renderHeader({ page: 'roster', account: accountView(draw) });
   app.appendChild(renderRosterIntro());
   app.appendChild(renderFooter());
 
-  void loadMe();
+  void loadUser(draw);
 
   /* The bot describes its own commands, so the steps above stop being this page's guess.
      Fired after the render and ignored if it fails: most people reading this have not set
@@ -1065,7 +1043,7 @@ function enterDemoMode(): void {
 function drawRosterError(message: string): void {
   if (!app) return;
   app.replaceChildren();
-  renderHeader({ page: 'roster', account: accountView() });
+  renderHeader({ page: 'roster', account: accountView(draw) });
   const panel = el('section', 'panel');
   panel.appendChild(el('div', 'panel__head', 'This roster did not open'));
   const body = el('div', 'panel__body');
@@ -1093,7 +1071,7 @@ async function enterRosterMode(found: RosterLink | null, eventId?: string): Prom
   access = accessFor(found, eventId);
   if (app) {
     app.replaceChildren();
-    renderHeader({ page: 'roster', account: accountView() });
+    renderHeader({ page: 'roster', account: accountView(draw) });
     app.appendChild(el('p', 'drawer__hint', 'Opening the roster…'));
   }
   try {
@@ -1417,29 +1395,15 @@ const ROLE_LABEL_WEB: Record<Me['guilds'][number]['role'], string> = {
   member: 'Member',
 };
 
-/**
- * Whoever is signed in, fetched once.
- *
- * A 401 is the ordinary signed-out state and resolves null, so this never throws and the
- * explainer never waits on it. Roster mode does not need it at all: a signed link
- * authorises by itself.
- */
-async function loadMe(): Promise<void> {
-  if (meRequested) return;
-  meRequested = true;
-  me = await fetchMe();
-  if (mode === 'intro') drawRosterIntro();
-}
-
 /** The panel at the top of the Roster page: who you are, or a way to become somebody. */
 function renderAccount(): HTMLElement {
   const panel = el('section', 'panel');
   const head = el('div', 'panel__head');
-  head.appendChild(el('span', '', me ? 'Signed in' : 'Your servers'));
+  head.appendChild(el('span', '', currentUser() ? 'Signed in' : 'Your servers'));
   panel.appendChild(head);
   const body = el('div', 'panel__body');
 
-  if (!me) {
+  if (!currentUser()) {
     body.appendChild(
       el(
         'p',
@@ -1464,28 +1428,26 @@ function renderAccount(): HTMLElement {
   }
 
   const who = el('div', 'acct');
-  if (me.user.avatarUrl) {
+  if (currentUser()!.user.avatarUrl) {
     const img = document.createElement('img');
     img.className = 'acct__avatar';
-    img.src = me.user.avatarUrl;
+    img.src = currentUser()!.user.avatarUrl!;
     img.alt = '';
     who.appendChild(img);
   }
-  who.appendChild(el('div', 'acct__name', me.user.username));
+  who.appendChild(el('div', 'acct__name', currentUser()!.user.username));
   const out = el('button', 'btn btn--sm', 'Sign out');
   out.addEventListener('click', () => {
     void signOut().then(() => {
-      me = null;
-      meRequested = false;
       guildEvents = {};
-      drawRosterIntro();
+      draw();
       toast('Signed out');
     });
   });
   who.appendChild(out);
   body.appendChild(who);
 
-  if (!me.guilds.length) {
+  if (!currentUser()!.guilds.length) {
     body.appendChild(
       el(
         'p',
@@ -1497,7 +1459,7 @@ function renderAccount(): HTMLElement {
     return panel;
   }
 
-  for (const guild of me.guilds) {
+  for (const guild of currentUser()!.guilds) {
     const row = el('div', 'guildrow');
     const title = el('div', 'guildrow__head');
     title.appendChild(el('span', 'guildrow__name', guild.name));

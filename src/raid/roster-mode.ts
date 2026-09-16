@@ -18,16 +18,10 @@ import { GROUP_COUNT, GROUP_SIZE } from './types';
 import { emptyRoster } from './engine';
 import { createPlayer } from './loadout';
 import { specFromSignup, specKeyForSpecId } from './groupbuilder';
+import { API_BASE } from '../shared/session';
 
-/**
- * Where the bot lives. The one place the API's address appears.
- *
- * Override at build time with VITE_API_BASE when self-hosting; otherwise dev builds talk
- * to the bot running on the same machine and production talks to the deployed one.
- */
-export const API_BASE: string =
-  (import.meta.env.VITE_API_BASE as string | undefined) ??
-  (import.meta.env.DEV ? 'http://localhost:3000' : 'https://api.wowforever.us');
+export { API_BASE };
+
 
 /* ------------------------------------------------------------------ the link */
 
@@ -686,26 +680,8 @@ export async function fetchCommandDocs(): Promise<CommandDocs | null> {
   }
 }
 
-/* ------------------------------------------------------------------ signing in */
 
-/**
- * Who is signed in, and what they may do in each of their servers.
- *
- * The planner asks and renders; it never decides. Every flag here comes from the same
- * permissions code that gates the bot's own slash commands, so the two cannot disagree.
- */
-export interface Me {
-  user: { id: string; username: string; avatarUrl?: string };
-  guilds: Array<{
-    id: string;
-    name: string;
-    iconUrl?: string;
-    role: 'admin' | 'manager' | 'assistant' | 'member';
-    canCreate: boolean;
-    canEditAny: boolean;
-  }>;
-}
-
+/** Open events in a guild, for the picker. Authorised by the session, not a link. */
 export interface GuildEvent {
   id: string;
   title: string;
@@ -719,26 +695,6 @@ export interface GuildEvent {
   canEdit: boolean;
 }
 
-/**
- * The signed-in person, or null when nobody is.
- *
- * A 401 here is the ordinary signed-out state rather than a failure, so it resolves null
- * instead of throwing. Anything else that goes wrong resolves null too: not knowing who
- * you are is the same outcome either way, and the page has a sign-in button for it.
- */
-export async function fetchMe(): Promise<Me | null> {
-  try {
-    const res = await fetch(API_BASE + '/api/v4/me', {
-      credentials: 'include',
-      headers: { Accept: 'application/json' },
-    });
-    if (!res.ok) return null;
-    return (await res.json()) as Me;
-  } catch {
-    return null;
-  }
-}
-
 export async function fetchGuildEvents(guildId: string): Promise<GuildEvent[]> {
   const res = await fetch(
     API_BASE + '/api/v4/guilds/' + encodeURIComponent(guildId) + '/events?status=open',
@@ -748,50 +704,3 @@ export async function fetchGuildEvents(guildId: string): Promise<GuildEvent[]> {
   const data = (await res.json()) as { events?: GuildEvent[] };
   return data.events ?? [];
 }
-
-export async function signOut(): Promise<void> {
-  try {
-    await fetch(API_BASE + '/api/v4/auth/signout', {
-      method: 'POST',
-      credentials: 'include',
-    });
-  } catch {
-    /* the cookie is the server's to clear; a failure here is not worth interrupting */
-  }
-}
-
-/**
- * Start signing in.
- *
- * A top-level navigation, not a fetch: the redirect to Discord cannot happen inside XHR.
- * `return_to` brings the person back to the page they were on, and the bot ignores any
- * value that is not on this origin, so it cannot be used as an open redirect.
- */
-export function beginSignIn(returnTo: string = location.href): void {
-  location.href =
-    API_BASE + '/auth/discord?return_to=' + encodeURIComponent(returnTo);
-}
-
-export type SignInOutcome = 'ok' | 'cancelled' | 'expired' | 'failed';
-
-/**
- * Read and clear the result the callback leaves in the fragment.
- *
- * `expired` means the state cookie aged out, which usually means somebody sat on Discord's
- * consent screen for ten minutes. That is not an error to report, it is a prompt to try
- * again.
- */
-export function takeSignInOutcome(): SignInOutcome | null {
-  const match = /[#&]signin=(ok|cancelled|expired|failed)\b/.exec(location.hash);
-  if (!match) return null;
-  const cleaned = location.hash.replace(/[#&]signin=[a-z]+/, '').replace(/^&/, '#');
-  history.replaceState(null, '', location.pathname + location.search + (cleaned === '#' ? '' : cleaned));
-  return match[1] as SignInOutcome;
-}
-
-export const SIGN_IN_MESSAGE: Record<SignInOutcome, string> = {
-  ok: 'Signed in.',
-  cancelled: 'Sign-in cancelled.',
-  expired: 'That took a little long, so the sign-in expired. Try again.',
-  failed: 'Discord could not sign you in. Try again.',
-};
