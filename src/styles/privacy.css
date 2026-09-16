@@ -1,0 +1,37 @@
+/* The privacy page is the only page on the site that is purely prose, so it is the only
+   one that needs a measure. .wrap is 1180px wide because a talent tree and a raid grid
+   need that much; a paragraph set that wide is hard to read, so the column is capped here
+   instead of changing .wrap for everyone. */
+
+.privacy-page { max-width: 78ch; }
+
+.page-title {
+  font-family: var(--font-title);
+  color: var(--gold);
+  font-size: clamp(24px, 3.4vw, 34px);
+  line-height: 1.15;
+  margin: 18px 0 10px;
+}
+
+.page-lead {
+  color: var(--ink2);
+  font-size: 15px;
+  margin: 0 0 18px;
+}
+
+/* The panel body is shared with the tools, where it holds controls rather than sentences.
+   Prose needs the spacing the tools do not. */
+.privacy-page .panel { margin-bottom: 14px; }
+.privacy-page .panel__body p { margin: 0 0 10px; }
+.privacy-page .panel__body p:last-child { margin-bottom: 0; }
+.privacy-page .panel__body ul { margin: 0 0 10px; padding-left: 20px; }
+.privacy-page .panel__body li { margin: 3px 0; }
+
+.privacy-page .panel__body code {
+  font-size: 12.5px;
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, .06);
+  border: 1px solid var(--line);
+  color: var(--ink2);
+}

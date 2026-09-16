@@ -10,6 +10,7 @@ export default defineConfig({
         talents: resolve(__dirname, 'talents.html'),
         raid: resolve(__dirname, 'raid.html'),
         dps: resolve(__dirname, 'dps.html'),
+        privacy: resolve(__dirname, 'privacy.html'),
       },
     },
   },

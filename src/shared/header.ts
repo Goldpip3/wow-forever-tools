@@ -19,7 +19,7 @@ export interface HeaderOptions {
   /** Rendered on the right of the header, after the tool links. */
   nav?: HTMLElement[];
   /** Which page is current, so its nav link can be marked. */
-  page: 'home' | 'talents' | 'raid' | 'dps' | 'roster';
+  page: 'home' | 'talents' | 'raid' | 'dps' | 'roster' | 'privacy';
 }
 
 const BASE = import.meta.env.BASE_URL ?? '/';
@@ -100,6 +100,7 @@ export function renderFooter(): HTMLElement {
     <p>Fan-made and not affiliated with Blizzard Entertainment. Icons and art are Blizzard’s.</p>
     <p>WoW Forever is new and the numbers can lag the live game. Anything marked
       <span class="pill pill--unverified">unverified</span> has not been confirmed yet.</p>
+    <p><a href="${href('privacy.html')}">Privacy</a></p>
   `;
   return footer;
 }
