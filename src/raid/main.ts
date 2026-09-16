@@ -39,6 +39,8 @@ import {
   type ApiFailure,
   type RosterLink,
   type RosterState,
+  fetchCommandDocs,
+  type CommandDocs,
   type SaveState,
 } from './roster-mode';
 import { renderDrawer } from './drawer';
@@ -78,6 +80,11 @@ let saveState: SaveState = 'idle';
 let saveDetail: string | undefined;
 /** Where the hash pointed last, so a same-document turn knows which way it travelled. */
 let lastRail = 0;
+/* Fetched once per page rather than once per render of the explainer. Declared up here
+   with the other module state: drawRosterIntro runs during bootstrap, so a let further
+   down the file is still in its dead zone when it is first read. */
+let docsRequested = false;
+let cachedDocs: CommandDocs | null = null;
 
 function el(tag: string, cls?: string, text?: string): HTMLElement {
   const node = document.createElement(tag);
@@ -981,6 +988,19 @@ function drawRosterIntro(): void {
   renderHeader({ page: 'roster' });
   app.appendChild(renderRosterIntro());
   app.appendChild(renderFooter());
+
+  /* The bot describes its own commands, so the steps above stop being this page's guess.
+     Fired after the render and ignored if it fails: most people reading this have not set
+     the bot up yet, so being unreachable is the normal case rather than an error. */
+  if (!docsRequested) {
+    docsRequested = true;
+    void fetchCommandDocs().then((docs) => {
+      cachedDocs = docs;
+      if (docs && mode === 'intro') enhanceRosterIntro(docs);
+    });
+  } else if (cachedDocs && mode === 'intro') {
+    enhanceRosterIntro(cachedDocs);
+  }
 }
 
 /**
@@ -1139,7 +1159,10 @@ export function renderRosterIntro(): HTMLElement {
     'Seat people and publish',
     'The link works for two hours and covers one event. If it expires, run /roster again for a fresh one.',
   );
-  howBody.appendChild(steps);
+  const stepsHost = el('div');
+  stepsHost.id = 'rsteps-host';
+  stepsHost.appendChild(steps);
+  howBody.appendChild(stepsHost);
 
   howBody.appendChild(
     el(
@@ -1153,6 +1176,7 @@ export function renderRosterIntro(): HTMLElement {
 
   /* --- get on with something useful --- */
   const next = el('section', 'panel');
+  next.id = 'rintro-tail';
   next.appendChild(el('div', 'panel__head', 'While you set that up'));
   const nextBody = el('div', 'panel__body');
   nextBody.appendChild(
@@ -1223,10 +1247,20 @@ function sameDocumentTurn(direction: 'fwd' | 'back', render: () => void): void {
   }
 
   root.setAttribute('data-nav', direction);
-  const transition = start.call(document, render);
+  /* Clicking two tabs quickly starts a turn while one is still running, and the browser
+     rejects the second with InvalidStateError. The render still has to happen, so it
+     falls back to doing it plainly rather than leaving the page on the old view. */
+  let transition: { finished: Promise<void> };
+  try {
+    transition = start.call(document, render);
+  } catch {
+    root.removeAttribute('data-nav');
+    render();
+    return;
+  }
   // Leave the attribute alone until the turn is over, or the rules stop matching midway
   // and the page finishes the animation in the wrong direction.
-  void transition.finished.finally(() => root.removeAttribute('data-nav'));
+  void transition.finished.catch(() => {}).finally(() => root.removeAttribute('data-nav'));
 }
 
 /**
@@ -1237,4 +1271,86 @@ function sameDocumentTurn(direction: 'fwd' | 'back', render: () => void): void {
  */
 function railPosition(hash: string): number {
   return /^#?roster/.test(hash) ? 1 : 0;
+}
+
+/**
+ * Replace the hand-written setup steps with the bot's own, once they arrive.
+ *
+ * The page has already rendered and is already useful; this only ever improves it. If the
+ * bot is unreachable — which is most of the time, for anyone who has not set it up yet —
+ * nothing happens and the static steps stand.
+ */
+function enhanceRosterIntro(docs: CommandDocs): void {
+  const host = document.getElementById('rsteps-host');
+  if (!host || !docs.guide.setup.length) return;
+
+  const steps = document.createElement('ol');
+  steps.className = 'rsteps';
+  for (const step of docs.guide.setup) {
+    const li = document.createElement('li');
+    li.appendChild(el('div', 'rsteps__title', step.title));
+    const body = el('div', 'rsteps__detail', step.body);
+    if (step.link) {
+      const a = document.createElement('a');
+      a.href = step.link;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.textContent = 'Open';
+      a.style.marginLeft = '6px';
+      body.appendChild(a);
+    }
+    li.appendChild(body);
+    steps.appendChild(li);
+  }
+  host.replaceChildren(steps);
+
+  /* What the bot actually accepts, rather than what this page remembers it accepting.
+     adminOnly marks Manage Server, which is only /settings. The event commands are gated
+     on a role each server configures for itself, and the command definition cannot know
+     that, so it is said in prose rather than invented as a flag. */
+  const cmds = el('section', 'panel');
+  cmds.appendChild(el('div', 'panel__head', 'The commands'));
+  const cbody = el('div', 'panel__body');
+  const list = el('div', 'rcmds');
+  for (const c of docs.commands) {
+    const row = el('div', 'rcmd');
+    const head = el('div', 'rcmd__name', '/' + c.name);
+    if (c.adminOnly) {
+      const pill = el('span', 'pill pill--unverified', 'manage server');
+      pill.title = 'Needs the Manage Server permission in Discord.';
+      head.appendChild(pill);
+    }
+    row.appendChild(head);
+    row.appendChild(el('div', 'rcmd__desc', c.description));
+    if (c.subcommands.length) {
+      row.appendChild(
+        el('div', 'rcmd__subs', c.subcommands.map((s) => c.name + ' ' + s.name).join(' · ')),
+      );
+    }
+    list.appendChild(row);
+  }
+  cbody.appendChild(list);
+  cbody.appendChild(
+    el(
+      'p',
+      'drawer__hint',
+      'Creating events needs the manager or assistant role, which each server sets for itself with /settings. That is why it is not marked above: the command itself does not know, the server does.',
+    ),
+  );
+  cmds.appendChild(cbody);
+
+  const anchor = document.getElementById('rintro-tail');
+  anchor?.parentNode?.insertBefore(cmds, anchor);
+
+  if (docs.guide.gotchas.length) {
+    const gotchas = el('section', 'panel');
+    gotchas.appendChild(el('div', 'panel__head', 'When it does not work'));
+    const gbody = el('div', 'panel__body');
+    for (const g of docs.guide.gotchas) {
+      gbody.appendChild(el('div', 'rcmd__name', g.problem));
+      gbody.appendChild(el('p', 'rcmd__desc', g.answer));
+    }
+    gotchas.appendChild(gbody);
+    anchor?.parentNode?.insertBefore(gotchas, anchor);
+  }
 }

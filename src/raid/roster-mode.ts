@@ -620,3 +620,50 @@ export function demoPayload(): RosterPayload {
 export function isDemo(state: RosterState): boolean {
   return state.event.id === 'demo';
 }
+
+/* ------------------------------------------------------------- command docs */
+
+/**
+ * The bot's own description of its commands and how to set it up.
+ *
+ * Generated from the command builders, so it cannot drift from what the bot actually
+ * accepts. The roster page had the setup steps written out by hand and three command
+ * names changed underneath it within a day, which is the drift this exists to stop.
+ *
+ * Public and unauthenticated: no token goes near this call. It is an enhancement, never a
+ * dependency — the page renders its own steps first and corrects them if this arrives.
+ */
+export interface CommandDoc {
+  name: string;
+  description: string;
+  adminOnly: boolean;
+  subcommands: Array<{ name: string; description: string }>;
+  options: Array<{ name: string; description: string; required: boolean }>;
+}
+
+export interface CommandDocs {
+  commands: CommandDoc[];
+  guide: {
+    setup: Array<{ title: string; body: string; link?: string }>;
+    signingUp: string[];
+    running: string[];
+    gotchas: Array<{ problem: string; answer: string }>;
+  };
+  /** Unix seconds. */
+  generatedAt: number;
+}
+
+/** Resolves to null rather than throwing: a page must not break because docs are down. */
+export async function fetchCommandDocs(): Promise<CommandDocs | null> {
+  try {
+    const res = await fetch(API_BASE + '/api/v4/docs/commands', {
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as CommandDocs;
+    if (!Array.isArray(data.commands) || !data.guide) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
