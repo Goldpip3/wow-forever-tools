@@ -1046,6 +1046,8 @@ export interface PoolView {
   canEdit: boolean;
   /** Signups whose class or spec the planner could not read. */
   unmapped: Array<{ name: string; classKey: string; specKey: string | null }>;
+  /** Signed up with no class at all, e.g. by pressing Bench. Nothing to seat. */
+  statusOnly: Array<{ name: string; status: string }>;
 }
 
 function poolRow(player: Player, h: RaidHandlers, canEdit: boolean, cut: boolean): HTMLElement {
@@ -1158,6 +1160,17 @@ export function renderPool(view: PoolView, h: RaidHandlers): HTMLElement {
     for (const player of view.cut) body.appendChild(poolRow(player, h, view.canEdit, true));
   }
 
+  /* Not an error. They pressed Bench or Absence instead of picking a class, so the
+     leader should still see they answered, but there is no spec to put in a seat. */
+  if (view.statusOnly.length) {
+    body.appendChild(el('div', 'section-label', 'Answered without a class'));
+    for (const s of view.statusOnly) {
+      body.appendChild(
+        el('p', 'drawer__hint', s.name + ' pressed ' + s.status + ', so there is no spec to seat.'),
+      );
+    }
+  }
+
   if (view.unmapped.length) {
     body.appendChild(el('div', 'section-label', 'Could not read'));
     for (const s of view.unmapped) {
@@ -1187,6 +1200,8 @@ export interface RosterBarView {
   saveState: 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
   saveDetail?: string;
   status: string;
+  /** A /testcreate event: the people in it are invented. */
+  isTest?: boolean;
   canEdit: boolean;
   canPublish: boolean;
   /** The made-up roster at #roster=demo, which never touches the network. */
@@ -1240,6 +1255,13 @@ export function renderRosterBar(view: RosterBarView, h: RaidHandlers): HTMLEleme
         (view.cut ? ', ' + view.cut + ' cut' : ''),
     ),
   );
+  /* A test roster and a real one are otherwise identical on screen, and one of them
+     messages real people. Say which this is before anything else in the bar. */
+  if (view.isTest) {
+    const pill = el('span', 'pill pill--changed', 'test event');
+    pill.title = 'The signups here are invented. Publishing messages nobody except you.';
+    mid.appendChild(pill);
+  }
   if (view.status === 'published') {
     const pill = el('span', 'pill pill--new', 'published');
     pill.title = 'Already posted to Discord. Saving again does not unpublish it.';

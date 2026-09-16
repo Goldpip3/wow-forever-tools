@@ -913,6 +913,7 @@ function drawRoster(): void {
         saveState,
         saveDetail,
         status: rosterState.status,
+        isTest: rosterState.event.isTest,
         canEdit,
         canPublish: rosterState.permissions.canPublish && !publishing,
         demo: isDemo(rosterState),
@@ -938,6 +939,7 @@ function drawRoster(): void {
         pool: rosterState.pool,
         cut: rosterState.cut,
         canEdit,
+        statusOnly: rosterState.statusOnly.map((s) => ({ name: s.name, status: s.classKey })),
         unmapped: rosterState.unmapped.map((s) => ({
           name: s.name,
           classKey: s.classKey,

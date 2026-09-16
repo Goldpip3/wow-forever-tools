@@ -62,6 +62,8 @@ export interface RosterEvent {
   guildId: string;
   channelId: string;
   size: number;
+  /** True for a /testcreate event, whose signups are fabricated. */
+  isTest?: boolean;
 }
 
 export interface Signup {
@@ -102,7 +104,7 @@ export interface RosterPayload {
   event: RosterEvent;
   signups: Signup[];
   roster: StoredRoster | null;
-  permissions: { canEdit: boolean; canPublish: boolean };
+  permissions: { canEdit: boolean; canPublish: boolean; canEditSettings?: boolean };
 }
 
 export interface PublishResult {
@@ -244,6 +246,19 @@ function toPlayer(
   return player;
 }
 
+/**
+ * Signups with a status where a class should be.
+ *
+ * Pressing Bench or Absence on the event post is a signup with no class at all, and the
+ * bot stores the status in classKey. They are real people saying something real, so they
+ * are not unreadable data: there is simply no spec to put in a seat.
+ */
+const STATUS_ONLY = new Set(['bench', 'absence', 'late', 'tentative', 'queued', 'primary']);
+
+export function isStatusOnly(signup: { classKey: string }): boolean {
+  return STATUS_ONLY.has(signup.classKey.toLowerCase());
+}
+
 export interface RosterState {
   event: RosterEvent;
   permissions: { canEdit: boolean; canPublish: boolean };
@@ -260,6 +275,8 @@ export interface RosterState {
   publishedAt: number | null;
   /** Signups whose class or spec the planner does not recognise. */
   unmapped: Signup[];
+  /** Signed up without a class at all, so there is nothing to seat. */
+  statusOnly: Signup[];
 }
 
 /** Build the editing state from one GET. */
@@ -271,6 +288,7 @@ export function stateFromPayload(payload: RosterPayload): RosterState {
   const pool: Player[] = [];
   const cut: Player[] = [];
   const unmapped: Signup[] = [];
+  const statusOnly: Signup[] = [];
 
   const signupByUser = new Map(payload.signups.map((s) => [s.userId, s]));
   const placed = new Set<string>();
@@ -324,7 +342,8 @@ export function stateFromPayload(payload: RosterPayload): RosterState {
       signup.status,
     );
     if (!player) {
-      unmapped.push(signup);
+      if (isStatusOnly(signup)) statusOnly.push(signup);
+      else unmapped.push(signup);
       continue;
     }
     pool.push(player);
@@ -342,6 +361,7 @@ export function stateFromPayload(payload: RosterPayload): RosterState {
     status: payload.roster?.status ?? 'draft',
     publishedAt: payload.roster?.publishedAt ?? null,
     unmapped,
+    statusOnly,
   };
 }
 
