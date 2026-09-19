@@ -13,7 +13,8 @@
     "assets": "node scripts/fetch-assets.mjs",
     "addon": "node scripts/pack-addon.mjs",
     "typecheck": "tsc --noEmit",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "import:items": "node scripts/import-items.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

@@ -3,6 +3,7 @@ dist
 .vite
 *.log
 scripts/missing-assets.txt
+data-raw
 
 test-results
 playwright-report

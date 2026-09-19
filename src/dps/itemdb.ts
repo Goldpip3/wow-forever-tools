@@ -47,7 +47,12 @@ export interface DbItem {
   set?: string;
   /** Classes it is meant for, when the list says. Empty means anyone. */
   classes?: ClassId[];
-  source: ItemSource;
+  /**
+   * Where it comes from, when that is known. The client's own tables say what
+   * an item is and never say where it drops, so a list built from them has
+   * none of this and the panel groups by item level instead.
+   */
+  source?: ItemSource;
 }
 
 export interface ItemDatabaseFile {
@@ -121,8 +126,8 @@ export function buildDatabase(file: ItemDatabaseFile): ItemDatabase {
       if (grouped) return grouped;
       grouped = new Map();
       for (const item of byId.values()) {
-        const zone = item.source.zone ?? labelFor(item.source.kind);
-        const boss = item.source.boss ?? 'Elsewhere';
+        const zone = item.source ? item.source.zone ?? labelFor(item.source.kind) : UNSOURCED;
+        const boss = item.source ? item.source.boss ?? 'Elsewhere' : bandFor(item.ilvl);
         const zoneMap = grouped.get(zone) ?? new Map<string, DbItem[]>();
         const list = zoneMap.get(boss) ?? [];
         list.push(item);
@@ -132,6 +137,15 @@ export function buildDatabase(file: ItemDatabaseFile): ItemDatabase {
       return grouped;
     },
   };
+}
+
+/** The heading for a list that does not say where anything drops. */
+export const UNSOURCED = 'Everything in the client tables';
+
+/** Ten item levels at a time, which is the only order an unsourced list has. */
+function bandFor(ilvl: number): string {
+  const floor = Math.max(0, Math.floor(ilvl / 10) * 10);
+  return `Item level ${floor} to ${floor + 9}`;
 }
 
 function labelFor(kind: ItemSource['kind']): string {

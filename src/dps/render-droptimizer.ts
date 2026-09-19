@@ -78,6 +78,19 @@ export function renderDropPanel(
     ),
   );
 
+  // A list read out of the client knows what every item is and not one place
+  // any of them comes from, so the headings are item levels instead of bosses.
+  if (!db.all().some((item) => item.source)) {
+    body.appendChild(
+      el(
+        'p',
+        'drawer__hint',
+        'This list comes from the client\'s own tables, which say what an item is and never say ' +
+          'where it drops. Until a drop list exists, everything is grouped by item level.',
+      ),
+    );
+  }
+
   const picker = el('div', 'dzones');
   for (const zone of zones) {
     const row = el('label', 'dzone' + (chosen.includes(zone) ? ' dzone--on' : ''));

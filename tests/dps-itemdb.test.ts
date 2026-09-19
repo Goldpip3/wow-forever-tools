@@ -39,16 +39,11 @@ function fight(over: Partial<FightConfig> = {}): FightConfig {
   };
 }
 
-describe('nothing shipped', () => {
-  it('has no item list in public/data', () => {
-    // If this ever fails, somebody shipped a guessed one.
-    let exists = true;
-    try {
-      readFileSync(resolve(__dirname, '../public/data/items.json'));
-    } catch {
-      exists = false;
-    }
-    expect(exists).toBe(false);
+describe('what ships', () => {
+  it('is a list read out of the client, which says so, rather than a guessed one', () => {
+    const file = JSON.parse(readFileSync(resolve(__dirname, '../public/data/items.json'), 'utf8'));
+    expect(file.source).toMatch(/client tables/);
+    expect(file.source).toMatch(/build /);
   });
 
   it('says there is no database when there is none', () => {
