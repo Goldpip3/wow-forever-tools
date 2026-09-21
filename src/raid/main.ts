@@ -59,6 +59,7 @@ import {
   type RosterState,
   fetchCommandDocs,
   fetchGuildEvents,
+  EVENT_WINDOW_DAYS,
   type CommandDocs,
   type RosterAccess,
   type GuildEvent,
@@ -1935,7 +1936,13 @@ function renderAccount(): HTMLElement {
       });
       row.appendChild(load);
     } else if (!events.length) {
-      row.appendChild(el('div', 'drawer__hint', 'No open events in this server.'));
+      row.appendChild(
+        el(
+          'div',
+          'drawer__hint',
+          'No events in this server in the last ' + EVENT_WINDOW_DAYS + ' days.',
+        ),
+      );
     } else {
       const list = el('div', 'evlist');
       for (const ev of events) list.appendChild(eventRow(ev));
@@ -1957,6 +1964,16 @@ function eventRow(ev: GuildEvent): HTMLElement {
   if (ev.isTest) {
     const pill = el('span', 'pill pill--changed', 'test');
     pill.title = 'A throwaway event. Its signups are invented.';
+    title.appendChild(pill);
+  }
+  /* The list now includes raids that have already run, so the row has to say which
+     ones those are. Without this an ended raid and tonight's raid look identical. */
+  if (ev.status !== 'open') {
+    const pill = el('span', 'pill', ev.status);
+    pill.title =
+      ev.status === 'ended'
+        ? 'This raid has already run. Its roster is still here to read or finish.'
+        : 'Signups are closed.';
     title.appendChild(pill);
   }
   left.appendChild(title);

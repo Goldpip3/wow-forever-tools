@@ -870,9 +870,20 @@ export interface GuildEvent {
   canEdit: boolean;
 }
 
+/** How far back the event list reaches. Matches the `days` the API accepts. */
+export const EVENT_WINDOW_DAYS = 30;
+
 export async function fetchGuildEvents(guildId: string): Promise<GuildEvent[]> {
+  /* No status filter. Asking only for open events hid every raid that had already
+     run, which made its roster unreachable from here even though the roster still
+     existed and somebody was still seating it. The window does the narrowing
+     instead, and the row says which events have ended. */
   const res = await fetch(
-    API_BASE + '/api/v4/guilds/' + encodeURIComponent(guildId) + '/events?status=open',
+    API_BASE +
+      '/api/v4/guilds/' +
+      encodeURIComponent(guildId) +
+      '/events?days=' +
+      EVENT_WINDOW_DAYS,
     { credentials: 'include', headers: { Accept: 'application/json' } },
   );
   if (!res.ok) throw new ApiError({ kind: 'network', message: String(res.status) }, 'events');

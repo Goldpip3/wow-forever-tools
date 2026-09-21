@@ -200,6 +200,27 @@ function seatCard(
   if (canEdit) {
     nameInput.addEventListener('change', () => h.onRename(player.id, nameInput.value));
     nameInput.addEventListener('blur', () => h.onRename(player.id, nameInput.value));
+
+    /* Clicking a name selects all of it, so the next keystroke replaces it. These seats
+       get renamed far more often than they get edited a character at a time.
+
+       The mouseup guard is the awkward part: browsers place the caret where you clicked
+       on mouseup, which undoes a selection made on focus. Suppressing that one mouseup
+       keeps the selection, and clearing the flag afterwards leaves ordinary click-to-
+       place-caret working once the field already has focus. */
+    let selectOnMouseUp = false;
+    nameInput.addEventListener('focus', () => {
+      selectOnMouseUp = true;
+      nameInput.select();
+    });
+    nameInput.addEventListener('mouseup', (ev) => {
+      if (!selectOnMouseUp) return;
+      selectOnMouseUp = false;
+      ev.preventDefault();
+    });
+    nameInput.addEventListener('blur', () => {
+      selectOnMouseUp = false;
+    });
   }
   nameInput.addEventListener('dragstart', (ev) => ev.preventDefault());
   body.appendChild(nameInput);
