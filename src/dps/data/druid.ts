@@ -455,11 +455,14 @@ export const BALANCE_TALENT_HOOKS: Record<string, TalentHook> = {
     mods.dotTicks[INSECT_SWARM.id] = (mods.dotTicks[INSECT_SWARM.id] ?? 0) + 1;
   },
 
-  // 'Each time you cast a Nature spell, your next Arcane damage spell within 10
-  // sec deals 1% increased damage', and the other way round.
-  'Balance of Nature': (rank, mods) => {
-    mods.flags.balanceOfNature = BALANCE_OF_NATURE.perRank * rank;
-  },
+  /* Balance of Nature is not in the Balance tree as of build 1.60.1.69876. The
+     simulator still knows how to run it, so if a later build brings it back this
+     hook is the only thing that needs to come with it:
+
+       'Balance of Nature': (rank, mods) => {
+         mods.flags.balanceOfNature = BALANCE_OF_NATURE.perRank * rank;
+       },
+  */
 
   // 'Increases the critical strike damage bonus of your Arcane and Nature
   // spells by 20%.'

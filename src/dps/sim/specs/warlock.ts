@@ -202,7 +202,7 @@ export function warlockSpec(specId: number, label: string): SpecModule {
       'Curse of Exhaustion': 'a slow does nothing to a boss.',
       'Siphon Life': 'at the one rank the tree shows, fifteen every three seconds, it is not worth a global.',
       'Soul Siphon': 'Drain Life and Drain Soul are not in the rotation.',
-      'Drain Hope': 'its cost and cooldown are not given anywhere.',
+      Wrack: 'a six second shadow dot, too short for the rotation to keep up.',
       'Improved Health Funnel': 'Health Funnel is not in any rotation.',
       'Improved Imp': 'the demon is not simulated.',
       'Demonic Embrace': 'stamina does nothing to damage.',

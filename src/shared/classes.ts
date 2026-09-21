@@ -67,13 +67,13 @@ export const CLASSES: Record<ClassId, ClassInfo> = {
     specs: [
       { id: 201, name: 'Discipline', short: 'Disc', icon: 'spell_holy_wordfortitude', role: 'healer' },
       { id: 202, name: 'Holy', short: 'Holy', icon: 'spell_holy_holybolt', role: 'healer' },
-      { id: 203, name: 'Shadow Magic', short: 'Shadow', icon: 'spell_shadow_shadowwordpain', role: 'ranged' },
+      { id: 203, name: 'Shadow', short: 'Shadow', icon: 'spell_shadow_shadowwordpain', role: 'ranged' },
     ],
   },
   shaman: {
     id: 'shaman', name: 'Shaman', color: '#0070dd', icon: 'class_shaman',
     specs: [
-      { id: 261, name: 'Elemental Combat', short: 'Ele', icon: 'spell_nature_lightning', role: 'ranged' },
+      { id: 261, name: 'Elemental', short: 'Ele', icon: 'spell_nature_lightning', role: 'ranged' },
       { id: 263, name: 'Enhancement', short: 'Enh', icon: 'spell_nature_lightningshield', role: 'melee' },
       { id: 262, name: 'Restoration', short: 'Resto', icon: 'spell_nature_magicimmunity', role: 'healer' },
     ],

@@ -209,7 +209,6 @@ export const druidFeral: SpecModule = {
     'Improved Moonfire': 'a cat does not cast Moonfire.',
     'Improved Entangling Roots': 'Entangling Roots is not in any rotation.',
     "Nature's Splendor": 'a cat does not cast Moonfire or Insect Swarm.',
-    'Balance of Nature': 'a cat does not cast spells.',
     Vengeance: 'a cat does not cast spells.',
     'Insect Swarm': 'a cat does not cast Insect Swarm.',
     'Improved Starfire': 'a cat does not cast Starfire.',

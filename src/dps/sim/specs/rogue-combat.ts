@@ -213,7 +213,6 @@ export const rogueCombat: SpecModule = {
     'Lightning Reflexes': 'a dodge chance, which does nothing to somebody behind a boss.',
     Deflection: 'a parry chance, which does nothing to somebody behind a boss.',
     Riposte: 'it becomes usable after you parry, and nothing here parries.',
-    'Restless Blades': 'it shortens cooldowns the rotation is not waiting on.',
     'Improved Gouge': 'Gouge is not in any rotation.',
     Endurance: 'it shortens Sprint and Evasion, neither of which is in a rotation.',
     'Improved Sprint': 'Sprint is not in any rotation.',

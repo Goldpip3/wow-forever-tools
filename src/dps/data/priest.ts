@@ -1,10 +1,11 @@
 /**
  * Priest spells and the talents that change them, for Shadow.
  *
- * Forever's Shadow tree is called Shadow Magic and reads differently: Shadow
- * Weaving is a stacking bonus on the priest rather than a debuff on the boss,
- * Shadowform doubles the critical bonus and halves the cost, and Discipline
- * has Twin Disciplines and Penance. Every hook below is keyed by the name in
+ * Forever called this tree Shadow Magic until build 1.60.1.69876 renamed it back
+ * to Shadow, with the same talents in it. It still reads differently from
+ * Classic: Shadow Weaving is a stacking bonus on the priest rather than a debuff
+ * on the boss, Shadowform doubles the critical bonus and halves the cost, and
+ * Discipline has Twin Disciplines and Penance. Every hook below is keyed by the name in
  * public/data/talents.generated.json and cites the description it was read
  * from.
  *
@@ -64,7 +65,7 @@ export const MIND_FLAY: SpellDef = {
   coefficient: 0.45,
   channel: { ticks: 3, interval: 1 },
   forever: classic(
-    'The Shadow Magic tree gives 104 over three seconds, which is the rank the talent teaches. ' +
+    'The Shadow tree gives 104 over three seconds, which is the rank the talent teaches. ' +
       'Rank 6 is taken at the Classic values.',
   ),
 };
@@ -154,7 +155,7 @@ export const PRIEST_TALENT_HOOKS: Record<string, TalentHook> = {
     mods.flags.spiritualGuidance = 0.01 * rank;
   },
 
-  /* ---------------------------------------------------------- Shadow Magic */
+  /* ---------------------------------------------------------------- Shadow */
 
   // 'Increases your chance to hit with your Shadow spells by 1%.' Smite is the
   // only other spell, and only for a priest without Mind Flay.

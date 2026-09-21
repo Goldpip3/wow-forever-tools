@@ -31,7 +31,7 @@ const DATA: TalentData = JSON.parse(
 );
 
 const WARRIOR: ClassTalents = DATA.talents.Warrior!;
-const EXAMPLE = 'warrior/60/05305213030510201-000000000000000000-0000000000000000000';
+const EXAMPLE = 'warrior/60/05305213030510201-000000000000000000-000000000000000000';
 
 function treeIndex(cls: ClassTalents, name: string): number {
   return cls.trees.findIndex((t) => t.name === name);
@@ -308,12 +308,21 @@ describe('rank text', () => {
     expect(rankText(deflection, 5).estimated).toBe(false);
   });
 
-  it('scales the numbers on a rank the demo never showed, and says it guessed', () => {
-    // Wand Specialization is the reported case: two ranks, only the first one read, so
-    // rank 2 used to repeat rank 1's "13%" and looked like the click had done nothing.
-    const priest: ClassTalents = DATA.talents.Priest!;
-    const disc = priest.trees[treeIndex(priest, 'Discipline')]!;
-    const wand = disc.talents[talentIndex(priest, 'Discipline', 'Wand Specialization')]!;
+  it('scales a rank the data never showed, and says it guessed', () => {
+    /* Wand Specialization was the reported case: two ranks, only the first one read, so
+       rank 2 repeated rank 1's "13%" and looked like the click had done nothing. Build
+       1.60.1.69876 carries both ranks, so the live data no longer reaches this path and
+       the case is kept here as a made-up talent. The machinery has to keep working: if a
+       later beta build goes back to shipping one rank, this is what runs. */
+    const wand = {
+      name: 'Wand Specialization',
+      max: 2,
+      row: 1,
+      col: 1,
+      icon: 'x',
+      desc: { '1': 'Increases your damage with Wands by 13%.' },
+      scaleIdx: [0],
+    } as unknown as Parameters<typeof rankText>[0];
 
     const one = rankText(wand, 1);
     const two = rankText(wand, 2);
@@ -400,40 +409,54 @@ describe('every talent, every rank', () => {
   });
 
   it('leaves a multi-number talent alone rather than guessing which figure moves', () => {
-    const warrior = WARRIOR;
-    const fury = warrior.trees[treeIndex(warrior, 'Fury')]!;
-    const idx = fury.talents.findIndex((t) => t.name === 'Unbridled Wrath');
-    if (idx < 0) return;
-    const talent = fury.talents[idx]!;
-    const got = rankText(talent, talent.max);
-    // "a 12% chance to generate 1 additional Rage" — the chance moves, the Rage does not,
-    // and nothing in the data says which, so it must not invent an answer.
+    /* Unbridled Wrath was the live example until the beta started carrying every rank.
+       Made up here for the same reason as the Wand Specialization case above. */
+    const talent = {
+      name: 'Unbridled Wrath',
+      max: 5,
+      row: 1,
+      col: 1,
+      icon: 'x',
+      desc: { '1': 'Gives you a 12% chance to generate 1 additional Rage.' },
+    } as unknown as Parameters<typeof rankText>[0];
+
+    // The chance moves, the Rage does not, and nothing in the data says which, so it
+    // must not invent an answer.
+    const got = rankText(talent, 5);
     expect(got.basis).toBe('unknown');
     expect(got.estimated).toBe(true);
   });
 
-  it('scales a talent that carries exactly one number', () => {
-    let checked = 0;
-    for (const [, data] of CLASSES) {
+  it('no longer has to guess at anything in the live data', () => {
+    /* This used to assert the opposite: that more than thirty talents were being scaled
+       from a single read rank. Build 1.60.1.69876 carries text for every rank of every
+       multi-rank talent, so nothing is estimated any more and src/talents/scaling.ts is
+       empty.
+
+       Kept as the inverse rather than deleted, because it is the thing worth knowing
+       after an import. If a later build goes back to shipping one rank, this fails and
+       names the talents, which is the signal to fill scaling.ts in again. */
+    const guessed: string[] = [];
+    let multiRank = 0;
+
+    for (const [classKey, data] of CLASSES) {
       for (const tree of data.trees) {
         for (const talent of tree.talents) {
-          if (talent.max < 2 || Array.isArray(talent.desc)) continue;
-          const keys = Object.keys(talent.desc);
-          if (keys.length !== 1 || talent.scaleIdx?.length) continue;
-          const known = Number(keys[0]);
-          const base = (talent.desc as Record<string, string>)[keys[0]!]!;
-          if ((base.match(/\d+(?:\.\d+)?/g) ?? []).length !== 1) continue;
-          // Probe a rank that is not the one the demo showed; at the known rank there is
-          // nothing to work out, which is why Reverence reads as 'read' at its max.
-          const probe = known === talent.max ? talent.max - 1 : talent.max;
-          const got = rankText(talent, probe);
-          expect(got.basis, talent.name).toBe('scaled');
-          expect(got.text, talent.name).not.toBe(base);
-          checked += 1;
+          if (talent.max < 2) continue;
+          multiRank += 1;
+          for (let rank = 1; rank <= talent.max; rank += 1) {
+            if (rankText(talent, rank).estimated) {
+              guessed.push(`${classKey}|${talent.name} rank ${rank}`);
+              break;
+            }
+          }
         }
       }
     }
-    expect(checked).toBeGreaterThan(30);
+
+    expect(guessed).toEqual([]);
+    // Guards the assertion above against passing because nothing was examined.
+    expect(multiRank).toBeGreaterThan(300);
   });
 });
 
@@ -547,7 +570,7 @@ describe('talent legality', () => {
   it('a link at level 10 cannot spend five points', () => {
     const { build, dropped } = decodeChecked(
       WARRIOR,
-      'warrior/10/05000000000000000-000000000000000000-0000000000000000000',
+      'warrior/10/05000000000000000-000000000000000000-000000000000000000',
     )!;
     expect(pointsLeft(build)).toBe(0);
     expect(dropped).toBe(4);
@@ -556,7 +579,7 @@ describe('talent legality', () => {
 
   it('a link that skips the first row loses the stranded talent', () => {
     // One point in Improved Charge and nothing above it.
-    const { build, dropped } = decodeChecked(WARRIOR, 'warrior/60/00010000000000000-000000000000000000-0000000000000000000')!;
+    const { build, dropped } = decodeChecked(WARRIOR, 'warrior/60/00010000000000000-000000000000000000-000000000000000000')!;
     expect(build.ranks[arms]![charge]).toBe(0);
     expect(dropped).toBe(1);
   });
@@ -695,8 +718,8 @@ describe('one set of rules at every way in', () => {
 
   it('keeps a short valid link exactly as written, and rewrites an invalid one', () => {
     expect(legalCode(WARRIOR, 'warrior/60/05')).toEqual({ code: 'warrior/60/05', dropped: 0 });
-    const fixed = legalCode(WARRIOR, 'warrior/10/05000000000000000-000000000000000000-0000000000000000000')!;
+    const fixed = legalCode(WARRIOR, 'warrior/10/05000000000000000-000000000000000000-000000000000000000')!;
     expect(fixed.dropped).toBe(4);
-    expect(fixed.code).toBe('warrior/10/01000000000000000-000000000000000000-0000000000000000000');
+    expect(fixed.code).toBe('warrior/10/01000000000000000-000000000000000000-000000000000000000');
   });
 });

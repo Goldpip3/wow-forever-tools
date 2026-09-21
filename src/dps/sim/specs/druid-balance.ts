@@ -5,6 +5,10 @@
  * Nature's Grace, Eclipse and Balance of Nature all change a later cast rather
  * than the one that set them off, so each is decided when a cast starts and
  * remembered for that cast, the same way the mage does it.
+ *
+ * Balance of Nature left the tree in build 1.60.1.69876, so nothing sets its flag
+ * and its branch below never runs. It is kept rather than deleted because talents
+ * have moved between beta builds and rewriting it costs more than leaving it.
  */
 
 import { spiritRegenPer2s } from '../../data/conversions';

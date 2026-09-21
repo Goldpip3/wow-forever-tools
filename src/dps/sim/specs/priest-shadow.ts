@@ -111,7 +111,7 @@ export const priestShadow: SpecModule = {
   forever: {
     status: 'unverified',
     note:
-      'Forever rebuilt the Shadow tree as Shadow Magic, so the talents here are read from its own ' +
+      'Forever rebuilt the Shadow tree, so the talents here are read from its own ' +
       'text. The spells are Classic level-sixty ranks.',
   },
 
