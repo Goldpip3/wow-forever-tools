@@ -5,7 +5,7 @@ been deployed. See RELEASE-BASELINE.md for which build is live and how to tell.
 
 ## Verification completed
 
-- 1090 unit tests passed here, in 56 files. Production build and TypeScript check passed.
+- 1102 unit tests passed here, in 57 files. Production build and TypeScript check passed.
 - 365 unit tests passed on Group Builder, in 16 files, against isolated test databases and
   mocked Discord calls.
 - 54 browser tests passed: 18 each in desktop Chromium, mobile Chromium and mobile WebKit
