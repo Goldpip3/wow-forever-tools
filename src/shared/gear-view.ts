@@ -10,9 +10,32 @@
  * page does not pull a 350 kB bundle in to draw sixteen squares.
  */
 
-import type { ItemRef, Slot } from '../dps/export-format';
+import type { ItemLocation, Slot, StatBlock } from '../dps/export-format';
 import { SLOT_LABEL, STAT_KEYS, STAT_LABEL } from '../dps/export-format';
 import { iconImg } from './icons';
+
+/**
+ * An item as a sheet or a tooltip shows it.
+ *
+ * Narrower than the gear page's ItemRef, which every field of this is a subset
+ * of. The guild page stores less than the gear page imports — no raw item link,
+ * no bag or bank location — and typing these functions to the wider shape would
+ * have meant either storing fields nothing draws or lying about what is there.
+ */
+export interface ShownItem {
+  name: string;
+  quality: number;
+  icon?: string;
+  ilvl?: number;
+  subType?: string;
+  unique?: boolean;
+  setName?: string;
+  stats: StatBlock;
+  weapon?: { min: number; max: number; speed: number };
+  effects?: string[];
+  /** Absent on a stored profile, where an equipped item is equipped. */
+  location?: ItemLocation;
+}
 
 /** Poor, common, uncommon, rare, epic, legendary. */
 const QUALITY_COLOR = ['#9d9d9d', '#ffffff', '#1eff00', '#0070dd', '#a335ee', '#ff8000'];
@@ -50,17 +73,17 @@ function el(tag: string, cls?: string, text?: string): HTMLElement {
    A cell carries an id rather than the item itself, so the tooltip can find what a
    square stands for after the page has been redrawn under it. */
 
-const itemIndex = new Map<string, ItemRef>();
+const itemIndex = new Map<string, ShownItem>();
 let itemSeq = 0;
 
-function remember(item: ItemRef): string {
+function remember(item: ShownItem): string {
   itemSeq += 1;
   const id = 'g' + itemSeq;
   itemIndex.set(id, item);
   return id;
 }
 
-export function itemForGearCell(node: HTMLElement): ItemRef | undefined {
+export function itemForGearCell(node: HTMLElement): ShownItem | undefined {
   return node.dataset.gearItem ? itemIndex.get(node.dataset.gearItem) : undefined;
 }
 
@@ -72,7 +95,7 @@ export function resetGearIndex(): void {
 /* ------------------------------------------------------------------ the sheet */
 
 /** One square: what is worn in a slot, or that nothing is. */
-function gearCell(slot: Slot, worn: ItemRef | undefined): HTMLElement {
+function gearCell(slot: Slot, worn: ShownItem | undefined): HTMLElement {
   const cell = el('div', 'gcell');
   if (!worn) cell.classList.add('gcell--empty');
   if (worn) cell.dataset.gearItem = remember(worn);
@@ -93,7 +116,7 @@ function gearCell(slot: Slot, worn: ItemRef | undefined): HTMLElement {
   return cell;
 }
 
-function column(slots: Slot[], equipped: Partial<Record<Slot, ItemRef>>, cls: string): HTMLElement {
+function column(slots: Slot[], equipped: Partial<Record<Slot, ShownItem>>, cls: string): HTMLElement {
   const col = el('div', cls);
   for (const slot of slots) col.appendChild(gearCell(slot, equipped[slot]));
   return col;
@@ -105,7 +128,7 @@ function column(slots: Slot[], equipped: Partial<Record<Slot, ItemRef>>, cls: st
  * Empty slots are drawn rather than skipped: an empty ring finger is the thing a raid
  * leader is looking for, and a sheet that hides it is answering a different question.
  */
-export function renderGearSheet(equipped: Partial<Record<Slot, ItemRef>>): HTMLElement {
+export function renderGearSheet(equipped: Partial<Record<Slot, ShownItem>>): HTMLElement {
   const doll = el('div', 'gdoll');
   doll.appendChild(column(PAPERDOLL.left, equipped, 'gdoll__col'));
   doll.appendChild(column(PAPERDOLL.right, equipped, 'gdoll__col'));
@@ -114,7 +137,7 @@ export function renderGearSheet(equipped: Partial<Record<Slot, ItemRef>>): HTMLE
 }
 
 /** How many of the sheet's slots have something in them. */
-export function wornCount(equipped: Partial<Record<Slot, ItemRef>>): number {
+export function wornCount(equipped: Partial<Record<Slot, ShownItem>>): number {
   return PAPERDOLL_SLOTS.filter((slot) => equipped[slot]).length;
 }
 
@@ -126,7 +149,7 @@ function signed(value: number, digits = 0): string {
 }
 
 /** Stat lines for an item, in the order the stat table lists them. */
-export function statLines(item: ItemRef): string[] {
+export function statLines(item: ShownItem): string[] {
   const out: string[] = [];
   for (const key of STAT_KEYS) {
     const value = item.stats[key];
@@ -154,7 +177,7 @@ export interface ItemTipOptions {
   showLocation?: boolean;
 }
 
-export function itemTip(item: ItemRef, opts: ItemTipOptions = {}): HTMLElement {
+export function itemTip(item: ShownItem, opts: ItemTipOptions = {}): HTMLElement {
   const box = el('div', 'itip');
   const name = el('div', 'itip__name', item.name);
   name.style.color = qualityColor(item.quality);
@@ -180,7 +203,7 @@ export function itemTip(item: ItemRef, opts: ItemTipOptions = {}): HTMLElement {
   for (const effect of item.effects ?? []) box.appendChild(el('div', 'itip__effect', effect));
   if (item.setName) box.appendChild(el('div', 'itip__meta', item.setName));
 
-  if (opts.showLocation ?? true) {
+  if ((opts.showLocation ?? true) && item.location) {
     const where =
       item.location.where === 'equipped'
         ? 'Equipped'

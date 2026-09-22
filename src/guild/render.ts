@@ -340,15 +340,29 @@ function pasteBox(handlers: ProfileHandlers, replacing: boolean): HTMLElement {
   }
   box.appendChild(row);
 
-  /* Says where it goes before they paste it, not after. Everyone in the server can
-     read a profile, and this is the one thing on the page that leaves their machine. */
-  box.appendChild(
+  /* Every category, named, before they paste rather than after. This used to say
+     only that bags and bank stay behind, which is true and is not the same as
+     saying what does go: the sheet totals, the talents, the race and the level all
+     travel with the gear. Everyone in the server can read a profile, and this is
+     the one thing on the page that leaves their machine. */
+  const sent = el('div', 'drawer__hint');
+  sent.appendChild(
     el(
-      'div',
-      'drawer__hint',
-      'Only what you are wearing is stored, never your bags or your bank. Everyone in this Discord server can see it.',
+      'span',
+      '',
+      'Sent: the seventeen slots you are wearing, each item name and the stats on it, ' +
+        'your level, your race, your character sheet totals and your talent trees.',
     ),
   );
+  sent.appendChild(document.createElement('br'));
+  sent.appendChild(
+    el('span', '', 'Not sent: your bags, your bank, or where any item was sitting.'),
+  );
+  sent.appendChild(document.createElement('br'));
+  sent.appendChild(
+    el('span', '', 'Everyone in this Discord server can read it once it is saved.'),
+  );
+  box.appendChild(sent);
   return box;
 }
 

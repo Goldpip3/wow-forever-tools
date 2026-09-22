@@ -6,8 +6,9 @@
  * account is the only way in.
  */
 
-import type { ItemRef, Slot } from '../dps/export-format';
+import type { Slot } from '../dps/export-format';
 import { API_BASE } from '../shared/session';
+import type { SheetStatKey, TalentTab, WornItem } from './gear-upload';
 import type { Profession } from './professions';
 
 export interface Character {
@@ -29,15 +30,22 @@ export interface Character {
   hasGear: boolean;
 }
 
+/**
+ * The gear as it comes back, which is what was stored and no more.
+ *
+ * The narrow item and talent shapes are the ones gear-upload.ts builds. A row
+ * written by an older build can hold wider items than these; the extra fields
+ * are simply not read, which is the same as the sheet never having drawn them.
+ */
 export interface Gear {
   addonVersion: string;
   /** When the addon wrote the export, not when it was pasted. */
   generatedAt: number;
   race: string;
   level: number | null;
-  stats: Record<string, number>;
-  equipped: Partial<Record<Slot, ItemRef>>;
-  talents: unknown[];
+  stats: Partial<Record<SheetStatKey, number>>;
+  equipped: Partial<Record<Slot, WornItem>>;
+  talents: TalentTab[];
 }
 
 export interface Attendance {

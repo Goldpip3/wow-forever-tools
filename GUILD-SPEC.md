@@ -240,6 +240,47 @@ disagrees with the profile is a question for the person pasting rather than an o
 An unrecognised ruleset becomes null rather than refusing the save. A wrong ruleset is
 worse than a missing one, and it is never guessed.
 
+### The allowlist, which is the contract
+
+Trimming the top level is not enough and was not enough: `equipped` and `talents` used to
+be forwarded as they arrived, so anything nested inside an item rode along. **Every object
+is rebuilt from a named list of fields, at every depth, on both sides.** A key nobody
+named does not exist by the time anything is stored.
+
+| | Fields |
+|---|---|
+| One worn item | `id`, `name`, `icon`, `quality`, `ilvl`, `subType`, `unique`, `setName`, `stats`, `weapon` (`min`, `max`, `speed`), `effects` |
+| Item stats | the 24 keys in `STAT_KEYS` |
+| Talent tree | `tab`, `points`, `list` of `name`, `tier`, `column`, `rank`, `max` |
+| Sheet totals | strength, agility, stamina, intellect, spirit, attackPower, rangedAttackPower, meleeCrit, rangedCrit, healing, hit, spellHit, mana, health, armor |
+| Slots | the seventeen the sheet draws, walked by name rather than read off the export |
+
+Not kept, and each for a reason:
+
+- **`link`** — the raw item link. Nothing reads it, and a field nothing reads is a place
+  for anything to travel.
+- **`location`** — an equipped item is equipped. The export can say `bank` with a bag and
+  an index in it, and a bank is the thing this feature promises not to hold.
+- **`equipLoc`, `enchant`, `suffix`, `resistances`, `weaponSkill`** — the read-only sheet
+  shows none of them.
+- **`bags`, `bank`, `bankStale`** — refused by name with a 400 rather than stripped in
+  silence. A paste carrying one means the page that sent it is not the page we think, and
+  a silent strip would leave that running.
+- **`skills`, `activeBuffs`, `faction`** — never part of a profile.
+
+Two copies of the list, not one: `src/guild/gear-upload.ts` here and
+`src/services/gearPayload.ts` on the bot, each with its own test, the same standing
+arrangement as the twelve professions. The bot is the copy that decides.
+
+**Reads go through it too.** `gearView` rebuilds what it read out of the row rather than
+handing it back. Rows written before the allowlist existed hold whole items, down to which
+bag each one was in, and a read is the other half of not storing that.
+
+**Sizes.** The page refuses a paste over 400,000 characters before parsing it, and refuses
+an upload over 64 KB after the trim. Fastify stops reading a gear body at 256 KB before it
+parses anything; between 64 KB and that, the route answers 413 with a sentence about bags
+and bank.
+
 Two behaviours worth keeping:
 
 - **A name mismatch asks, rather than refusing.** People do paste the wrong alt, and they
