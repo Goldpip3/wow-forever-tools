@@ -4,15 +4,21 @@
  */
 
 import { CLASSES, CLASS_IDS, type ClassId } from '../shared/classes';
+import { el } from '../shared/dom';
 import { iconImg } from '../shared/icons';
 import { renderGearSheet, wornCount } from '../shared/gear-view';
 import { specFromSignup, specKeyForSpecId } from '../raid/groupbuilder';
+/* The cap the talent calculator already counts points against. Two copies of
+   the number is how the two pages end up disagreeing about what 60 means. */
+import { MAX_LEVEL as LEVEL_CAP } from '../talents/build';
 import type { Character, CharacterDetail, CharacterList } from './api';
 import { draftProblem, type EditorDraft } from './draft';
+import { numberField } from './number-field';
 import { headline, joinWords, type Coverage } from './coverage';
 import {
   MAX_PROFESSION_SKILL,
   PRIMARY_PROFESSIONS,
+  PROFESSION_KEYS as ALL_PROFESSIONS,
   professionIcon,
   SECONDARY_PROFESSIONS,
   professionName,
@@ -22,12 +28,9 @@ import {
 } from './professions';
 import { LIVE_RULESETS, RULESET_NAMES, rulesetName } from './rulesets';
 
-export function el(tag: string, cls?: string, text?: string): HTMLElement {
-  const node = document.createElement(tag);
-  if (cls) node.className = cls;
-  if (text !== undefined) node.textContent = text;
-  return node;
-}
+/* Lives in shared/dom.ts now, because the number field needs it too and
+   importing it from here would have meant importing the whole page. */
+export { el };
 
 function panel(title: string, count?: string): { panel: HTMLElement; body: HTMLElement } {
   const section = el('section', 'panel');
@@ -566,8 +569,18 @@ export interface EditorOptions {
   problem: string | null;
 }
 
+/**
+ * A labelled field.
+ *
+ * A label around one input is what a label is for. Around a group of controls
+ * it is a trap: a click anywhere in it is forwarded to the first control it
+ * contains, so pressing the slider in the level field would also press the
+ * minus button next to it. Those get a plain box, and their controls carry
+ * their own names.
+ */
 function field(label: string, control: HTMLElement, hint?: string): HTMLElement {
-  const wrap = el('label', 'gfield');
+  const single = /^(INPUT|SELECT|TEXTAREA)$/.test(control.tagName);
+  const wrap = el(single ? 'label' : 'div', 'gfield');
   wrap.appendChild(el('span', 'gfield__label', label));
   wrap.appendChild(control);
   if (hint) wrap.appendChild(el('span', 'gfield__hint', hint));
@@ -640,13 +653,26 @@ export function renderEditor(opts: EditorOptions, handlers: EditorHandlers): HTM
     ruleset.appendChild(option('hardcore', RULESET_NAMES.hardcore, true));
   }
 
-  const level = document.createElement('input');
-  level.className = 'drawer__input';
-  level.type = 'number';
-  level.min = '1';
-  level.max = '100';
-  level.value = draft.level;
-  level.placeholder = '60';
+  /* Held here rather than read back off a field, so the stepper, the slider and
+     the typed number are all the same value. */
+  let levelValue = draft.level;
+
+  const level = numberField({
+    value: levelValue,
+    min: 1,
+    max: LEVEL_CAP,
+    step: 1,
+    // Not the number itself: beside a readout already showing 60, a button
+    // saying 60 reads as a second answer rather than as a way to get there.
+    maxLabel: 'Max',
+    ariaLabel: 'Level',
+    focusKey: 'guild-level',
+    placeholder: '\u2014',
+    onChange: (next) => {
+      levelValue = next;
+      touched();
+    },
+  });
 
   const classSelect = document.createElement('select');
   classSelect.className = 'btn';
@@ -700,7 +726,7 @@ export function renderEditor(opts: EditorOptions, handlers: EditorHandlers): HTM
     const spec = specNameOf(classSelect.value, specSelect.value || null);
     const role = roleSelect.value || roleForSpec();
     const bits = [
-      level.value.trim() ? 'Level ' + level.value.trim() : null,
+      levelValue.trim() ? 'Level ' + levelValue.trim() : null,
       spec ? spec + ' ' + classNameOf(classSelect.value) : classNameOf(classSelect.value),
       role ? ROLE_NAME[role] : null,
       rulesetName(ruleset.value || null),
@@ -778,7 +804,7 @@ export function renderEditor(opts: EditorOptions, handlers: EditorHandlers): HTM
     fillRoles(roleSelect.value || null);
     touched();
   });
-  for (const control of [name, level]) control.addEventListener('input', touched);
+  name.addEventListener('input', touched);
   note.addEventListener('input', touched);
   ruleset.addEventListener('change', touched);
   for (const control of [roleSelect, main]) control.addEventListener('change', touched);
@@ -788,50 +814,84 @@ export function renderEditor(opts: EditorOptions, handlers: EditorHandlers): HTM
      A chip per profession rather than a checkbox in a row: the whole thing is the
      target, it carries its own icon, and a chosen one is obvious at a glance. */
 
-  const chosen = new Map<ProfessionKey, number | null>();
-  for (const p of draft.professions) chosen.set(p.key, p.skill);
+  /* What each profession is at, as the chips hold it. A chip that is off keeps
+     no number: unticking one is a way of saying you do not have it, and leaving
+     the old skill behind would put it back the moment it was ticked again. */
+  const live = new Map<ProfessionKey, { on: boolean; skill: string }>();
+  for (const key of ALL_PROFESSIONS) {
+    const held = draft.professions.find((p) => p.key === key);
+    live.set(key, {
+      on: held !== undefined,
+      skill: held?.skill != null ? String(held.skill) : '',
+    });
+  }
 
+  /**
+   * One profession.
+   *
+   * Closed it is a tick, an icon and a name. Ticked it grows a row for the skill,
+   * so the twelve of them are not twelve half-visible number boxes at once. The
+   * row appears in place rather than through a redraw, which is what keeps the
+   * keyboard where it was.
+   */
   function professionChip(key: ProfessionKey): HTMLElement {
-    const chip = el('label', 'gchip');
+    const state = live.get(key)!;
+    const chip = el('div', 'gchip');
 
+    const top = el('label', 'gchip__top');
     const tick = document.createElement('input');
     tick.type = 'checkbox';
     tick.className = 'gchip__tick';
-    tick.checked = chosen.has(key);
+    tick.checked = state.on;
     tick.dataset.profession = key;
-
-    const skill = document.createElement('input');
-    skill.className = 'gchip__skill';
-    skill.type = 'number';
-    skill.min = '1';
-    skill.max = String(MAX_PROFESSION_SKILL);
-    skill.placeholder = '—';
-    skill.value = chosen.get(key) != null ? String(chosen.get(key)) : '';
-    skill.setAttribute('aria-label', professionName(key) + ' skill');
-    // Typing in the box is the same as saying you have it.
-    skill.addEventListener('input', () => {
-      if (skill.value.trim() && !tick.checked) {
-        tick.checked = true;
-        chip.classList.add('gchip--on');
-      }
-      touched();
-    });
-    // A click on the number must not toggle the label it sits inside.
-    skill.addEventListener('click', (event) => event.stopPropagation());
-
-    chip.classList.toggle('gchip--on', tick.checked);
-    tick.addEventListener('change', () => {
-      chip.classList.toggle('gchip--on', tick.checked);
-      if (!tick.checked) skill.value = '';
-      touched();
-    });
-
-    chip.append(
+    top.append(
       tick,
       iconImg(professionIcon(key), professionName(key), 'gchip__icon'),
       el('span', 'gchip__name', professionName(key)),
-      skill,
     );
+    chip.appendChild(top);
+
+    /* Built when the chip is ticked and thrown away when it is not, so the row
+       always shows what the chip holds. Keeping one row and hiding it left the
+       old number on screen after an untick had cleared it. */
+    let row: HTMLElement | null = null;
+
+    function show(): void {
+      chip.classList.toggle('gchip--on', state.on);
+      if (state.on && !row) {
+        row = el('div', 'gchip__skill');
+        row.appendChild(
+          numberField({
+            value: state.skill,
+            min: 1,
+            max: MAX_PROFESSION_SKILL,
+            step: 5,
+            maxLabel: 'Max',
+            ariaLabel: professionName(key) + ' skill',
+            placeholder: '\u2014',
+            focusKey: 'guild-skill-' + key,
+            onChange: (next) => {
+              state.skill = next;
+              touched();
+            },
+          }),
+        );
+        chip.appendChild(row);
+      }
+      if (!state.on && row) {
+        row.remove();
+        row = null;
+      }
+    }
+
+    tick.addEventListener('change', () => {
+      state.on = tick.checked;
+      if (!state.on) state.skill = '';
+      show();
+      touched();
+    });
+
+    show();
     return chip;
   }
 
@@ -995,13 +1055,14 @@ export function renderEditor(opts: EditorOptions, handlers: EditorHandlers): HTM
 
   /* ------------------------------------------------------ reading it back */
 
+  /* From what the chips hold, in the order the game lists them, so two saves of
+     the same form produce the same list. */
   function readProfessions(): Profession[] {
     const out: Profession[] = [];
-    for (const tick of form.querySelectorAll<HTMLInputElement>('input[data-profession]')) {
-      if (!tick.checked) continue;
-      const key = tick.dataset.profession as ProfessionKey;
-      const skillInput = tick.parentElement?.querySelector<HTMLInputElement>('.gchip__skill');
-      const raw = skillInput?.value.trim() ?? '';
+    for (const key of ALL_PROFESSIONS) {
+      const state = live.get(key);
+      if (!state?.on) continue;
+      const raw = state.skill.trim();
       out.push({ key, skill: raw === '' ? null : Number(raw) });
     }
     return out;
@@ -1016,7 +1077,7 @@ export function renderEditor(opts: EditorOptions, handlers: EditorHandlers): HTM
       classKey: classSelect.value,
       specKey: specSelect.value || null,
       roleKey: roleSelect.value || null,
-      level: level.value,
+      level: levelValue,
       isMain: main.checked,
       professions: readProfessions(),
       note: note.value,
@@ -1026,7 +1087,7 @@ export function renderEditor(opts: EditorOptions, handlers: EditorHandlers): HTM
   /** Field-level complaints go next to the field, and take focus with them. */
   const FIELD_CONTROL: Record<string, HTMLElement> = {
     name,
-    level,
+    level: level.querySelector<HTMLElement>('.gnum__value') ?? level,
     professions: profsBox,
   };
 

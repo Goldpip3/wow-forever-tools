@@ -244,22 +244,30 @@
   grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
   gap: 5px;
   margin: 4px 0 10px;
+  /* Or a ticked chip would stretch every chip in its row to match it. */
+  align-items: start;
 }
 .gchip {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 5px 8px;
+  display: block;
+  padding: 5px 8px 6px;
   background: var(--panel2);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  cursor: pointer;
-  user-select: none;
 }
 .gchip:hover { border-color: #4a4a4a; background: #2c2c2c; }
 .gchip--on {
   border-color: var(--gold2);
   background: color-mix(in srgb, var(--gold) 9%, var(--panel2));
+}
+/* The row that toggles it. The skill row below is not a toggle, so neither
+   the pointer nor the no-select belongs on the whole chip. */
+.gchip__top {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  user-select: none;
+  min-height: 26px;
 }
 .gchip__tick { flex: 0 0 auto; margin: 0; }
 .gchip__icon { width: 18px; height: 18px; border-radius: 3px; flex: 0 0 18px; }
@@ -269,17 +277,84 @@
   font-size: 12.5px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.gchip__skill {
-  width: 46px;
-  flex: 0 0 46px;
-  padding: 2px 5px;
-  font-size: 12px;
-  font-family: var(--font-narrow);
-  text-align: center;
+/* The skill row exists only on a chip that is ticked. Twelve number boxes at
+   half opacity was the old answer, and none of them could be read. */
+.gchip__skill { margin-top: 7px; padding-top: 7px; border-top: 1px solid var(--line); }
+
+/* ---------- saying a number ----------
+   A level and a profession skill are the same shape of question: a range with a
+   top that most answers sit at. Nudge it, drag it, or type it, and the top of
+   the range is one press away. */
+.gnum {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
 }
-/* Dimmed until the chip is on, without being disabled: typing a number is a way
-   of saying you have the profession. */
-.gchip:not(.gchip--on) .gchip__skill { opacity: 0.5; }
+.gnum__step {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--ink2);
+  background: var(--bar);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.gnum__step:hover { border-color: var(--gold2); color: var(--gold); }
+.gnum__step:active { background: #333; }
+.gnum__value {
+  flex: 0 0 auto;
+  width: 48px;
+  padding: 3px 4px;
+  text-align: center;
+  font-family: var(--font-narrow);
+  /* Bigger than the label above it: it is the answer, and it was 12px. */
+  font-size: 15px;
+  letter-spacing: 0.02em;
+}
+.gnum__slider {
+  /* Inline where there is room for a usable track, and on its own line
+     where there is not. A 40px slider is a decoration. */
+  flex: 1 1 130px;
+  min-width: 110px;
+  height: 22px;
+  margin: 0;
+  /* One line instead of six pseudo-elements per browser, and it follows the
+     gold the rest of the page uses. */
+  accent-color: var(--gold2);
+  cursor: pointer;
+}
+/* Nothing said yet. The slider sits at the bottom of the range and must not
+   read as an answer of "one". */
+.gnum__slider--unset { opacity: 0.45; }
+.gnum__max {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  font-family: var(--font-narrow);
+  font-size: 12px;
+  color: var(--ink2);
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.gnum__max:hover { border-color: var(--gold2); color: var(--gold); }
+
+/* A finger is wider than a mouse pointer. */
+@media (max-width: 560px) {
+  .gnum { gap: 6px; }
+  .gnum__step { width: 36px; height: 36px; font-size: 17px; }
+  .gnum__value { width: 54px; font-size: 16px; padding: 6px 4px; }
+  .gnum__max { padding: 8px 10px; }
+  .gnum__slider { height: 30px; }
+}
 
 /* ---------- the bar at the end ---------- */
 .gactions {

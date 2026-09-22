@@ -425,11 +425,47 @@ test('the character form previews what it is describing, and its fields are legi
   await expect(page.locator('.gpreview__meta')).toContainText('Feral Combat (bear) Druid');
   await expect(page.locator('.gpreview__meta')).toContainText('Tank');
 
-  // A profession is a chip that toggles, and its skill box goes with it.
+  // A profession is a chip that toggles, and the skill row arrives with it.
   const mining = page.locator('.gchip').filter({ hasText: 'Mining' });
   await expect(mining).not.toHaveClass(/gchip--on/);
+  await expect(mining.locator('.gnum')).toHaveCount(0);
   await mining.locator('.gchip__tick').check();
   await expect(mining).toHaveClass(/gchip--on/);
+  await expect(mining.locator('.gnum')).toHaveCount(1);
+
+  // Nudged, jumped to the top of the range, and typed into: one value behind
+  // all three, and the slider follows it.
+  const skill = mining.getByRole('textbox', { name: 'Mining skill' });
+  // From an empty field a nudge lands on the bottom of the range, not on the
+  // step: five is not the smallest a skill can be.
+  await mining.getByRole('button', { name: 'Up 5' }).click();
+  await expect(skill).toHaveValue('1');
+  await mining.getByRole('button', { name: 'Up 5' }).click();
+  await expect(skill).toHaveValue('6');
+  await mining.getByRole('button', { name: 'Max' }).click();
+  await expect(skill).toHaveValue('300');
+  await expect(mining.locator('.gnum__slider')).toHaveValue('300');
+  await skill.fill('285');
+  await expect(mining.locator('.gnum__slider')).toHaveValue('285');
+
+  // Unticking it takes the row and the number with it, because keeping the
+  // number would put it back the moment the chip was ticked again.
+  await mining.locator('.gchip__tick').uncheck();
+  await expect(mining.locator('.gnum')).toHaveCount(0);
+  await mining.locator('.gchip__tick').check();
+  await expect(mining.getByRole('textbox', { name: 'Mining skill' })).toHaveValue('');
+
+  // The level is the same control, against the level cap.
+  const level = page.getByRole('textbox', { name: 'Level' });
+  const levelField = page.locator('.gfield').filter({ has: level });
+  await levelField.getByRole('button', { name: 'Max' }).click();
+  await expect(level).toHaveValue('60');
+  await expect(page.locator('.gpreview__meta')).toContainText('Level 60');
+  await levelField.getByRole('button', { name: 'Down 1' }).click();
+  await expect(level).toHaveValue('59');
+  // Letters are not a level, and the field does not hold them.
+  await level.fill('abc');
+  await expect(level).toHaveValue('');
 
   // Every field was the browser's white box on black text before this; a dark
   // field on a dark panel is the whole point of the change.
