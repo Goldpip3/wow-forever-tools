@@ -531,17 +531,20 @@ export function renderEditor(opts: EditorOptions, handlers: EditorHandlers): HTM
   const existing = opts.character;
   const { panel: section, body } = panel(existing ? 'Edit ' + existing.name : 'Add a character');
 
-  if (opts.problem) {
-    const warn = el('div', 'gwarn', opts.problem);
-    warn.setAttribute('role', 'alert');
-    body.appendChild(warn);
-  }
-
   const form = document.createElement('form');
   form.className = 'gform';
   form.noValidate = true;
 
-  /* -------- who it belongs to */
+  if (opts.problem) {
+    const warn = el('div', 'gwarn', opts.problem);
+    warn.setAttribute('role', 'alert');
+    form.appendChild(warn);
+  }
+
+  /* ---------------------------------------------------------------- controls
+     Every control is built before any of it is arranged, because the preview and
+     the three linked pickers all read each other. */
+
   let owner: HTMLSelectElement | null = null;
   if (opts.canPickOwner && !existing) {
     owner = document.createElement('select');
@@ -550,16 +553,8 @@ export function renderEditor(opts: EditorOptions, handlers: EditorHandlers): HTM
     for (const person of opts.people) {
       owner.appendChild(option(person.userId, person.displayName, false));
     }
-    form.appendChild(
-      field(
-        'Whose character',
-        owner,
-        'You can file one for somebody who has not signed in yet. They can edit it themselves once they do.',
-      ),
-    );
   }
 
-  /* -------- name and realm */
   const name = document.createElement('input');
   name.className = 'drawer__input';
   name.type = 'text';
@@ -568,7 +563,6 @@ export function renderEditor(opts: EditorOptions, handlers: EditorHandlers): HTM
   name.value = existing?.name ?? '';
   name.placeholder = 'Thrallsbane';
   name.dataset.focusKey = 'guild-name';
-  form.appendChild(field('Character name', name, '2 to 12 letters, spelled as it is in game.'));
 
   const realm = document.createElement('input');
   realm.className = 'drawer__input';
@@ -577,9 +571,15 @@ export function renderEditor(opts: EditorOptions, handlers: EditorHandlers): HTM
   realm.autocomplete = 'off';
   realm.value = existing?.realm ?? '';
   realm.placeholder = 'Nightslayer';
-  form.appendChild(field('Realm', realm, 'Optional.'));
 
-  /* -------- class, spec and role */
+  const level = document.createElement('input');
+  level.className = 'drawer__input';
+  level.type = 'number';
+  level.min = '1';
+  level.max = '100';
+  level.value = existing?.level ? String(existing.level) : '';
+  level.placeholder = '60';
+
   const classSelect = document.createElement('select');
   classSelect.className = 'btn';
   for (const id of CLASS_IDS) {
@@ -591,6 +591,60 @@ export function renderEditor(opts: EditorOptions, handlers: EditorHandlers): HTM
 
   const roleSelect = document.createElement('select');
   roleSelect.className = 'btn';
+
+  const main = document.createElement('input');
+  main.type = 'checkbox';
+  main.checked = existing?.isMain ?? false;
+
+  const note = document.createElement('textarea');
+  note.className = 'drawer__input';
+  note.rows = 3;
+  note.maxLength = 500;
+  note.value = existing?.note ?? '';
+  note.placeholder = 'Anything the raid leader should know.';
+
+  /* ------------------------------------------------------------- the preview
+     The character as it is being described, redrawn on every change. It is the
+     one part of this form that is not a field: filling in a long form is easier
+     when you can see what you are making. */
+
+  const preview = el('div', 'gpreview');
+  const previewIcon = el('span', 'gpreview__icon');
+  const previewName = el('div', 'gpreview__name');
+  const previewMeta = el('div', 'gpreview__meta');
+  const previewText = el('div', 'gpreview__text');
+  previewText.append(previewName, previewMeta);
+  preview.append(previewIcon, previewText);
+
+  function drawPreview(): void {
+    const classId = classIdOf(classSelect.value);
+    const icon = specIconOf(classSelect.value, specSelect.value || null)
+      ?? (classId ? CLASSES[classId].icon : null);
+
+    previewIcon.replaceChildren();
+    if (icon) previewIcon.appendChild(iconImg(icon, classNameOf(classSelect.value), 'gpreview__img'));
+
+    const typed = name.value.trim();
+    previewName.textContent = typed || 'Your character';
+    previewName.classList.toggle('gpreview__name--empty', !typed);
+    if (classId) previewName.style.color = CLASSES[classId].color;
+
+    const spec = specNameOf(classSelect.value, specSelect.value || null);
+    const role = roleSelect.value || roleForSpec();
+    const bits = [
+      level.value.trim() ? 'Level ' + level.value.trim() : null,
+      spec ? spec + ' ' + classNameOf(classSelect.value) : classNameOf(classSelect.value),
+      role ? ROLE_NAME[role] : null,
+      realm.value.trim() || null,
+      main.checked ? 'main' : null,
+    ].filter(Boolean);
+    previewMeta.textContent = bits.join(' · ');
+
+    // The accent follows the class, so the form belongs to the character being made.
+    if (classId) form.style.setProperty('--class-accent', CLASSES[classId].color);
+  }
+
+  /* ------------------------------------------------------- the linked pickers */
 
   /** Refill the spec list for whichever class is chosen, keeping the spec if it fits. */
   function fillSpecs(keepSpecKey: string | null): void {
@@ -643,114 +697,156 @@ export function renderEditor(opts: EditorOptions, handlers: EditorHandlers): HTM
   classSelect.addEventListener('change', () => {
     fillSpecs(null);
     fillRoles(null);
+    drawPreview();
   });
-  specSelect.addEventListener('change', () => fillRoles(roleSelect.value || null));
+  specSelect.addEventListener('change', () => {
+    fillRoles(roleSelect.value || null);
+    drawPreview();
+  });
+  for (const control of [name, realm, level]) control.addEventListener('input', drawPreview);
+  for (const control of [roleSelect, main]) control.addEventListener('change', drawPreview);
 
-  form.appendChild(field('Class', classSelect));
-  form.appendChild(field('Spec', specSelect));
-  form.appendChild(
-    field('Role', roleSelect, 'Only set this when the spec does not say it: a bear, or a Shadow priest who heals.'),
-  );
+  /* ------------------------------------------------------------- professions
+     A chip per profession rather than a checkbox in a row: the whole thing is the
+     target, it carries its own icon, and a chosen one is obvious at a glance. */
 
-  const level = document.createElement('input');
-  level.className = 'drawer__input';
-  level.type = 'number';
-  level.min = '1';
-  level.max = '100';
-  level.value = existing?.level ? String(existing.level) : '';
-  level.placeholder = '60';
-  form.appendChild(field('Level', level, 'Optional.'));
-
-  /* -------- main or alt */
-  const mainWrap = el('label', 'gcheck');
-  const main = document.createElement('input');
-  main.type = 'checkbox';
-  main.checked = existing?.isMain ?? false;
-  mainWrap.appendChild(main);
-  mainWrap.appendChild(el('span', '', 'This is the character they raid on'));
-  form.appendChild(mainWrap);
-  form.appendChild(
-    el('span', 'gfield__hint', 'Marking one as the main clears it from their other characters.'),
-  );
-
-  /* -------- professions */
-  const profsBox = el('div', 'gprofedit');
   const chosen = new Map<ProfessionKey, number | null>();
   for (const p of existing?.professions ?? []) chosen.set(p.key, p.skill);
 
-  function professionRow(key: ProfessionKey): HTMLElement {
-    const row = el('label', 'gprofrow');
+  function professionChip(key: ProfessionKey): HTMLElement {
+    const chip = el('label', 'gchip');
+
     const tick = document.createElement('input');
     tick.type = 'checkbox';
+    tick.className = 'gchip__tick';
     tick.checked = chosen.has(key);
     tick.dataset.profession = key;
 
     const skill = document.createElement('input');
-    skill.className = 'gprofrow__skill';
+    skill.className = 'gchip__skill';
     skill.type = 'number';
     skill.min = '1';
     skill.max = String(MAX_PROFESSION_SKILL);
     skill.placeholder = '—';
     skill.value = chosen.get(key) != null ? String(chosen.get(key)) : '';
-    skill.disabled = !tick.checked;
     skill.setAttribute('aria-label', professionName(key) + ' skill');
+    // Typing in the box is the same as saying you have it.
+    skill.addEventListener('input', () => {
+      if (skill.value.trim() && !tick.checked) {
+        tick.checked = true;
+        chip.classList.add('gchip--on');
+      }
+    });
+    // A click on the number must not toggle the label it sits inside.
+    skill.addEventListener('click', (event) => event.stopPropagation());
 
+    chip.classList.toggle('gchip--on', tick.checked);
     tick.addEventListener('change', () => {
-      skill.disabled = !tick.checked;
+      chip.classList.toggle('gchip--on', tick.checked);
       if (!tick.checked) skill.value = '';
     });
 
-    row.appendChild(tick);
-    row.appendChild(iconImg(professionIcon(key), professionName(key), 'gprof__icon'));
-    row.appendChild(el('span', 'gprofrow__name', professionName(key)));
-    row.appendChild(skill);
-    return row;
+    chip.append(
+      tick,
+      iconImg(professionIcon(key), professionName(key), 'gchip__icon'),
+      el('span', 'gchip__name', professionName(key)),
+      skill,
+    );
+    return chip;
   }
 
-  profsBox.appendChild(el('div', 'section-label', 'Primary, two at most'));
-  const primaries = el('div', 'gprofgrid');
-  for (const key of PRIMARY_PROFESSIONS) primaries.appendChild(professionRow(key));
-  profsBox.appendChild(primaries);
+  function chipGrid(keys: readonly ProfessionKey[]): HTMLElement {
+    const grid = el('div', 'gchips');
+    for (const key of keys) grid.appendChild(professionChip(key));
+    return grid;
+  }
 
+  /* ------------------------------------------------------------- arrangement */
+
+  function group(title: string, hint?: string): { group: HTMLElement; rows: HTMLElement } {
+    const wrap = el('section', 'ggroup');
+    const head = el('div', 'ggroup__head');
+    head.appendChild(el('h3', 'ggroup__title', title));
+    if (hint) head.appendChild(el('span', 'ggroup__hint', hint));
+    wrap.appendChild(head);
+    const rows = el('div', 'ggrid');
+    wrap.appendChild(rows);
+    return { group: wrap, rows };
+  }
+
+  form.appendChild(preview);
+
+  const who = group('Who this is');
+  if (owner) {
+    who.rows.appendChild(
+      field(
+        'Whose character',
+        owner,
+        'You can file one for somebody who has not signed in yet. They can edit it themselves once they do.',
+      ),
+    );
+  }
+  who.rows.appendChild(field('Character name', name, '2 to 12 letters, spelled as it is in game.'));
+  who.rows.appendChild(field('Realm', realm, 'Optional.'));
+  who.rows.appendChild(field('Level', level, 'Optional.'));
+  form.appendChild(who.group);
+
+  const what = group('What they play');
+  what.rows.appendChild(field('Class', classSelect));
+  what.rows.appendChild(field('Spec', specSelect));
+  what.rows.appendChild(
+    field('Role', roleSelect, 'Only set this when the spec does not say it: a bear, or a Shadow priest who heals.'),
+  );
+  const mainWrap = el('label', 'gcheck gfield--wide');
+  mainWrap.append(main, el('span', '', 'This is the character they raid on'));
+  what.rows.appendChild(mainWrap);
+  what.rows.appendChild(
+    el('span', 'gfield__hint gfield--wide', 'Marking one as the main clears it from their other characters.'),
+  );
+  form.appendChild(what.group);
+
+  const profs = group('Professions', 'Two primary at most');
+  const profsBox = el('div', 'gfield--wide');
+  profsBox.appendChild(el('div', 'section-label', 'Primary'));
+  profsBox.appendChild(chipGrid(PRIMARY_PROFESSIONS));
   profsBox.appendChild(el('div', 'section-label', 'Secondary'));
-  const secondaries = el('div', 'gprofgrid');
-  for (const key of SECONDARY_PROFESSIONS) secondaries.appendChild(professionRow(key));
-  profsBox.appendChild(secondaries);
-  form.appendChild(field('Professions', profsBox));
+  profsBox.appendChild(chipGrid(SECONDARY_PROFESSIONS));
+  profs.rows.appendChild(profsBox);
+  form.appendChild(profs.group);
 
-  /* -------- note */
-  const note = document.createElement('textarea');
-  note.className = 'drawer__input';
-  note.rows = 2;
-  note.maxLength = 500;
-  note.value = existing?.note ?? '';
-  note.placeholder = 'Anything the raid leader should know.';
-  form.appendChild(field('Note', note, 'Optional, and everyone in the server can read it.'));
+  const extra = group('Anything else');
+  const noteField = field('Note', note, 'Optional, and everyone in the server can read it.');
+  noteField.classList.add('gfield--wide');
+  extra.rows.appendChild(noteField);
+  form.appendChild(extra.group);
 
-  /* -------- read the form back */
+  /* ---------------------------------------------------------------- the bar */
+
+  const actions = el('div', 'gactions');
+  const save = el('button', 'btn btn--gold', opts.busy ? 'Saving…' : existing ? 'Save changes' : 'Add the character');
+  (save as HTMLButtonElement).type = 'submit';
+  (save as HTMLButtonElement).disabled = opts.busy;
+
+  const cancel = el('button', 'btn', 'Cancel');
+  (cancel as HTMLButtonElement).type = 'button';
+  cancel.addEventListener('click', () => handlers.onCancel());
+
+  actions.append(save, cancel);
+  form.appendChild(actions);
+
+  /* ------------------------------------------------------ reading it back */
+
   function readProfessions(): Profession[] {
     const out: Profession[] = [];
-    for (const row of form.querySelectorAll<HTMLInputElement>('input[data-profession]')) {
-      if (!row.checked) continue;
-      const key = row.dataset.profession as ProfessionKey;
-      const skillInput = row.parentElement?.querySelector<HTMLInputElement>('.gprofrow__skill');
+    for (const tick of form.querySelectorAll<HTMLInputElement>('input[data-profession]')) {
+      if (!tick.checked) continue;
+      const key = tick.dataset.profession as ProfessionKey;
+      const skillInput = tick.parentElement?.querySelector<HTMLInputElement>('.gchip__skill');
       const raw = skillInput?.value.trim() ?? '';
       out.push({ key, skill: raw === '' ? null : Number(raw) });
     }
     return out;
   }
-
-  const actions = el('div', 'gactions');
-  const save = el('button', 'btn btn--gold', opts.busy ? 'Saving…' : 'Save');
-  (save as HTMLButtonElement).type = 'submit';
-  (save as HTMLButtonElement).disabled = opts.busy;
-  actions.appendChild(save);
-
-  const cancel = el('button', 'btn', 'Cancel');
-  (cancel as HTMLButtonElement).type = 'button';
-  cancel.addEventListener('click', () => handlers.onCancel());
-  actions.appendChild(cancel);
-  form.appendChild(actions);
 
   form.addEventListener('submit', (event) => {
     event.preventDefault();
@@ -784,6 +880,7 @@ export function renderEditor(opts: EditorOptions, handlers: EditorHandlers): HTM
     );
   });
 
+  drawPreview();
   body.appendChild(form);
   return section;
 }

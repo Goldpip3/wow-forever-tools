@@ -349,3 +349,40 @@ test('a paste that is not an export says what to do about it', async ({ page, co
   await page.getByRole('button', { name: 'Show my gear' }).click();
   await expect(page.getByRole('alert')).toContainText('WFSYNC1');
 });
+
+test('the character form previews what it is describing, and its fields are legible', async ({ page }) => {
+  await page.goto('/guild.html#demo');
+  await page.getByRole('button', { name: 'Add a character' }).click();
+
+  // Nothing typed yet, so the preview says what it is waiting for.
+  await expect(page.locator('.gpreview__name')).toHaveText('Your character');
+
+  await page.getByRole('textbox', { name: 'Character name' }).fill('Thrallsbane');
+  // By what the select contains, not by position: an officer also gets an owner
+  // picker ahead of these, and this form is shown to one.
+  await page.locator('select').filter({ has: page.locator('option[value="druid"]') }).selectOption('druid');
+  await page.locator('select').filter({ has: page.locator('option[value="guardian"]') }).selectOption('guardian');
+
+  // The preview follows the fields, and the bear is read as a tank.
+  await expect(page.locator('.gpreview__name')).toHaveText('Thrallsbane');
+  await expect(page.locator('.gpreview__meta')).toContainText('Feral Combat (bear) Druid');
+  await expect(page.locator('.gpreview__meta')).toContainText('Tank');
+
+  // A profession is a chip that toggles, and its skill box goes with it.
+  const mining = page.locator('.gchip').filter({ hasText: 'Mining' });
+  await expect(mining).not.toHaveClass(/gchip--on/);
+  await mining.locator('.gchip__tick').check();
+  await expect(mining).toHaveClass(/gchip--on/);
+
+  // Every field was the browser's white box on black text before this; a dark
+  // field on a dark panel is the whole point of the change.
+  const field = page.getByRole('textbox', { name: 'Character name' });
+  const paint = await field.evaluate((el) => {
+    const c = getComputedStyle(el);
+    return { bg: c.backgroundColor, color: c.color };
+  });
+  expect(paint.bg).not.toBe('rgb(255, 255, 255)');
+  expect(paint.color).not.toBe('rgb(0, 0, 0)');
+
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+});

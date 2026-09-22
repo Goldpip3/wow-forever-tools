@@ -148,45 +148,152 @@
 }
 .gcell__name--none { color: var(--muted); font-style: italic; }
 
-/* ---------- the form ---------- */
-.gform { display: grid; gap: 10px; }
-.gfield { display: block; }
+/* ---------- the form ----------
+   Grouped into sections and laid out two across, because nine fields in one column
+   is a long scroll for something somebody fills in once. --class-accent is set by
+   the form from whichever class is picked. */
+.gform {
+  display: grid;
+  gap: 14px;
+  --class-accent: var(--gold);
+}
+
+/* The character as it is being described, above the fields describing it. */
+.gpreview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 13px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--class-accent) 13%, var(--panel2)), var(--panel2));
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--class-accent);
+  border-radius: var(--radius-sm);
+}
+.gpreview__icon { flex: 0 0 40px; width: 40px; height: 40px; }
+.gpreview__img { width: 40px; height: 40px; border-radius: 6px; }
+.gpreview__text { min-width: 0; }
+.gpreview__name { font-family: var(--font-display); font-size: 19px; font-weight: 700; line-height: 1.2; }
+.gpreview__name--empty { color: var(--muted); font-style: italic; }
+.gpreview__meta { color: var(--muted); font-size: 12px; margin-top: 1px; }
+
+/* ---------- a group of fields ---------- */
+.ggroup {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  padding: 11px 13px 13px;
+}
+.ggroup__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 9px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid var(--line);
+}
+.ggroup__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--gold);
+}
+.ggroup__hint { color: var(--muted); font-size: 11.5px; }
+
+/* Two across where there is room, one where there is not. */
+.ggrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 10px 14px;
+  align-items: start;
+}
+.gfield--wide { grid-column: 1 / -1; }
+
+.gfield { display: block; min-width: 0; }
 .gfield__label {
   display: block;
-  color: var(--muted);
-  font-size: 11.5px;
-  margin-bottom: 3px;
+  color: var(--ink2);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
   font-family: var(--font-narrow);
   text-transform: uppercase;
 }
-.gfield__hint { display: block; color: var(--muted); font-size: 11.5px; margin-top: 3px; }
-.gfield select.btn { width: 100%; }
+.gfield__hint { display: block; color: var(--muted); font-size: 11.5px; margin-top: 4px; }
+.gfield select.btn,
+.gfield .drawer__input { width: 100%; margin-bottom: 0; }
 
-.gcheck { display: flex; align-items: center; gap: 7px; cursor: pointer; }
-
-.gprofedit { display: grid; gap: 5px; }
-.gprofgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 3px; }
-.gprofrow {
-  display: flex; align-items: center; gap: 6px;
-  padding: 3px 6px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
+.gcheck {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   cursor: pointer;
-}
-.gprofrow:hover { border-color: var(--line); background: var(--panel2); }
-.gprofrow__name { flex: 1; font-size: 12.5px; }
-.gprofrow__skill {
-  width: 62px;
-  background: var(--panel);
+  padding: 7px 9px;
+  background: var(--panel2);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  color: var(--ink);
-  padding: 2px 5px;
-  font-family: var(--font-narrow);
+  font-size: 13px;
 }
-.gprofrow__skill:disabled { opacity: 0.4; }
+.gcheck:hover { border-color: #4a4a4a; }
 
-.gactions { display: flex; gap: 6px; }
+/* ---------- professions as chips ----------
+   The whole chip is the target, it carries its own icon, and a chosen one is
+   obvious without reading the tick. */
+.gchips {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
+  gap: 5px;
+  margin: 4px 0 10px;
+}
+.gchip {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 8px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  user-select: none;
+}
+.gchip:hover { border-color: #4a4a4a; background: #2c2c2c; }
+.gchip--on {
+  border-color: var(--gold2);
+  background: color-mix(in srgb, var(--gold) 9%, var(--panel2));
+}
+.gchip__tick { flex: 0 0 auto; margin: 0; }
+.gchip__icon { width: 18px; height: 18px; border-radius: 3px; flex: 0 0 18px; }
+.gchip__name {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.gchip__skill {
+  width: 46px;
+  flex: 0 0 46px;
+  padding: 2px 5px;
+  font-size: 12px;
+  font-family: var(--font-narrow);
+  text-align: center;
+}
+/* Dimmed until the chip is on, without being disabled: typing a number is a way
+   of saying you have the profession. */
+.gchip:not(.gchip--on) .gchip__skill { opacity: 0.5; }
+
+/* ---------- the bar at the end ---------- */
+.gactions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding-top: 2px;
+}
+.gactions .btn { min-width: 104px; justify-content: center; text-align: center; }
+
+@media (max-width: 560px) {
+  .gactions { flex-direction: column-reverse; }
+  .gactions .btn { width: 100%; }
+}
 
 /* An error from the bot, above the fields it is about. */
 .gwarn {

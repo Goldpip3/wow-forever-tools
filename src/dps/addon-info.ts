@@ -12,6 +12,6 @@ export const ADDON_INFO = {
   interfaceVersion: '16001, 11508, 11509',
   /** Relative to the site root, which is where public/ ends up. */
   file: 'downloads/WoWForeverSync.zip',
-  bytes: 14921,
+  bytes: 14953,
   files: 6,
 } as const;
