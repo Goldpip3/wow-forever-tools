@@ -14,7 +14,7 @@ ns.export = export
 
 export.VERSION = 2
 export.PREFIX = 'WFSYNC1'
-export.ADDON_VERSION = '1.2.0'
+export.ADDON_VERSION = '1.2.1'
 
 local safe = ns.scan.safe
 local json = ns.json
@@ -220,12 +220,12 @@ local function readSkills()
   return skills
 end
 
---- What this character can make, for the guild page.
+--- Professions off the skill list, which is how Classic Era holds them.
 --
 -- The rank alone, without the modifier gloves and goggles add: 300 is the number the
 -- trade window shows and the number somebody means when they say they can make a
 -- thing. A profession that is not learned has no skill line, so it is simply absent.
-local function readProfessions()
+local function professionsFromSkillLines()
   local found = json.array()
   local lines = safe(GetNumSkillLines) or 0
   for i = 1, lines do
@@ -236,6 +236,45 @@ local function readProfessions()
     end
   end
   return found
+end
+
+--- The same thing on the engine that has no skill list.
+--
+-- Forever reports interface 16001 but is the retail client underneath, where
+-- GetNumSkillLines and GetSkillLineInfo simply do not exist. Every profession came
+-- back empty there until this was added.
+--
+-- GetProfessions hands back a fixed set of slots with gaps in them — an empty slot
+-- is nil, not a shorter list — so this walks positions. ipairs would stop at the
+-- first gap and lose everything after it, which for somebody with one profession
+-- and Cooking is most of the answer. The count is generous because the slot layout
+-- differs between engines and an extra empty position costs nothing.
+local function professionsFromSlots()
+  local found = json.array()
+  local slots = { safe(GetProfessions) }
+  for i = 1, 10 do
+    local index = slots[i]
+    if index then
+      -- name, icon, rank: the rank is the same number the skill line gave.
+      local name, _, rank = safe(GetProfessionInfo, index)
+      local key = name and PROFESSIONS[name]
+      if key and rank and rank > 0 then
+        found[#found + 1] = { key = key, skill = rank }
+      end
+    end
+  end
+  return found
+end
+
+--- What this character can make, for the guild page.
+--
+-- Classic Era first, because its skill list carries every profession including the
+-- secondary ones. Only when that API is missing does this fall to the slots, which
+-- is the Forever path.
+local function readProfessions()
+  if type(GetNumSkillLines) == 'function' then return professionsFromSkillLines() end
+  if type(GetProfessions) == 'function' then return professionsFromSlots() end
+  return json.array()
 end
 
 local function buffName(i)
@@ -391,6 +430,7 @@ local PROBES = {
   'GetNumTalentTabs', 'GetTalentTabInfo', 'GetNumTalents', 'GetTalentInfo',
   'C_ClassTalents.GetActiveConfigID', 'C_SpecializationInfo.GetTalentInfo',
   'GetNumSkillLines', 'GetSkillLineInfo',
+  'GetProfessions', 'GetProfessionInfo',
   'UnitBuff', 'C_UnitAuras.GetBuffDataByIndex',
   'Enum.BagIndex.CharacterBankTab_1', 'issecretvalue',
 }
@@ -431,6 +471,22 @@ function export.diag()
   end
 
   put('talent tabs ' .. tostring(safe(GetNumTalentTabs)) .. ', skill lines ' .. tostring(safe(GetNumSkillLines)))
+
+  -- Which way the professions were read, and what came back. A client with
+  -- neither API is why they arrived empty on the website, and this is the line
+  -- that says so instead of leaving it to be guessed.
+  local route = 'neither API'
+  if type(GetNumSkillLines) == 'function' then
+    route = 'skill lines'
+  elseif type(GetProfessions) == 'function' then
+    route = 'profession slots'
+  end
+  local professions = readProfessions()
+  local names = {}
+  for _, p in ipairs(professions) do
+    names[#names + 1] = p.key .. ' ' .. tostring(p.skill)
+  end
+  put('professions via ' .. route .. ': ' .. (#names > 0 and table.concat(names, ', ') or 'none found'))
 
   for _, slot in ipairs(SLOTS) do
     local link = safe(GetInventoryItemLink, 'player', slot.id)
