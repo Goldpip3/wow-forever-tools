@@ -231,7 +231,9 @@ test('the guild sample runs with no account and no network', async ({ page }) =>
 
   // Searching narrows to the one character, by a profession rather than a name.
   const search = page.getByRole('searchbox', { name: 'Search characters' });
-  await search.fill('enchanting');
+  // Tailoring rather than Enchanting: the sample deliberately has no enchanter,
+  // so the leader's panel has a gap to point at.
+  await search.fill('tailoring');
   await expect(page.locator('.grow')).toHaveCount(1);
   await expect(page.locator('.grow')).toContainText('Brightwell');
 

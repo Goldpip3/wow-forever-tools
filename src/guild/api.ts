@@ -47,10 +47,30 @@ export interface Attendance {
   last: number | null;
 }
 
+/** A raider the server expects to have a character. */
+export interface Raider {
+  userId: string;
+  displayName: string;
+}
+
 export interface CharacterList {
   guild: { id: string; name: string };
-  you: { userId: string; isOfficer: boolean };
+  you: {
+    userId: string;
+    /** May edit anybody's character: the manager role. */
+    isOfficer: boolean;
+    /** Runs the guild, and is the only one sent what is missing. */
+    isLeader: boolean;
+  };
   characters: Character[];
+  /**
+   * Who has filed nothing, sent to a leader only and absent for everybody else.
+   *
+   * `configured` is false when the server has never named a raider role, which is
+   * not the same as nobody raiding. The page has to tell those apart, or it
+   * accuses a server of neglecting a list it never made.
+   */
+  missing?: { configured: boolean; raiders: number; without: Raider[] };
 }
 
 export interface CharacterDetail {

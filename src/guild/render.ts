@@ -7,7 +7,8 @@ import { CLASSES, CLASS_IDS, type ClassId } from '../shared/classes';
 import { iconImg } from '../shared/icons';
 import { renderGearSheet, wornCount } from '../shared/gear-view';
 import { specFromSignup, specKeyForSpecId } from '../raid/groupbuilder';
-import type { Character, CharacterDetail, CharacterInput } from './api';
+import type { Character, CharacterDetail, CharacterInput, CharacterList } from './api';
+import { headline, joinWords, type Coverage } from './coverage';
 import {
   MAX_PROFESSION_SKILL,
   PRIMARY_PROFESSIONS,
@@ -882,5 +883,122 @@ export function renderEditor(opts: EditorOptions, handlers: EditorHandlers): HTM
 
   drawPreview();
   body.appendChild(form);
+  return section;
+}
+
+/* ------------------------------------------------------------------ coverage */
+
+export interface CoveragePanelOptions {
+  coverage: Coverage;
+  missing: CharacterList['missing'];
+}
+
+/**
+ * What the guild has not got, for whoever runs it.
+ *
+ * Drawn only for a leader. It is a list of things people have not done, which is
+ * not everybody's business, and a member opening the page wants the roster rather
+ * than a report on their friends.
+ */
+export function renderCoverage(opts: CoveragePanelOptions): HTMLElement {
+  const { coverage, missing } = opts;
+  const { panel: section, body } = panel(
+    'What the guild is missing',
+    coverage.characters + ' characters, ' + coverage.members + ' members',
+  );
+
+  const line = headline(coverage, missing?.without.length ?? 0);
+  body.appendChild(
+    line
+      ? el('div', 'gheadline', line)
+      : el('div', 'gheadline gheadline--ok', 'Everything is covered and everyone has filed a character.'),
+  );
+
+  /* -------- raiders who have filed nothing */
+  if (missing) {
+    const box = el('div', 'gcov');
+    box.appendChild(el('div', 'gcov__title', 'Nothing entered'));
+    if (!missing.configured) {
+      box.appendChild(
+        el(
+          'p',
+          'drawer__hint',
+          'This server has not said which role means raider, so there is nobody to compare against. Set one with /settings raider_role.',
+        ),
+      );
+    } else if (!missing.without.length) {
+      box.appendChild(
+        el('p', 'drawer__hint', 'All ' + missing.raiders + ' raiders have entered at least one character.'),
+      );
+    } else {
+      const names = el('div', 'gnames');
+      for (const raider of missing.without) {
+        const tag = el('span', 'gname', raider.displayName);
+        names.appendChild(tag);
+      }
+      box.appendChild(names);
+      box.appendChild(
+        el('div', 'drawer__hint', missing.without.length + ' of ' + missing.raiders + ' raiders.'),
+      );
+    }
+    body.appendChild(box);
+  }
+
+  /* -------- professions */
+  const profs = el('div', 'gcov');
+  profs.appendChild(el('div', 'gcov__title', 'Professions'));
+  const profRow = el('div', 'gcovgrid');
+  for (const p of coverage.professions) {
+    const tag = el('span', 'gcov__item');
+    if (!p.characters) tag.classList.add('gcov__item--none');
+    tag.appendChild(iconImg(professionIcon(p.key), p.name, 'gprof__icon'));
+    tag.appendChild(el('span', 'gcov__name', p.name));
+    tag.appendChild(
+      el('span', 'gcov__count', p.characters ? String(p.members) : 'none'),
+    );
+    if (p.best !== null) tag.title = p.name + ', best skill ' + p.best;
+    profRow.appendChild(tag);
+  }
+  profs.appendChild(profRow);
+  body.appendChild(profs);
+
+  /* -------- roles and classes */
+  const comp = el('div', 'gcov');
+  comp.appendChild(el('div', 'gcov__title', 'Roles and classes'));
+  const roleRow = el('div', 'gstats');
+  for (const r of coverage.roles) {
+    const box = el('div', 'gstat');
+    if (!r.characters) box.classList.add('gstat--none');
+    box.appendChild(el('div', 'gstat__value num', String(r.characters)));
+    box.appendChild(el('div', 'gstat__label', ROLE_NAME[r.role].toLowerCase()));
+    roleRow.appendChild(box);
+  }
+  comp.appendChild(roleRow);
+
+  if (coverage.missingClasses.length) {
+    comp.appendChild(
+      el(
+        'div',
+        'drawer__hint',
+        'Nobody plays ' + joinWords(coverage.missingClasses.map((id) => CLASSES[id].name)) + '.',
+      ),
+    );
+  }
+  body.appendChild(comp);
+
+  /* -------- gear */
+  if (coverage.withoutGear) {
+    body.appendChild(
+      el(
+        'div',
+        'drawer__hint',
+        coverage.withoutGear +
+          ' of ' +
+          coverage.characters +
+          ' characters have no gear pasted, so there is nothing to look at on those profiles.',
+      ),
+    );
+  }
+
   return section;
 }

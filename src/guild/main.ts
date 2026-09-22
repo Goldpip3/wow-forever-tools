@@ -38,7 +38,8 @@ import { parseGuildHash, writeGuildHash } from './hash';
 import { charactersOf, searchCharacters, sortCharacters } from './list';
 import { namesDiffer, readPaste } from './paste';
 import { chooseGuild } from './pick';
-import { el, empty, renderEditor, renderList, renderProfile } from './render';
+import { coverageOf } from './coverage';
+import { el, empty, renderCoverage, renderEditor, renderList, renderProfile } from './render';
 
 /* ------------------------------------------------------------------ state
    Every `let` this page keeps lives here, above the functions that read it.
@@ -545,7 +546,7 @@ function renderBody(): HTMLElement {
   }
 
   const shown = query ? searchCharacters(list.characters, query) : sortCharacters(list.characters);
-  return renderList(list.characters, shown, query, true, {
+  const roster = renderList(list.characters, shown, query, true, {
     onOpen: openCharacter,
     onSearch: (next) => {
       query = next;
@@ -557,6 +558,22 @@ function renderBody(): HTMLElement {
       draw();
     },
   });
+
+  /* A leader gets the gaps above the roster. Nobody else does: it is a list of
+     things people have not done, and a member opening this page came for the
+     roster rather than a report on their friends. Searching hides it, because
+     then the answer on screen is the search rather than the guild. */
+  if (!list.you.isLeader || query) return roster;
+
+  const wrap = el('div', 'gstack');
+  wrap.appendChild(
+    renderCoverage({
+      coverage: coverageOf(list.characters),
+      missing: list.missing,
+    }),
+  );
+  wrap.appendChild(roster);
+  return wrap;
 }
 
 function demoBar(): HTMLElement {

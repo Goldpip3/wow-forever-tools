@@ -315,3 +315,66 @@
    somebody changes it. */
 .gpaste { margin-top: 10px; display: grid; gap: 6px; }
 .gpaste .drawer__input { margin-bottom: 0; font-family: var(--font-narrow); font-size: 12px; }
+
+/* ---------- what the guild is missing ----------
+   A leader's panel above the roster. Everything in it is a count of something
+   absent, so the styling stays quiet: the red is for a zero, not for the page. */
+.gstack { display: grid; gap: 10px; }
+
+.gheadline {
+  padding: 8px 11px;
+  margin-bottom: 10px;
+  background: color-mix(in srgb, var(--gold) 8%, var(--panel2));
+  border-left: 3px solid var(--gold);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  font-weight: 700;
+}
+.gheadline--ok {
+  background: color-mix(in srgb, var(--green2) 10%, var(--panel2));
+  border-left-color: var(--green2);
+  font-weight: 400;
+  color: var(--ink2);
+}
+
+.gcov { margin-bottom: 12px; }
+.gcov__title {
+  color: var(--muted);
+  font-size: 11px;
+  font-family: var(--font-narrow);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 5px;
+}
+.gcovgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(165px, 1fr)); gap: 4px; }
+.gcov__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+}
+/* Nobody has this one, which is the whole reason the panel exists. */
+.gcov__item--none {
+  border-color: color-mix(in srgb, var(--red) 45%, var(--line));
+  background: color-mix(in srgb, var(--red) 7%, var(--panel2));
+}
+.gcov__item--none .gcov__name { color: var(--ink2); }
+.gcov__name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gcov__count { color: var(--gold); font-family: var(--font-narrow); }
+.gcov__item--none .gcov__count { color: var(--red); }
+
+.gstat--none .gstat__value { color: var(--red); }
+
+/* People who have entered nothing. Names, because a count is not actionable. */
+.gnames { display: flex; flex-wrap: wrap; gap: 4px; }
+.gname {
+  padding: 3px 8px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 12.5px;
+  color: var(--ink2);
+}

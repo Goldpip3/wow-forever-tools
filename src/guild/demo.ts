@@ -73,10 +73,9 @@ const CHARACTERS: Character[] = [
     specKey: 'holy_priest',
     roleKey: 'healer',
     isMain: true,
-    professions: [
-      { key: 'tailoring', skill: 300 },
-      { key: 'enchanting', skill: 288 },
-    ],
+    // No enchanter anywhere in the sample, on purpose: a profession nobody has is
+    // the thing the leader's panel exists to point at.
+    professions: [{ key: 'tailoring', skill: 300 }],
     hasGear: true,
   }),
   character({
@@ -200,7 +199,17 @@ const GEAR: Record<number, Gear> = {
 export function demoList(): CharacterList {
   return {
     guild: { id: 'demo', name: 'The Sample Guild' },
-    you: { userId: YOU, isOfficer: true },
+    you: { userId: YOU, isOfficer: true, isLeader: true },
+    /* Two raiders in the sample have filed nothing, so the leader's panel has
+       something to report rather than drawing an empty success state. */
+    missing: {
+      configured: true,
+      raiders: 8,
+      without: [
+        { userId: 'demo-11', displayName: 'Fen' },
+        { userId: 'demo-12', displayName: 'Quill' },
+      ],
+    },
     characters: CHARACTERS.map((c) => ({ ...c })),
   };
 }
