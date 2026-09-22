@@ -1,4 +1,5 @@
 import { iconImg } from './icons';
+import { renderFeedback } from './feedback';
 
 /** The site mark, the same on every page. */
 export const SITE_ICON = 'achievement_boss_onyxia';
@@ -19,7 +20,7 @@ export interface HeaderOptions {
   /** Rendered on the right of the header, after the tool links. */
   nav?: HTMLElement[];
   /** Which page is current, so its nav link can be marked. */
-  page: 'home' | 'talents' | 'raid' | 'dps' | 'roster' | 'privacy';
+  page: 'home' | 'talents' | 'raid' | 'dps' | 'roster' | 'guild' | 'privacy';
   /** Who is signed in, when the page knows. Omitted entirely on pages that never ask. */
   account?: AccountView;
 }
@@ -70,6 +71,7 @@ export function renderHeader(opts: HeaderOptions): HTMLElement {
   const h1 = document.createElement('h1');
   h1.className = 'site-header__title';
   h1.textContent = SITE_TITLE;
+  h1.appendChild(el('span', 'site-beta', 'Beta'));
   const sub = document.createElement('p');
   sub.className = 'site-header__sub';
   sub.textContent = SITE_TAGLINE;
@@ -87,6 +89,7 @@ export function renderHeader(opts: HeaderOptions): HTMLElement {
     ['raid', 'Raid planner', href('raid.html')],
     ['dps', 'Gear & DPS', href('dps.html')],
     ['roster', 'Roster', href('raid.html') + '#roster'],
+    ['guild', 'Guild', href('guild.html')],
   ];
   for (const [page, label, url] of links) {
     const a = document.createElement('a');
@@ -117,6 +120,7 @@ export function renderFooter(): HTMLElement {
       <span class="pill pill--unverified">unverified</span> has not been confirmed yet.</p>
     <p><a href="${href('privacy.html')}">Privacy</a></p>
   `;
+  footer.appendChild(renderFeedback());
   return footer;
 }
 

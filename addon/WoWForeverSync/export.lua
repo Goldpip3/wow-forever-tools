@@ -12,12 +12,33 @@ local ADDON, ns = ...
 local export = {}
 ns.export = export
 
-export.VERSION = 1
+export.VERSION = 2
 export.PREFIX = 'WFSYNC1'
-export.ADDON_VERSION = '1.0.0'
+export.ADDON_VERSION = '1.2.0'
 
 local safe = ns.scan.safe
 local json = ns.json
+
+--- Trade skills, in the keys the website uses.
+--
+-- Matched by name rather than by walking to the "Professions" header, because the
+-- header is a different string in every locale while these twelve are the names the
+-- site already knows. A skill line that is not in here is a weapon skill or a
+-- language and goes to `skills` as before.
+local PROFESSIONS = {
+  ['Alchemy'] = 'alchemy',
+  ['Blacksmithing'] = 'blacksmithing',
+  ['Enchanting'] = 'enchanting',
+  ['Engineering'] = 'engineering',
+  ['Herbalism'] = 'herbalism',
+  ['Leatherworking'] = 'leatherworking',
+  ['Mining'] = 'mining',
+  ['Skinning'] = 'skinning',
+  ['Tailoring'] = 'tailoring',
+  ['Cooking'] = 'cooking',
+  ['First Aid'] = 'first-aid',
+  ['Fishing'] = 'fishing',
+}
 
 --- Inventory slots worth reading, in the names the website uses.
 local SLOTS = {
@@ -76,7 +97,9 @@ local function readContainer(bag, out)
   for slot = 1, slots do
     local link = containerLink(bag, slot)
     if link then
-      local item, uncached = ns.scan.item(link, function(tip) tip:SetBagItem(bag, slot) end)
+      local item, uncached = ns.scan.item(link,
+        function(tip) tip:SetBagItem(bag, slot) end,
+        function() return C_TooltipInfo and C_TooltipInfo.GetBagItem(bag, slot) end)
       if uncached then partial = true end
       if item and not SKIP_EQUIP_LOC[item.equipLoc] then
         item.bag = bag
@@ -190,18 +213,46 @@ local function readSkills()
   local lines = safe(GetNumSkillLines) or 0
   for i = 1, lines do
     local name, isHeader, _, rank, _, modifier = safe(GetSkillLineInfo, i)
-    if name and not isHeader and rank then
+    if name and not isHeader and rank and not PROFESSIONS[name] then
       skills[name] = rank + (modifier or 0)
     end
   end
   return skills
 end
 
+--- What this character can make, for the guild page.
+--
+-- The rank alone, without the modifier gloves and goggles add: 300 is the number the
+-- trade window shows and the number somebody means when they say they can make a
+-- thing. A profession that is not learned has no skill line, so it is simply absent.
+local function readProfessions()
+  local found = json.array()
+  local lines = safe(GetNumSkillLines) or 0
+  for i = 1, lines do
+    local name, isHeader, _, rank = safe(GetSkillLineInfo, i)
+    local key = name and not isHeader and PROFESSIONS[name]
+    if key and rank and rank > 0 then
+      found[#found + 1] = { key = key, skill = rank }
+    end
+  end
+  return found
+end
+
+local function buffName(i)
+  if type(UnitBuff) == 'function' then return safe(UnitBuff, 'player', i) end
+  -- UnitBuff is gone on the newer engine, which hands back a table instead.
+  if C_UnitAuras and C_UnitAuras.GetBuffDataByIndex then
+    local aura = safe(C_UnitAuras.GetBuffDataByIndex, 'player', i)
+    if type(aura) == 'table' then return safe(function() return aura.name end) end
+  end
+  return nil
+end
+
 local function readBuffs()
   local names = json.array()
   for i = 1, 40 do
-    local name = safe(UnitBuff, 'player', i)
-    if not name then break end
+    local name = buffName(i)
+    if type(name) ~= 'string' then break end
     names[#names + 1] = name
   end
   return names
@@ -223,11 +274,20 @@ end
 function export.scanBank()
   if not bankOpen then return false end
   local out = {}
-  readContainer(-1, out)
-  local firstBankBag = (NUM_BAG_SLOTS or 4) + 1
-  local lastBankBag = firstBankBag + (NUM_BANKBAGSLOTS or 6) - 1
-  for bag = firstBankBag, lastBankBag do
-    readContainer(bag, out)
+  local index = Enum and Enum.BagIndex
+  if index and index.CharacterBankTab_1 then
+    -- The newer engine's bank is tabs, and the old -1 container is gone.
+    for tab = 1, 6 do
+      local bag = index['CharacterBankTab_' .. tab]
+      if bag then readContainer(bag, out) end
+    end
+  else
+    readContainer(-1, out)
+    local firstBankBag = (NUM_BAG_SLOTS or 4) + 1
+    local lastBankBag = firstBankBag + (NUM_BANKBAGSLOTS or 6) - 1
+    for bag = firstBankBag, lastBankBag do
+      readContainer(bag, out)
+    end
   end
 
   WoWForeverSyncDB = WoWForeverSyncDB or {}
@@ -239,13 +299,18 @@ end
 -- ----------------------------------------------------------- the whole thing
 
 function export.build()
+  -- In combat the engine hides numbers from addons, so the sheet would be holes.
+  if safe(InCombatLockdown) then return nil end
+
   partial = false
 
   local equipped = {}
   for _, slot in ipairs(SLOTS) do
     local link = safe(GetInventoryItemLink, 'player', slot.id)
     if link then
-      local item, uncached = ns.scan.item(link, function(tip) tip:SetInventoryItem('player', slot.id) end)
+      local item, uncached = ns.scan.item(link,
+        function(tip) tip:SetInventoryItem('player', slot.id) end,
+        function() return C_TooltipInfo and C_TooltipInfo.GetInventoryItem('player', slot.id) end)
       if uncached then partial = true end
       if item then equipped[slot.key] = item end
     end
@@ -287,11 +352,15 @@ function export.build()
     talents = readTalents(),
     stats = readSheet(),
     skills = readSkills(),
+    professions = readProfessions(),
     activeBuffs = readBuffs(),
     equipped = equipped,
     bags = bags,
     bank = bank,
   }
+
+  local gameVersion, _, _, interface = safe(GetBuildInfo)
+  if interface then payload.client = { interface = interface, version = gameVersion } end
 
   if bankStale then payload.bankStale = true end
   if partial then payload.partial = true end
@@ -305,6 +374,86 @@ function export.build()
   for _ in pairs(equipped) do counts.equipped = counts.equipped + 1 end
 
   return text, counts, partial, bankStale
+end
+
+--[[
+  /wfsync diag. Says which parts of the game this client has, and which tooltip
+  lines the scanner did not understand, so a field that arrives empty on the
+  site can be traced to the function or the wording behind it.
+]]
+local PROBES = {
+  'GetItemInfo', 'C_Item.GetItemInfo', 'C_TooltipInfo.GetInventoryItem',
+  'C_Container.GetContainerItemLink', 'GetContainerItemLink',
+  'UnitStat', 'UnitAttackPower', 'UnitRangedAttackPower', 'UnitDamage', 'UnitAttackSpeed',
+  'UnitRangedDamage', 'UnitArmor', 'GetCritChance', 'GetRangedCritChance',
+  'GetSpellBonusDamage', 'GetSpellBonusHealing', 'GetSpellCritChance',
+  'GetHitModifier', 'GetSpellHitModifier',
+  'GetNumTalentTabs', 'GetTalentTabInfo', 'GetNumTalents', 'GetTalentInfo',
+  'C_ClassTalents.GetActiveConfigID', 'C_SpecializationInfo.GetTalentInfo',
+  'GetNumSkillLines', 'GetSkillLineInfo',
+  'UnitBuff', 'C_UnitAuras.GetBuffDataByIndex',
+  'Enum.BagIndex.CharacterBankTab_1', 'issecretvalue',
+}
+
+local function lookup(path)
+  local at = _G
+  for part in string.gmatch(path, '[^%.]+') do
+    if type(at) ~= 'table' then return nil end
+    at = at[part]
+  end
+  return at
+end
+
+function export.diag()
+  local lines = {}
+  local function put(text) lines[#lines + 1] = text end
+
+  local gameVersion, build, _, interface = safe(GetBuildInfo)
+  put('WoW Forever Sync ' .. export.ADDON_VERSION .. ' diagnostics')
+  put('client ' .. tostring(gameVersion) .. ' build ' .. tostring(build) .. ' interface ' .. tostring(interface))
+  put('locale ' .. tostring(safe(GetLocale)))
+
+  local missing = {}
+  for _, path in ipairs(PROBES) do
+    if lookup(path) == nil then missing[#missing + 1] = path end
+  end
+  put('missing: ' .. (#missing > 0 and table.concat(missing, ', ') or 'nothing'))
+
+  ns.scan.keepUnread = true
+  local ok, text, counts = pcall(export.build)
+  ns.scan.keepUnread = false
+  if not ok then
+    put('build threw: ' .. tostring(text))
+  elseif not text then
+    put('build refused: in combat')
+  else
+    put('export ' .. #text .. ' characters, ' .. counts.equipped .. ' worn, ' .. counts.bags .. ' in bags')
+  end
+
+  put('talent tabs ' .. tostring(safe(GetNumTalentTabs)) .. ', skill lines ' .. tostring(safe(GetNumSkillLines)))
+
+  for _, slot in ipairs(SLOTS) do
+    local link = safe(GetInventoryItemLink, 'player', slot.id)
+    if link then
+      ns.scan.keepUnread = true
+      local okItem, item = pcall(ns.scan.item, link,
+        function(tip) tip:SetInventoryItem('player', slot.id) end,
+        function() return C_TooltipInfo and C_TooltipInfo.GetInventoryItem('player', slot.id) end)
+      ns.scan.keepUnread = false
+      if not okItem then
+        put(slot.key .. ': threw ' .. tostring(item))
+      elseif not item then
+        put(slot.key .. ': item not loaded yet')
+      else
+        local found = 0
+        for _ in pairs(item.stats) do found = found + 1 end
+        put(slot.key .. ': ' .. item.name .. ', ' .. (item.__lines or 0) .. ' lines, ' .. found .. ' stats')
+        for _, unread in ipairs(item.__unread or {}) do put('   ? ' .. unread) end
+      end
+    end
+  end
+
+  return table.concat(lines, '\n')
 end
 
 _G[ADDON .. 'Export'] = export

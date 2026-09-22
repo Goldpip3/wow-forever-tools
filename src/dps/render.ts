@@ -6,12 +6,13 @@
 
 import { CLASSES, specById } from '../shared/classes';
 import { bgUrl, iconImg } from '../shared/icons';
+import { PAPERDOLL, qualityColor, statLines, itemTip as baseItemTip } from '../shared/gear-view';
 import { copyText } from '../shared/toast';
 import { ADDON_INFO } from './addon-info';
 import { SAMPLES, sampleByKey } from './samples';
 import { supportedSpecsSentence } from './support';
 import type { ItemRef, Slot } from './export-format';
-import { SLOT_LABEL, STAT_KEYS, STAT_LABEL } from './export-format';
+import { SLOT_LABEL } from './export-format';
 import type { Character, ImportIssue } from './types';
 import type { SavedCharacter } from './codec';
 import { candidatesFor, equippedIn, slotsInUse } from './gear';
@@ -36,66 +37,21 @@ export function el(tag: string, cls?: string, text?: string): HTMLElement {
 
 /* ------------------------------------------------------------------ helpers */
 
-const QUALITY_COLOR = ['#9d9d9d', '#ffffff', '#1eff00', '#0070dd', '#a335ee', '#ff8000'];
+/* Defined in shared/gear-view.ts, where the guild page's read-only sheet reads it
+   too, and re-exported here because four files in this folder import it from here. */
+export { qualityColor, PAPERDOLL };
 
-export function qualityColor(quality: number): string {
-  return QUALITY_COLOR[Math.max(0, Math.min(QUALITY_COLOR.length - 1, Math.round(quality)))]!;
-}
-
-function signed(value: number, digits = 0): string {
-  const rounded = Number(value.toFixed(digits));
-  return (rounded > 0 ? '+' : '') + rounded;
-}
-
-/** Stat lines for an item, in the order the stat table lists them. */
-export function statLines(item: ItemRef): string[] {
-  const out: string[] = [];
-  for (const key of STAT_KEYS) {
-    const value = item.stats[key];
-    if (!value) continue;
-    const pct = key === 'crit' || key === 'hit' || key === 'spellCrit' || key === 'spellHit';
-    out.push(pct ? signed(value, 2) + '% ' + STAT_LABEL[key].replace(' %', '') : signed(value) + ' ' + STAT_LABEL[key]);
-  }
-  return out;
-}
+/* statLines and the tooltip live in shared/gear-view.ts, so the guild page can show an
+   item without pulling in the simulator. This page adds the one line that is only true
+   here: a proc it has not simulated is missing from the score it is showing. */
+export { statLines };
 
 export function itemTip(item: ItemRef): HTMLElement {
-  const box = el('div', 'itip');
-  const name = el('div', 'itip__name', item.name);
-  name.style.color = qualityColor(item.quality);
-  box.appendChild(name);
-
-  const meta: string[] = [];
-  if (item.ilvl) meta.push('Item level ' + item.ilvl);
-  if (item.subType) meta.push(item.subType);
-  if (item.unique) meta.push('Unique');
-  if (meta.length) box.appendChild(el('div', 'itip__meta', meta.join(' · ')));
-
-  if (item.weapon) {
-    box.appendChild(
-      el('div', 'itip__weapon', item.weapon.min + ' - ' + item.weapon.max + ' damage, speed ' + item.weapon.speed.toFixed(2)),
-    );
-  }
-
-  for (const line of statLines(item)) box.appendChild(el('div', 'itip__stat', line));
-
-  for (const effect of item.effects ?? []) box.appendChild(el('div', 'itip__effect', effect));
-
-  if (item.setName) box.appendChild(el('div', 'itip__meta', item.setName));
-
-  const where =
-    item.location.where === 'equipped'
-      ? 'Equipped'
-      : item.location.where === 'bank'
-        ? 'In the bank'
-        : 'In your bags';
-  box.appendChild(el('div', 'itip__where', where));
-
-  if (item.effects?.length) {
-    box.appendChild(el('div', 'itip__note', 'Use and proc effects are not simulated yet, so they add nothing to the score.'));
-  }
-
-  return box;
+  return baseItemTip(item, {
+    note: item.effects?.length
+      ? 'Use and proc effects are not simulated yet, so they add nothing to the score.'
+      : undefined,
+  });
 }
 
 const BASE = import.meta.env.BASE_URL ?? '/';
@@ -166,7 +122,7 @@ export function renderHowTo(collapsed = false): HTMLElement {
   steps.appendChild(
     step(
       'Unzip it into your AddOns folder',
-      copyLine('World of Warcraft\\_classic_era_\\Interface\\AddOns'),
+      copyLine('World of Warcraft\\_classic_beta_\\Interface\\AddOns'),
       'The zip already has the folder inside it, so drop that folder in whole rather than the ' +
         'loose files. When it is right you will have an AddOns folder containing WoWForeverSync, ' +
         'with WoWForeverSync.toc inside that.',
@@ -451,11 +407,7 @@ export interface SlotRowExtras {
  * Shirt and tabard sit in the left column in game and are missing here, because
  * neither carries a stat and the addon does not send them.
  */
-export const PAPERDOLL: { left: Slot[]; right: Slot[]; weapons: Slot[] } = {
-  left: ['head', 'neck', 'shoulder', 'back', 'chest', 'wrist'],
-  right: ['hands', 'waist', 'legs', 'feet', 'finger1', 'finger2', 'trinket1', 'trinket2'],
-  weapons: ['mainhand', 'offhand', 'ranged'],
-};
+/* PAPERDOLL now lives in shared/gear-view.ts and is re-exported above. */
 
 function itemCell(item: ItemRef, note?: string): HTMLElement {
   const cell = el('div', 'ditem');

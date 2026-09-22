@@ -192,8 +192,11 @@ select.btn { appearance: none; padding-right: 26px;
   }
   .site-header__home { grid-area: home; }
   .site-header__acct { grid-area: acct; }
-  .site-header__nav { grid-area: nav; width: 100%; flex-wrap: nowrap; }
-  .site-header__nav .btn { flex: 1 1 0; min-width: 0; text-align: center; padding: 5px 4px; }
+  /* Wraps rather than squeezing. Five tools on a 375px screen divided into five equal
+     columns clipped "Raid planner" and "Gear & DPS" to "Raid planne" and "Gear & DP".
+     A label that has lost its last letters is worse than a second row. */
+  .site-header__nav { grid-area: nav; width: 100%; flex-wrap: wrap; }
+  .site-header__nav .btn { flex: 1 1 auto; min-width: 0; text-align: center; padding: 5px 8px; }
 }
 @media (max-width: 640px) {
   /* Pinned, even the shorter header would stay over every tree and roster, so on a phone it
@@ -313,6 +316,23 @@ select.btn { appearance: none; padding-right: 26px;
 .drawer__input { width: 100%; margin-bottom: 4px; }
 .spec-picker { display: flex; gap: 4px; flex-wrap: wrap; }
 
+/* ---------- who is signed in, and their servers ----------
+   Drawn by the raid page's Roster intro and by the guild page, which is why they are
+   here rather than in raid.css: only raid.html loads that file. */
+.acct { display: flex; align-items: center; gap: 9px; margin-bottom: 10px; }
+.acct__avatar { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--line); }
+.acct__name { font-weight: 700; color: var(--ink); flex: 1; }
+
+.guildrow {
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.guildrow__head { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+.guildrow__name { font-weight: 700; color: var(--gold); }
+
 /* ---------- scrollbars ----------
    The browser default is a light grey slab that belongs to a different site. These are
    the panel colours: a dark track, a thumb the colour of the borders, and gold when you
@@ -342,6 +362,12 @@ select.btn optgroup {
   background: var(--panel);
   color: var(--ink);
 }
+
+.site-beta { display: inline-block; margin-left: 8px; padding: 2px 5px; border: 1px solid var(--line); border-radius: 4px; font: 12px var(--font-body, sans-serif); color: var(--gold); vertical-align: middle; }
+.site-feedback { max-width: 640px; margin: 12px auto; text-align: left; }
+.site-feedback summary { cursor: pointer; color: var(--gold); }
+.site-feedback textarea { display: block; box-sizing: border-box; width: 100%; margin: 10px 0; padding: 10px; background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 4px; }
+.site-feedback .btn { margin: 4px 8px 4px 0; }
 
 /* ---------- account button ----------
    Opposite the mark: the name on the left says what the site is, this says who you are,

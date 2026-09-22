@@ -16,14 +16,41 @@ local _, ns = ...
 local scan = {}
 ns.scan = scan
 
+--[[
+  Forever runs on the Midnight engine, where a number read in combat can come
+  back as a "secret value": fine to show on screen, an error to add, compare or
+  turn into text. Nothing here can use one, so it becomes a blank field.
+]]
+local function open(value)
+  if issecretvalue and issecretvalue(value) then return nil end
+  return value
+end
+
 --- Every API call goes through this, so a missing one is a blank field.
 local function safe(fn, ...)
   if type(fn) ~= 'function' then return nil end
   local ok, a, b, c, d, e, f, g, h, i, j = pcall(fn, ...)
   if not ok then return nil end
-  return a, b, c, d, e, f, g, h, i, j
+  return open(a), open(b), open(c), open(d), open(e), open(f), open(g), open(h), open(i), open(j)
 end
 scan.safe = safe
+
+--- The global went away on the newer engine; the namespaced one replaced it.
+local function itemInfo(link)
+  if type(GetItemInfo) == 'function' then return safe(GetItemInfo, link) end
+  if C_Item and C_Item.GetItemInfo then return safe(C_Item.GetItemInfo, link) end
+  return nil
+end
+
+--- Colour codes and texture escapes, which the newer tooltips sprinkle in.
+local function plain(text)
+  if type(text) ~= 'string' then return nil end
+  text = string.gsub(text, '|c%x%x%x%x%x%x%x%x', '')
+  text = string.gsub(text, '|r', '')
+  text = string.gsub(text, '|T.-|t', '')
+  text = string.gsub(text, '|A.-|a', '')
+  return text
+end
 
 local tooltip
 
@@ -224,11 +251,11 @@ end
   place includes its enchant and its random suffix, while one built from the
   plain item id would not.
 ]]
-function scan.item(link, setter)
+function scan.item(link, setter, getInfo)
   local id, enchant, suffix = scan.parseLink(link)
   if not id then return nil end
 
-  local name, _, quality, ilvl, _, _, subType, _, equipLoc, texture = safe(GetItemInfo, link)
+  local name, _, quality, ilvl, _, _, subType, _, equipLoc, texture = itemInfo(link)
   if not name then return nil, true end -- not cached yet; the caller retries
 
   local item = {
@@ -246,27 +273,53 @@ function scan.item(link, setter)
   if enchant and enchant ~= 0 then item.enchant = enchant end
   if suffix and suffix ~= 0 then item.suffix = suffix end
 
-  local tip = scanTooltip()
-  tip:ClearLines()
-  local ok = pcall(setter, tip)
-  if not ok then return item end
+  -- The hidden tooltip first, which is how Classic does it. If that gives
+  -- nothing, ask the newer engine for the lines as data instead.
+  local pairsOfText = {}
+  local okTip, tip = pcall(scanTooltip)
+  if okTip and tip then
+    pcall(tip.SetOwner, tip, UIParent, 'ANCHOR_NONE')
+    pcall(tip.ClearLines, tip)
+    if pcall(setter, tip) then
+      local _, count = pcall(tip.NumLines, tip)
+      for i = 2, tonumber(count) or 0 do
+        local left = _G['WFSyncScanTooltipTextLeft' .. i]
+        local right = _G['WFSyncScanTooltipTextRight' .. i]
+        pairsOfText[#pairsOfText + 1] = {
+          left and open(left:GetText()) or nil,
+          right and open(right:GetText()) or nil,
+        }
+      end
+    end
+  end
+  if #pairsOfText == 0 and type(getInfo) == 'function' then
+    local data = safe(getInfo)
+    if type(data) == 'table' and type(data.lines) == 'table' then
+      for i = 2, #data.lines do
+        local l = data.lines[i]
+        pairsOfText[#pairsOfText + 1] = { open(l.leftText), open(l.rightText) }
+      end
+    end
+  end
 
-  local lines = tip:NumLines() or 0
-  for i = 2, lines do
-    local left = _G['WFSyncScanTooltipTextLeft' .. i]
-    local right = _G['WFSyncScanTooltipTextRight' .. i]
-    local text = left and left:GetText()
-    local rightText = right and right:GetText()
+  for _, pair in ipairs(pairsOfText) do
+    local text = plain(pair[1])
+    local rightText = plain(pair[2])
     if text and text ~= '' then
       if not readLine(text, rightText, item) then
         -- Keep anything that reads like an effect, so nothing is silently lost.
         if string.find(text, '^Equip:') or string.find(text, '^Use:') or string.find(text, '^Chance on hit:') then
           item.effects = item.effects or ns.json.array()
           item.effects[#item.effects + 1] = text
+        elseif scan.keepUnread then
+          -- Two underscores keep it out of the export; /wfsync diag prints it.
+          item.__unread = item.__unread or {}
+          item.__unread[#item.__unread + 1] = text
         end
       end
     end
   end
+  item.__lines = #pairsOfText
 
   -- Hands and type come off the item information rather than the tooltip.
   if item.weapon then

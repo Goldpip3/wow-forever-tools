@@ -11,10 +11,14 @@ Tools for World of Warcraft: Forever, the Classic+ line announced at BlizzCon 20
 4. **Gear and DPS**, which reads your character out of the game, simulates the
    fight thousands of times, measures what each stat is worth to you, and ranks
    everything you already own slot by slot.
+5. **Guild**, where everyone in your Discord server says which characters they play,
+   with spec, professions and the gear from their last export. Forever has no armory
+   and no Warcraft Logs, so all of it is entered by hand or pasted from the addon.
 
-A static site with no backend of its own. Roster mode and signing in talk to the
-Group Builder bot's API; nothing else makes a network call beyond loading the page's
-own data files. See [ROSTER-SPEC.md](ROSTER-SPEC.md) and [AUTH-SPEC.md](AUTH-SPEC.md).
+A static site with no backend of its own. The guild page, roster mode and signing in
+talk to the Group Builder bot's API; nothing else makes a network call beyond loading
+the page's own data files. See [ROSTER-SPEC.md](ROSTER-SPEC.md),
+[GUILD-SPEC.md](GUILD-SPEC.md) and [AUTH-SPEC.md](AUTH-SPEC.md).
 
 ## Getting started
 
@@ -27,7 +31,7 @@ npm run dev
 ```
 
 Then open http://localhost:5273. The pages are `/`, `/talents.html`, `/raid.html`
-(planner and roster mode), `/dps.html` and `/privacy.html`.
+(planner and roster mode), `/dps.html`, `/guild.html` and `/privacy.html`.
 
 ## Commands
 
@@ -85,7 +89,7 @@ game. When the source site rebuilds from the beta client:
 
 ```
 index.html / talents.html / raid.html   the pages
-dps.html / privacy.html
+dps.html / guild.html / privacy.html
 public/data/items.json                  optional item list for the drop finder; not shipped
 public/data/talents.generated.json      imported talent data
 public/assets/icons, public/assets/bg   Blizzard icons and tree backgrounds
@@ -102,6 +106,7 @@ src/dps/config.ts                       the one builder every simulation config 
 src/dps/validate.ts, fight.ts           what links and saved settings must look like, and fight migration
 src/dps/draft.ts                        the character kept whole on this device, bags and bank included
 src/dps/handoff.ts                      a player from the planner: which buffs apply, which are not simulated
+src/guild/                              character profiles: who plays what, and their gear
 src/dps/sim/                            the simulator: rolls, event queue, auras, the fight
 src/dps/sim/specs/                      one file per spec, registered in index.ts
 src/dps/data/                           the editable numbers: spells, buffs, conversions
@@ -350,3 +355,11 @@ follows Wowhead's Classic raid composition tool.
 
 Icons and art are Blizzard Entertainment's. This is fan-made and not affiliated with
 Blizzard Entertainment.
+# Launch checks
+
+See [LAUNCH-CHECKLIST.md](LAUNCH-CHECKLIST.md) for completed checks and the remaining real-event,
+game-client and physical-device tests. Feedback defaults to the public GitHub issue tracker
+at `Goldpip3/wow-forever-tools`, with the visitor's report prefilled. Posting requires a GitHub
+account. Long reports use the copy button instead of an oversized URL. Automatically included
+page details exclude URL queries and fragments. `VITE_FEEDBACK_URL` optionally overrides the
+destination with an HTTPS channel or mailto address; custom destinations use copy-and-paste.

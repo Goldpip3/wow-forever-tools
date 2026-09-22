@@ -21,7 +21,7 @@
  * same or every link through Cloudflare's redirect would read as a jump to nowhere.
  */
 (function () {
-  var ORDER = ['index', 'talents', 'raid', 'dps'];
+  var ORDER = ['index', 'talents', 'raid', 'dps', 'guild'];
 
   /* Where a path sits along the nav, or null for somewhere with no place in it. */
   function rank(path) {

@@ -1,0 +1,210 @@
+/* The guild page: who plays what.
+ *
+ * Only the pieces this page owns are here. The account block, the server rows, the
+ * panels, pills and buttons all come from base.css, which is where anything a second
+ * page might draw belongs. */
+
+.page-title {
+  font-family: var(--font-display);
+  font-size: 26px;
+  color: var(--gold);
+  margin: 14px 0 2px;
+}
+.page-lead { color: var(--muted); margin: 0 0 14px; max-width: 70ch; }
+
+/* ---------- the server the page is looking at ----------
+   A picker rather than a list once somebody is signed in: the list is for choosing,
+   and after the choice the page needs the space for characters. */
+.gpick { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.gpick__label { color: var(--muted); font-size: 12px; }
+
+/* ---------- empty and waiting states ----------
+   Each one says what to do next, so a page with nothing on it is still an answer. */
+.gempty {
+  padding: 18px 14px;
+  text-align: center;
+  color: var(--muted);
+}
+.gempty__title { color: var(--ink); font-weight: 700; margin-bottom: 4px; }
+.gempty p { margin: 0 auto; max-width: 52ch; }
+
+/* ---------- the sample bar ----------
+   Says what this is before anything below it is read as real. */
+.gdemo {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 7px 10px;
+  margin-bottom: 10px;
+  background: var(--panel2);
+  border: 1px solid var(--gold-dim, var(--line));
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+/* ---------- search and the list ---------- */
+.gsearch { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }
+.gsearch .drawer__input { margin-bottom: 0; flex: 1; }
+
+.glist { display: grid; gap: 4px; }
+
+.grow {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 7px 9px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+.grow:hover { border-color: var(--gold); }
+.grow__icon { width: 28px; height: 28px; border-radius: 4px; flex: 0 0 28px; }
+.grow__text { flex: 1; min-width: 0; display: block; }
+.grow__line { display: flex; align-items: center; gap: 7px; }
+.grow__name { font-weight: 700; font-size: 14px; }
+.grow__meta {
+  display: block;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-family: var(--font-narrow);
+}
+.grow__profs { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
+
+/* ---------- professions ---------- */
+.gprofs { display: flex; flex-wrap: wrap; gap: 6px; }
+.gprof {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 7px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+}
+.gprof--sm { padding: 1px 5px; font-size: 11px; color: var(--muted); }
+.gprof__icon { width: 16px; height: 16px; border-radius: 3px; flex: 0 0 16px; }
+.gprof__name { color: var(--ink); }
+.gprof__skill { color: var(--gold); font-family: var(--font-narrow); }
+.gprof__skill--none { color: var(--muted); font-style: italic; }
+
+/* ---------- the profile ---------- */
+.gprofile { display: grid; gap: 10px; }
+.gbar { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.gid { display: flex; align-items: center; gap: 12px; }
+.gid__icon { width: 44px; height: 44px; border-radius: 6px; flex: 0 0 44px; }
+.gid__text { min-width: 0; }
+.gid__name { font-family: var(--font-display); font-size: 22px; font-weight: 700; }
+.gid__meta { color: var(--muted); font-size: 12.5px; }
+.gnote {
+  margin: 10px 0 0;
+  padding: 7px 9px;
+  background: var(--panel2);
+  border-left: 2px solid var(--gold);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.gstats { display: flex; gap: 8px; flex-wrap: wrap; }
+.gstat {
+  flex: 1 1 80px;
+  padding: 7px 4px;
+  text-align: center;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.gstat__value { font-size: 19px; font-weight: 700; color: var(--gold); }
+.gstat__label { color: var(--muted); font-size: 11px; text-transform: lowercase; }
+
+/* ---------- the read-only character sheet ----------
+   Two columns of slots and the weapons underneath, the way the sheet reads in game. */
+.gdoll { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.gdoll__col { display: grid; gap: 4px; align-content: start; }
+.gdoll__weapons { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+
+.gcell {
+  display: flex; align-items: center; gap: 7px;
+  padding: 5px 7px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  min-width: 0;
+}
+.gcell--empty { opacity: 0.55; }
+.gcell__icon { width: 26px; height: 26px; border-radius: 4px; flex: 0 0 26px; }
+.gcell__icon--empty { background: var(--panel); border: 1px dashed var(--line); }
+.gcell__text { min-width: 0; display: block; }
+.gcell__slot {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  font-family: var(--font-narrow);
+  text-transform: uppercase;
+}
+.gcell__name {
+  display: block;
+  font-size: 12px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.gcell__name--none { color: var(--muted); font-style: italic; }
+
+/* ---------- the form ---------- */
+.gform { display: grid; gap: 10px; }
+.gfield { display: block; }
+.gfield__label {
+  display: block;
+  color: var(--muted);
+  font-size: 11.5px;
+  margin-bottom: 3px;
+  font-family: var(--font-narrow);
+  text-transform: uppercase;
+}
+.gfield__hint { display: block; color: var(--muted); font-size: 11.5px; margin-top: 3px; }
+.gfield select.btn { width: 100%; }
+
+.gcheck { display: flex; align-items: center; gap: 7px; cursor: pointer; }
+
+.gprofedit { display: grid; gap: 5px; }
+.gprofgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 3px; }
+.gprofrow {
+  display: flex; align-items: center; gap: 6px;
+  padding: 3px 6px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.gprofrow:hover { border-color: var(--line); background: var(--panel2); }
+.gprofrow__name { flex: 1; font-size: 12.5px; }
+.gprofrow__skill {
+  width: 62px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  padding: 2px 5px;
+  font-family: var(--font-narrow);
+}
+.gprofrow__skill:disabled { opacity: 0.4; }
+
+.gactions { display: flex; gap: 6px; }
+
+/* An error from the bot, above the fields it is about. */
+.gwarn {
+  padding: 7px 9px;
+  margin-bottom: 8px;
+  background: color-mix(in srgb, var(--bad, #c0392b) 14%, transparent);
+  border: 1px solid var(--bad, #c0392b);
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+}
+
+@media (max-width: 640px) {
+  .gdoll { grid-template-columns: 1fr; }
+  .gdoll__weapons { grid-template-columns: 1fr; }
+}
+
+/* ---------- pasting an export ----------
+   Sits under the sheet it replaces, so the thing being changed is visible while
+   somebody changes it. */
+.gpaste { margin-top: 10px; display: grid; gap: 6px; }
+.gpaste .drawer__input { margin-bottom: 0; font-family: var(--font-narrow); font-size: 12px; }

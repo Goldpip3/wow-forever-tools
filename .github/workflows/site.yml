@@ -57,8 +57,8 @@ jobs:
       - name: Install from the lockfile
         run: npm ci
 
-      - name: Install Chromium for Playwright
-        run: npx playwright install --with-deps chromium
+      - name: Install Chromium and WebKit for Playwright
+        run: npx playwright install --with-deps chromium webkit
 
       - name: Production build
         run: npm run build

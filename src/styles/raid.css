@@ -709,20 +709,8 @@
    An exclamation rather than a number, because each one is something that broke. */
 .rsteps--gotchas li::before { content: '!'; font-weight: 700; }
 
-/* ---------- signed in ---------- */
-.acct { display: flex; align-items: center; gap: 9px; margin-bottom: 10px; }
-.acct__avatar { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--line); }
-.acct__name { font-weight: 700; color: var(--ink); flex: 1; }
-
-.guildrow {
-  padding: 8px 10px;
-  margin-bottom: 6px;
-  background: var(--panel2);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-}
-.guildrow__head { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
-.guildrow__name { font-weight: 700; color: var(--gold); }
+/* ---------- signed in ----------
+   .acct and .guildrow moved to base.css when the guild page started drawing them too. */
 
 .evlist { display: grid; gap: 4px; margin-top: 6px; }
 .evrow {

@@ -1,19 +1,23 @@
 # WoW Forever Tools
 
-A fan site for World of Warcraft: Forever. Four pages, no framework, no backend of its
-own: a talent calculator, a raid composition planner, a gear and DPS analyser, and roster
-mode, which edits a real Discord event through the Group Builder bot.
+A fan site for World of Warcraft: Forever. Five pages, no framework, no backend of its
+own: a talent calculator, a raid composition planner, a gear and DPS analyser, a guild
+page holding character profiles, and roster mode, which edits a real Discord event
+through the Group Builder bot.
 
 ## Read these before writing
 
 - **[WRITING.md](WRITING.md) — read it before writing a single word a visitor will see.**
   Headlines, buttons, hints, errors, empty states. It is not a style preference; the
   first version of this site read like a brochure and had to be rewritten.
-- [AUTH-SPEC.md](AUTH-SPEC.md) — signing in with Discord and who may do what. Not built.
-  The rule it turns on: the bot decides, the website only asks. Do not grow a second
-  permission model in the planner.
+- [AUTH-SPEC.md](AUTH-SPEC.md) — signing in with Discord and who may do what. Built:
+  the bot has the OAuth exchange, sessions and `/api/v4/me`, and `src/shared/session.ts`
+  is the only file here that asks. The rule it turns on: the bot decides, the website only
+  asks. Do not grow a second permission model anywhere on this site.
 - [ROSTER-SPEC.md](ROSTER-SPEC.md) — the contract between this planner and the Group
   Builder bot. Where it disagrees with the deployed API, the API wins.
+- [GUILD-SPEC.md](GUILD-SPEC.md) — character profiles: the contract for `guild.html`,
+  why nothing on it can be fetched, and which three files hold the profession list.
 - [INTEGRATION.md](INTEGRATION.md) — the older copy-paste handoff, still supported.
 
 ## The two modes of raid.html
@@ -41,6 +45,13 @@ hypothetical.
   is what the member said. `selected/standby/cut` is what the leader decided. Never map
   one onto the other.
 - **Never auto-retry a 409.** Refetch and tell the leader their copy was stale.
+- **Nothing on the guild page is fetched.** Forever has no armory and no Warcraft Logs,
+  so every field is typed by a member or read out of their own addon paste. The page says
+  who entered a thing and when, because that is the only provenance there is. Bags and
+  bank are stripped from a paste before it is sent, and two tests assert it.
+- **The twelve professions live in three files** and have to agree:
+  `src/guild/professions.ts`, the addon's `export.lua`, and the bot's
+  `src/services/characters.ts`. `tests/guild-addon-professions.test.ts` guards two of them.
 - **Estimated numbers say so.** Scaled figures and unknown ranks are labelled differently
   and must stay that way.
 - **Module state goes at the top of `main.ts`, above the functions.** `raid.html` runs
@@ -61,7 +72,7 @@ hypothetical.
 
 ```
 npm run dev      # vite on 5273
-npm test         # vitest, 882 tests
+npm test         # vitest, 989 tests
 npm run build    # typecheck, then dist/
 npm run e2e      # Playwright smoke tests against dist/; build first
 npm run import   # refetch talent data after the beta changes

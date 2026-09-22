@@ -17,6 +17,7 @@ const SOURCES = [
   { dir: resolve(ROOT, 'src/raid/effects'), skip: new Set(['index.ts']) },
   { dir: resolve(ROOT, 'src/dps'), skip: new Set() },
   { dir: resolve(ROOT, 'src/dps/data'), skip: new Set() },
+  { dir: resolve(ROOT, 'src/guild'), skip: new Set() },
 ];
 
 /** Matches icon: 'name', "icon": "name", and the escaped form inside sample.ts. */

@@ -86,13 +86,16 @@ function isSummaryShape(v: unknown): boolean {
   if (!isRecord(v)) return false;
   if (!['dps', 'dpsStdev', 'dpsStderr'].every((k) => finite(v[k]))) return false;
   if (!between(v.iterations, 1, MAX_ITERATIONS) || !between(v.duration, 1, MAX_DURATION)) return false;
-  const numeric = (r: Record<string, unknown>, keys: string[]) => keys.every((k) => optional(r[k], finite));
-  if (!records(v.abilities, 500, (a) => text(a.id, 100) && optional(a.name, (n) => text(n, 200))
+  const numeric = (r: Record<string, unknown>, keys: string[]) => keys.every((k) => finite(r[k]));
+  if (!records(v.abilities, 500, (a) => text(a.id, 100) && text(a.name, 200)
     && numeric(a, ['casts', 'hits', 'crits', 'misses', 'avoided', 'glances', 'damage', 'dps', 'share']))) return false;
   if (!records(v.auras, 500, (a) => text(a.name, 200) && finite(a.uptime))) return false;
-  if (!isRecord(v.resources) || !Object.values(v.resources).every((n) => n === null || finite(n))) return false;
+  if (!isRecord(v.resources)
+    || !numeric(v.resources, ['timeIdle', 'manaSpent', 'rageGained', 'energySpent', 'starvedFor'])
+    || !optional(v.resources.oomAt, finite)) return false;
   if (!isRecord(v.histogram) || !Array.isArray(v.histogram.bins) || v.histogram.bins.length > 1000
-    || !v.histogram.bins.every(finite)) return false;
+    || !finite(v.histogram.min) || !finite(v.histogram.max) || v.histogram.max < v.histogram.min
+    || !v.histogram.bins.every((n) => finite(n) && n >= 0)) return false;
   if (!isRecord(v.representative) || !finite(v.representative.seed)) return false;
   return true;
 }
