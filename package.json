@@ -11,6 +11,7 @@
     "test:watch": "vitest",
     "import": "node scripts/import-talentsforever.mjs && node scripts/scrub-sources.mjs",
     "assets": "node scripts/fetch-assets.mjs",
+    "webfonts": "node scripts/fetch-webfonts.mjs",
     "addon": "node scripts/pack-addon.mjs",
     "typecheck": "tsc --noEmit",
     "e2e": "playwright test",

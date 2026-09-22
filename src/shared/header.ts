@@ -143,6 +143,8 @@ export interface AccountView {
   user?: { username: string; avatarUrl?: string } | null;
   onSignIn?: () => void;
   onSignOut?: () => void;
+  /** Ends every session the account has, not only this browser's. */
+  onSignOutEverywhere?: () => void;
   /** Where the account menu sends someone who wants their servers and events. */
   rosterHref?: string;
 }
@@ -203,6 +205,9 @@ function accountButton(view: AccountView): HTMLElement {
   menu.appendChild(rosters);
 
   menu.appendChild(item('Sign out', () => view.onSignOut?.()));
+  if (view.onSignOutEverywhere) {
+    menu.appendChild(item('Sign out everywhere', () => view.onSignOutEverywhere?.()));
+  }
   wrap.appendChild(menu);
 
   function close(): void {

@@ -187,3 +187,25 @@ describe('what a page hears about signing out', () => {
     expect(order).toEqual(['save', 'request', 'clean up']);
   });
 });
+
+describe('signing out everywhere', () => {
+  it('asks a different route, so one browser is not the same as every browser', async () => {
+    const calls: string[] = [];
+    vi.stubGlobal('fetch', async (url: string) => {
+      calls.push(String(url));
+      return new Response(null, { status: 204 });
+    });
+
+    await signOut();
+    await signOut(true);
+
+    expect(calls[0]).toContain('/api/v4/auth/signout');
+    expect(calls[0]).not.toContain('signout-all');
+    expect(calls[1]).toContain('/api/v4/auth/signout-all');
+  });
+
+  it('keeps the person signed in here when the server refuses', async () => {
+    vi.stubGlobal('fetch', async () => new Response('', { status: 500 }));
+    expect(await signOut(true)).toBe(false);
+  });
+});
