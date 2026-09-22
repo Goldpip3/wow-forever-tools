@@ -518,6 +518,10 @@ export function renderProfile(
 export interface EditorHandlers {
   onSave(draft: EditorDraft): void;
   onCancel(): void;
+  /** What was typed into the owner lookup. */
+  onOwnerQuery?(text: string): void;
+  /** The person chosen, or null for the officer filling it in. */
+  onOwnerPick?(userId: string | null, displayName: string | null): void;
   /**
    * Every change, so the page holds what is being typed.
    *
@@ -528,14 +532,35 @@ export interface EditorHandlers {
   onChange(draft: EditorDraft): void;
 }
 
+/**
+ * Choosing whose character this is, which only an officer may do.
+ *
+ * `people` are the ones who already have a character here, which the page knows
+ * without asking anybody. They are not the people this picker is for: an officer
+ * files a character for somebody who has not got one, and the old picker could
+ * not name a single one of them. `results` are what the server answered for what
+ * was typed.
+ */
+export interface OwnerPicker {
+  people: ReadonlyArray<{ userId: string; displayName: string }>;
+  /** False when the bot is older than this feature. The list alone is then all there is. */
+  canSearch: boolean;
+  query: string;
+  results: ReadonlyArray<{ userId: string; displayName: string }>;
+  searching: boolean;
+  /** What the lookup said went wrong, in its own words. */
+  problem: string | null;
+  /** The chosen person, when they came from a search rather than the list. */
+  chosenName: string | null;
+}
+
 export interface EditorOptions {
   /** The character being changed, or null when this is a new one. */
   character: Character | null;
   /** What to draw in the fields. Held by the page, not by the fields. */
   draft: EditorDraft;
-  /** Server members an officer may file a character for. Empty for everyone else. */
-  people: ReadonlyArray<{ userId: string; displayName: string }>;
-  canPickOwner: boolean;
+  /** How to choose an owner. Absent for everyone who may only file their own. */
+  owner: OwnerPicker | null;
   busy: boolean;
   /** What the last save said went wrong, shown above the fields. */
   problem: string | null;
@@ -586,15 +611,10 @@ export function renderEditor(opts: EditorOptions, handlers: EditorHandlers): HTM
 
   const draft = opts.draft;
 
-  let owner: HTMLSelectElement | null = null;
-  if (opts.canPickOwner && !existing) {
-    owner = document.createElement('select');
-    owner.className = 'btn';
-    owner.appendChild(option('', 'Me', draft.ownerId === null));
-    for (const person of opts.people) {
-      owner.appendChild(option(person.userId, person.displayName, draft.ownerId === person.userId));
-    }
-  }
+  /* Whose character this is. Held here rather than read off a control, because
+     the person may have come from a lookup and not be in any list on the page. */
+  let ownerId: string | null = draft.ownerId;
+  const picker = !existing ? opts.owner : null;
 
   const name = document.createElement('input');
   name.className = 'drawer__input';
@@ -762,7 +782,7 @@ export function renderEditor(opts: EditorOptions, handlers: EditorHandlers): HTM
   note.addEventListener('input', touched);
   ruleset.addEventListener('change', touched);
   for (const control of [roleSelect, main]) control.addEventListener('change', touched);
-  owner?.addEventListener('change', touched);
+
 
   /* ------------------------------------------------------------- professions
      A chip per profession rather than a checkbox in a row: the whole thing is the
@@ -821,6 +841,81 @@ export function renderEditor(opts: EditorOptions, handlers: EditorHandlers): HTM
     return grid;
   }
 
+  /* ------------------------------------------------------------- whose it is
+     A lookup rather than a list. The officer is filing for somebody who has no
+     character yet, and a list of people who have one cannot name them. */
+
+  function ownerField(state: OwnerPicker): HTMLElement {
+    const box = el('div', 'gowner');
+
+    if (state.canSearch) {
+      const search = document.createElement('input');
+      search.className = 'drawer__input';
+      search.type = 'search';
+      search.placeholder = 'Find somebody by their Discord name';
+      search.setAttribute('aria-label', 'Find a member');
+      search.dataset.focusKey = 'guild-owner';
+      search.value = state.query;
+      search.addEventListener('input', () => handlers.onOwnerQuery?.(search.value));
+      box.appendChild(search);
+    }
+
+    if (state.problem) {
+      const warn = el('div', 'gwarn', state.problem);
+      warn.setAttribute('role', 'alert');
+      box.appendChild(warn);
+    }
+
+    const row = el('div', 'gowner__list');
+
+    const choice = (id: string | null, label: string): HTMLElement => {
+      const button = el('button', 'gowner__pick', label);
+      (button as HTMLButtonElement).type = 'button';
+      button.classList.toggle('gowner__pick--on', ownerId === id);
+      button.addEventListener('click', () => {
+        ownerId = id;
+        handlers.onOwnerPick?.(id, id === null ? null : label);
+        handlers.onChange(readDraft());
+        for (const other of row.querySelectorAll('.gowner__pick')) {
+          other.classList.toggle('gowner__pick--on', other === button);
+        }
+        drawPreview();
+      });
+      return button;
+    };
+
+    row.appendChild(choice(null, 'Me'));
+
+    const shown = state.query.trim().length >= 2 ? state.results : state.people;
+    for (const person of shown.slice(0, 15)) {
+      row.appendChild(choice(person.userId, person.displayName));
+    }
+
+    /* Somebody chosen a search ago, still chosen, and in neither list now. */
+    if (ownerId && state.chosenName && !shown.some((p) => p.userId === ownerId)) {
+      row.appendChild(choice(ownerId, state.chosenName));
+    }
+    box.appendChild(row);
+
+    if (state.searching) {
+      box.appendChild(el('div', 'drawer__hint', 'Looking…'));
+    } else if (state.canSearch && state.query.trim().length === 1) {
+      box.appendChild(el('div', 'drawer__hint', 'Two letters at least.'));
+    } else if (state.canSearch && state.query.trim().length >= 2 && !state.results.length) {
+      box.appendChild(
+        el('div', 'drawer__hint', 'Nobody in this Discord server matches that.'),
+      );
+    }
+
+    return field(
+      'Whose character',
+      box,
+      state.canSearch
+        ? 'File one for somebody who has not signed in yet. They can edit it themselves once they do.'
+        : 'This bot is older than the member lookup, so only people who already have a character are listed.',
+    );
+  }
+
   /* ------------------------------------------------------------- arrangement */
 
   function group(title: string, hint?: string): { group: HTMLElement; rows: HTMLElement } {
@@ -837,15 +932,7 @@ export function renderEditor(opts: EditorOptions, handlers: EditorHandlers): HTM
   form.appendChild(preview);
 
   const who = group('Who this is');
-  if (owner) {
-    who.rows.appendChild(
-      field(
-        'Whose character',
-        owner,
-        'You can file one for somebody who has not signed in yet. They can edit it themselves once they do.',
-      ),
-    );
-  }
+  if (picker) who.rows.appendChild(ownerField(picker));
   who.rows.appendChild(
     field(
       'Character name',
@@ -923,7 +1010,7 @@ export function renderEditor(opts: EditorOptions, handlers: EditorHandlers): HTM
   /** The form as it stands. Untrimmed: what is in the field is what is held. */
   function readDraft(): EditorDraft {
     return {
-      ownerId: owner?.value || null,
+      ownerId,
       name: name.value,
       ruleset: ruleset.value || null,
       classKey: classSelect.value,

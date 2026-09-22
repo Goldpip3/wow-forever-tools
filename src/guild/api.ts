@@ -62,6 +62,12 @@ export interface Raider {
   displayName: string;
 }
 
+/** Somebody in the Discord server, found by name. */
+export interface FoundMember {
+  userId: string;
+  displayName: string;
+}
+
 export interface CharacterList {
   guild: { id: string; name: string };
   you: {
@@ -285,4 +291,27 @@ export function saveGear(guildId: string, id: number, payload: unknown): Promise
 
 export function deleteGear(guildId: string, id: number): Promise<{ ok: boolean }> {
   return request(base(guildId) + '/' + id + '/gear', { method: 'DELETE' });
+}
+
+/**
+ * Members of the server whose name starts with what was typed.
+ *
+ * Officers only, and the bot refuses it from anybody else. Two letters at
+ * least: this is a lookup for filing one character, not a way to read a
+ * server roster.
+ */
+export async function searchMembers(
+  guildId: string,
+  query: string,
+  signal?: AbortSignal,
+): Promise<FoundMember[]> {
+  const answer = await request<{ members?: unknown }>(
+    '/api/v4/guilds/' + encodeURIComponent(guildId) + '/members?q=' + encodeURIComponent(query),
+    { signal },
+  );
+  if (!Array.isArray(answer.members)) return [];
+  return answer.members.filter(
+    (m): m is FoundMember =>
+      !!m && typeof m === 'object' && typeof (m as FoundMember).userId === 'string',
+  );
 }

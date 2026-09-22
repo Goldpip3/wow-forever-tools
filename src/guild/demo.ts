@@ -18,9 +18,13 @@ const DAY = 86_400;
 const YOU = 'demo-you';
 
 function character(over: Partial<Character> & Pick<Character, 'id' | 'name' | 'classKey'>): Character {
+  const displayName = over.displayName ?? 'Someone';
   return {
-    userId: 'demo-' + over.id,
-    displayName: 'Someone',
+    /* One account per person, not per character. It used to be per character, so
+       the sample's two Kits were two different Discord accounts: Also plays never
+       drew, and the owner picker listed the same name twice. */
+    userId: 'demo-' + displayName.toLowerCase(),
+    displayName,
     ruleset: 'normal',
     specKey: null,
     roleKey: null,

@@ -5,7 +5,12 @@
  * from the game. A member says what they play, and the addon export fills in the gear.
  * The bot holds it, and the bot decides who may edit it; this page only asks.
  */
-import { contractProblem, GUILD_CAPABILITIES, loadApiIdentity } from '../shared/api-contract';
+import {
+  contractProblem,
+  GUILD_CAPABILITIES,
+  hasCapability,
+  loadApiIdentity,
+} from '../shared/api-contract';
 import { renderFooter, renderHeader } from '../shared/header';
 import { keepFocus } from '../shared/focus';
 import { attachTooltips } from '../shared/tooltip';
@@ -31,9 +36,11 @@ import {
   deleteGear as apiDeleteGear,
   saveCharacter,
   saveGear,
+  searchMembers,
   type CharacterDetail,
   type CharacterInput,
   type CharacterList,
+  type FoundMember,
 } from './api';
 import { demoCharacter, demoList } from './demo';
 import {
@@ -90,6 +97,30 @@ let draftBase: EditorDraft | null = null;
 
 /** The text in the gear box, for the same reason as the draft above. */
 let gearText = '';
+
+/* ------------------------------------------------- whose character it is
+   An officer files a character for somebody who has not signed in, so the
+   people worth offering are exactly the ones this page has never heard of.
+   The old picker listed only the people who already had a character, which
+   is the set that does not need one filed for them. */
+
+/** What is in the lookup box. */
+let ownerQuery = '';
+
+/** What the server answered for it. */
+let ownerResults: FoundMember[] = [];
+
+let ownerSearching = false;
+let ownerProblem: string | null = null;
+
+/** The chosen person name, so they stay named after the results change. */
+let ownerName: string | null = null;
+
+/** Waits for the typing to stop, so a name is one lookup and not eight. */
+let ownerTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Which lookup an answer belongs to. An older one is dropped. */
+let ownerSeq = 0;
 
 /** True while a request is in flight, so a second click cannot start another. */
 let busy = false;
@@ -459,7 +490,68 @@ function openEditor(mode: 'new' | 'existing'): void {
   draft = draftFor(mode === 'existing' && detail ? detail.character : null);
   draftBase = draft;
   problem = null;
+  forgetOwnerLookup();
   draw();
+}
+
+function forgetOwnerLookup(): void {
+  if (ownerTimer) clearTimeout(ownerTimer);
+  ownerTimer = null;
+  ownerQuery = '';
+  ownerResults = [];
+  ownerSearching = false;
+  ownerProblem = null;
+  ownerName = null;
+  ownerSeq += 1;
+}
+
+/**
+ * Look somebody up, once the typing has stopped.
+ *
+ * Nothing is drawn on the keystroke itself: the box holds what was typed, and a
+ * redraw per letter would be a redraw of the whole form per letter. The draw
+ * happens when the lookup starts and when it lands.
+ */
+function askForOwner(text: string): void {
+  ownerQuery = text;
+  ownerProblem = null;
+  if (ownerTimer) clearTimeout(ownerTimer);
+
+  if (text.trim().length < 2) {
+    ownerResults = [];
+    ownerSearching = false;
+    return;
+  }
+
+  ownerTimer = setTimeout(() => {
+    const wanted = ownerQuery;
+    const mine = ++ownerSeq;
+    const forGuild = guildId;
+    if (!forGuild) return;
+
+    ownerSearching = true;
+    draw();
+
+    void searchMembers(forGuild, wanted)
+      .then((found) => {
+        if (mine !== ownerSeq || guildId !== forGuild) return;
+        ownerResults = found;
+      })
+      .catch((err: unknown) => {
+        if (mine !== ownerSeq || guildId !== forGuild) return;
+        if (err instanceof GuildApiError && err.aborted) return;
+        ownerResults = [];
+        ownerProblem =
+          err instanceof GuildApiError
+            ? err.message
+            : 'Could not look that up. Try again.';
+      })
+      .finally(() => {
+        if (mine !== ownerSeq) return;
+        ownerSearching = false;
+        draw();
+      });
+  }, 300);
 }
 
 function closeEditor(): void {
@@ -467,6 +559,7 @@ function closeEditor(): void {
   draft = null;
   draftBase = null;
   problem = null;
+  forgetOwnerLookup();
 }
 
 /** Whether the form may be thrown away, asking first when there is something in it. */
@@ -745,8 +838,17 @@ function renderBody(): HTMLElement {
       {
         character: null,
         draft,
-        people: knownPeople(),
-        canPickOwner: list.you.isOfficer,
+        owner: list.you.isOfficer
+          ? {
+              people: knownPeople(),
+              canSearch: hasCapability('members.search'),
+              query: ownerQuery,
+              results: ownerResults,
+              searching: ownerSearching,
+              problem: ownerProblem,
+              chosenName: ownerName,
+            }
+          : null,
         busy,
         problem,
       },
@@ -756,6 +858,10 @@ function renderBody(): HTMLElement {
         onChange: (next) => {
           draft = next;
         },
+        onOwnerQuery: askForOwner,
+        onOwnerPick: (_userId, displayName) => {
+          ownerName = displayName;
+        },
       },
     );
   }
@@ -763,7 +869,7 @@ function renderBody(): HTMLElement {
   if (characterId && detail) {
     if (editing === 'existing' && draft) {
       return renderEditor(
-        { character: detail.character, draft, people: [], canPickOwner: false, busy, problem },
+        { character: detail.character, draft, owner: null, busy, problem },
         {
           onSave: (next) => void save(inputFrom(next), null),
           onCancel: leaveEditor,
