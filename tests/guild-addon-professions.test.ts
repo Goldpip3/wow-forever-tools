@@ -66,3 +66,53 @@ describe('the export version moves with the format', () => {
     expect(LUA).toContain('not PROFESSIONS[name]');
   });
 });
+
+describe('professions read on both engines', () => {
+  /**
+   * Forever reports interface 16001 but is the retail client underneath, where
+   * GetNumSkillLines and GetSkillLineInfo do not exist. The first version of this
+   * feature used only those, so professions came back empty for every Forever
+   * player while working perfectly on Classic Era.
+   */
+  it('keeps the skill-list path, which is how Classic Era holds them', () => {
+    expect(LUA).toContain('function professionsFromSkillLines()');
+    expect(LUA).toContain('GetNumSkillLines');
+    expect(LUA).toContain('GetSkillLineInfo');
+  });
+
+  it('keeps the slot path, which is the only one Forever has', () => {
+    expect(LUA).toContain('function professionsFromSlots()');
+    expect(LUA).toContain('GetProfessions');
+    expect(LUA).toContain('GetProfessionInfo');
+  });
+
+  it('chooses between them on whether the API is there, not on a version number', () => {
+    // GetBuildInfo returns 16001 for Forever, so any "is this the modern client"
+    // test on that number reads as Classic and takes the wrong path.
+    expect(LUA).toContain("if type(GetNumSkillLines) == 'function' then return professionsFromSkillLines() end");
+    expect(LUA).toContain("if type(GetProfessions) == 'function' then return professionsFromSlots() end");
+    expect(LUA).not.toMatch(/GetBuildInfo[\s\S]{0,200}professionsFrom/);
+  });
+
+  it('walks profession slots by position, because an empty one is a gap', () => {
+    // ipairs would stop at the first nil and lose everything after it, which for
+    // somebody with one profession and Cooking is most of the answer.
+    const slots = /function professionsFromSlots\(\)([\s\S]*?)\nend/.exec(LUA);
+    expect(slots).toBeTruthy();
+    expect(slots![1]).not.toContain('ipairs');
+    expect(slots![1]).toContain('for i = 1,');
+  });
+
+  it('reports which path it took in the diagnostics', () => {
+    // The bug was invisible until somebody asked why the field was empty.
+    expect(LUA).toContain('professions via ');
+  });
+
+  it('probes both APIs, so diag names the missing one', () => {
+    const probes = /local PROBES = \{([\s\S]*?)\n\}/.exec(LUA);
+    expect(probes).toBeTruthy();
+    for (const fn of ['GetNumSkillLines', 'GetSkillLineInfo', 'GetProfessions', 'GetProfessionInfo']) {
+      expect(probes![1]).toContain(`'${fn}'`);
+    }
+  });
+});

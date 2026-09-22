@@ -3,7 +3,7 @@
 ## IconTexture: Interface\Icons\INV_Misc_Gear_01
 ## Notes: Exports your character, gear, bags and bank for the WoW Forever gear and DPS tool.
 ## Author: WoW Forever Tools
-## Version: 1.2.0
+## Version: 1.2.1
 ## SavedVariables: WoWForeverSyncDB
 
 # 16001 is the Forever client, which runs on the Midnight engine. Without it the
