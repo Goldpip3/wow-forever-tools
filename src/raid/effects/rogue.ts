@@ -93,7 +93,10 @@ export const ROGUE_EFFECTS: Effect[] = [
     scope: "target",
     categories: ["reduced-casting-speed"],
     providers: [{ classId: "rogue", specs: ANY, choice: POISON }],
-    forever: { status: "unverified" },
+    forever: {
+      status: "same",
+      note: "Same 20% chance and 60% casting time for 14 sec. The beta adds a charge count.",
+    },
   },
   {
     id: "wound-poison",
@@ -135,7 +138,10 @@ export const ROGUE_EFFECTS: Effect[] = [
         talent: { tree: "Subtlety", name: "Hemorrhage" },
       },
     ],
-    forever: { status: "unverified" },
+    forever: {
+      status: "changed",
+      note: "No longer a physical damage debuff the raid shares. It makes the target take 15% more Rupture damage from that Rogue alone, so it buys the raid nothing.",
+    },
   },
   {
     id: "mutilate",

@@ -72,7 +72,10 @@ export const PRIEST_EFFECTS: Effect[] = [
         talent: { tree: "Discipline", name: "Power Infusion" },
       },
     ],
-    forever: { status: "unverified" },
+    forever: {
+      status: "same",
+      note: "20% more spell damage and healing for 15 sec, as in Classic.",
+    },
   },
   {
     id: "vampiric-embrace",
@@ -166,7 +169,10 @@ export const PRIEST_EFFECTS: Effect[] = [
         talent: { tree: "Shadow", name: "Silence" },
       },
     ],
-    forever: { status: "unverified" },
+    forever: {
+      status: "changed",
+      note: "Still a 5 sec silence, and it now interrupts for 3 sec as well.",
+    },
   },
   {
     id: "shackle-undead",

@@ -153,7 +153,10 @@ export const WARRIOR_EFFECTS: Effect[] = [
         talent: { tree: "Protection", name: "Concussion Blow" },
       },
     ],
-    forever: { status: "unverified" },
+    forever: {
+      status: "same",
+      note: "Same 5 sec stun. The talent moved within Protection.",
+    },
   },
   /* A raid boss cannot be slowed, so this is not a debuff the raid covers. Kept as
        utility, which is what it is for: adds, runners and anything that flees. */
@@ -172,7 +175,10 @@ export const WARRIOR_EFFECTS: Effect[] = [
         talent: { tree: "Fury", name: "Piercing Howl" },
       },
     ],
-    forever: { status: "unverified" },
+    forever: {
+      status: "same",
+      note: "Same daze: 50% movement speed for 6 sec.",
+    },
   },
   {
     id: "disarm",

@@ -237,7 +237,10 @@ export const DRUID_EFFECTS: Effect[] = [
         talent: { tree: "Feral Combat", name: "Feral Charge" },
       },
     ],
-    forever: { status: "unverified" },
+    forever: {
+      status: "changed",
+      note: "Still a 4 sec immobilise and interrupt. The charge now lands behind the target.",
+    },
   },
   {
     id: "bash",

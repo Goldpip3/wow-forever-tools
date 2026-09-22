@@ -25,7 +25,10 @@ export const WARLOCK_EFFECTS: Effect[] = [
       "reduced-frost-resistance",
     ],
     providers: [{ classId: "warlock", specs: ANY, choice: CURSE }],
-    forever: { status: "unverified" },
+    forever: {
+      status: "changed",
+      note: "It was Fire and Frost only: 60 resistance and 8% damage. It is all Magic schools now, 75 resistance and 10% damage, so it helps shadow and nature casters too.",
+    },
   },
   {
     id: "curse-of-shadow",
@@ -40,7 +43,10 @@ export const WARLOCK_EFFECTS: Effect[] = [
       "reduced-arcane-resistance",
     ],
     providers: [{ classId: "warlock", specs: ANY, choice: CURSE }],
-    forever: { status: "unverified" },
+    forever: {
+      status: "unverified",
+      note: "Not in the beta client spellbook at build 1.60.1.69876. Curse of the Elements covers all Magic schools now, which would make this one redundant.",
+    },
   },
   /*
    * Curse of Recklessness is not tracked: it raises the target's attack power and stops it
