@@ -63,7 +63,7 @@ form offers both and the profile says which.
 
 ## 3. Tables (Group Builder)
 
-Migration `0006_characters.sql`.
+Migrations `0006_characters.sql` and `0007_ruleset.sql`.
 
 ```sql
 CREATE TABLE characters (
@@ -72,7 +72,8 @@ CREATE TABLE characters (
   user_id      TEXT NOT NULL,
   display_name TEXT NOT NULL DEFAULT '',   -- Discord name snapshot, for the list
   name         TEXT NOT NULL,
-  realm        TEXT NOT NULL DEFAULT '',
+  realm        TEXT NOT NULL DEFAULT '',   -- legacy; never written, never returned
+  ruleset      TEXT,                       -- normal | pvp | roleplaying | hardcore
   class_key    TEXT NOT NULL,
   spec_key     TEXT,
   role_key     TEXT,                       -- tank | healer | melee | ranged
@@ -132,6 +133,8 @@ courtesy; the refusal is the security.
 ## 5. API
 
 ```
+GET    /api/v4/version                            (no session; RELEASE-BASELINE.md)
+GET    /api/v4/guilds/:guildId/members?q=          (officers only)
 GET    /api/v4/guilds/:guildId/characters
 GET    /api/v4/guilds/:guildId/characters/:id
 POST   /api/v4/guilds/:guildId/characters
@@ -146,10 +149,10 @@ DELETE /api/v4/guilds/:guildId/characters/:id/gear
 ```jsonc
 {
   "guild": { "id": "…", "name": "Nightfall" },
-  "you": { "userId": "…", "isOfficer": true },
+  "you": { "userId": "…", "isOfficer": true, "isLeader": false },
   "characters": [
     { "id": 1, "userId": "…", "displayName": "Ava", "name": "Thrallsbane",
-      "realm": "Nightslayer", "classKey": "warrior", "specKey": "prot_war",
+      "ruleset": "normal", "classKey": "warrior", "specKey": "prot_war",
       "roleKey": "tank", "level": 60, "isMain": true,
       "professions": [{ "key": "mining", "skill": 300 }],
       "note": "", "updatedBy": "…", "updatedAt": 1790000000, "hasGear": true }
@@ -160,12 +163,29 @@ DELETE /api/v4/guilds/:guildId/characters/:id/gear
 `hasGear` is on the list row so a row can say there is something to look at without the
 list carrying every member's gear.
 
+`isOfficer` may edit anybody's character. `isLeader` is narrower — Discord Administrator
+or Manage Server — and is the only one sent `missing`, the raiders who have filed nothing.
+A raid manager seats raids; a guild leader is the person who wants to know that nobody has
+Enchanting.
+
+`ruleset` replaced `realm`. Forever is realmless: a character is made under one of four
+rulesets and cannot move between them, which makes it the field that decides who can group
+with whom. The `realm` column is still in the table, is no longer written, and is not
+returned.
+
 **`GET …/characters/:id`** adds `gear` (or null), `attendance`, and
 `permissions: { canEdit }`.
 
 **`POST`** creates one. An officer may pass `userId` to file it for somebody else; from
 anyone else that field is refused with 403. A name already taken answers **409** with a
 message naming who holds it.
+
+**`GET …/members?q=`** finds who to pass as that `userId`. The form used to offer only
+the people who already had a character here, which is the set that does not need one
+filed for them. Officers only; **two characters at least**, fifteen answers at most,
+`{ userId, displayName }` each, and twenty searches a minute per account. It is a lookup,
+not a member list, and the difference is the point: a roster of everybody in a Discord
+server is not something this API hands out.
 
 **`PUT`** edits. The owner never moves, so `userId` is not accepted here.
 
@@ -219,14 +239,61 @@ Gear arrives only as a **`/wfsync` paste**, read by `src/guild/paste.ts` and che
 member's inventory, it keeps the row small, and the bot's 64 KB limit refuses a payload
 carrying one. A unit test and a browser test both assert they never reach the request.
 
-What is sent: `v`, `addonVersion`, `generatedAt`, `name`, `realm`, `race`, `level`,
+What is sent: `v`, `addonVersion`, `generatedAt`, `name`, `ruleset`, `race`, `level`,
 `stats`, `equipped`, `talents`, `professions`.
+
+**The identity fields are validated and then dropped.** `name` and `ruleset` are checked
+for shape and never stored on the gear row: the profile owns them, and a paste that
+disagrees with the profile is a question for the person pasting rather than an overwrite.
+An unrecognised ruleset becomes null rather than refusing the save. A wrong ruleset is
+worse than a missing one, and it is never guessed.
+
+### The allowlist, which is the contract
+
+Trimming the top level is not enough and was not enough: `equipped` and `talents` used to
+be forwarded as they arrived, so anything nested inside an item rode along. **Every object
+is rebuilt from a named list of fields, at every depth, on both sides.** A key nobody
+named does not exist by the time anything is stored.
+
+| | Fields |
+|---|---|
+| One worn item | `id`, `name`, `icon`, `quality`, `ilvl`, `subType`, `unique`, `setName`, `stats`, `weapon` (`min`, `max`, `speed`), `effects` |
+| Item stats | the 24 keys in `STAT_KEYS` |
+| Talent tree | `tab`, `points`, `list` of `name`, `tier`, `column`, `rank`, `max` |
+| Sheet totals | strength, agility, stamina, intellect, spirit, attackPower, rangedAttackPower, meleeCrit, rangedCrit, healing, hit, spellHit, mana, health, armor |
+| Slots | the seventeen the sheet draws, walked by name rather than read off the export |
+
+Not kept, and each for a reason:
+
+- **`link`** — the raw item link. Nothing reads it, and a field nothing reads is a place
+  for anything to travel.
+- **`location`** — an equipped item is equipped. The export can say `bank` with a bag and
+  an index in it, and a bank is the thing this feature promises not to hold.
+- **`equipLoc`, `enchant`, `suffix`, `resistances`, `weaponSkill`** — the read-only sheet
+  shows none of them.
+- **`bags`, `bank`, `bankStale`** — refused by name with a 400 rather than stripped in
+  silence. A paste carrying one means the page that sent it is not the page we think, and
+  a silent strip would leave that running.
+- **`skills`, `activeBuffs`, `faction`** — never part of a profile.
+
+Two copies of the list, not one: `src/guild/gear-upload.ts` here and
+`src/services/gearPayload.ts` on the bot, each with its own test, the same standing
+arrangement as the twelve professions. The bot is the copy that decides.
+
+**Reads go through it too.** `gearView` rebuilds what it read out of the row rather than
+handing it back. Rows written before the allowlist existed hold whole items, down to which
+bag each one was in, and a read is the other half of not storing that.
+
+**Sizes.** The page refuses a paste over 400,000 characters before parsing it, and refuses
+an upload over 64 KB after the trim. Fastify stops reading a gear body at 256 KB before it
+parses anything; between 64 KB and that, the route answers 413 with a sentence about bags
+and bank.
 
 Two behaviours worth keeping:
 
 - **A name mismatch asks, rather than refusing.** People do paste the wrong alt, and they
   also rename characters. The prompt names both.
-- **A paste fills in blanks only.** A missing realm, level or profession list is taken
+- **A paste fills in blanks only.** A missing ruleset, level or profession list is taken
   from the export; anything already entered is left alone, because the person who typed it
   meant it.
 

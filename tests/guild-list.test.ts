@@ -12,7 +12,7 @@ function character(
     userId: 'u1',
     displayName: 'Ava',
     name,
-    realm: 'Nightslayer',
+    ruleset: 'normal',
     classKey: 'warrior',
     specKey: null,
     roleKey: null,

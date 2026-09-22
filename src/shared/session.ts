@@ -36,6 +36,24 @@ export interface Me {
 
 let me: Me | null = null;
 let asked = false;
+
+/**
+ * Whether anybody is signed in, and whether we know yet.
+ *
+ * Four states rather than two. Before this, a page that could not reach the bot
+ * drew the same thing as a page whose reader is signed out: a Sign in button,
+ * which does nothing useful when the bot is the part that is down. And the
+ * moment before the first answer arrives looked like signed out too, so every
+ * load flashed a sign-in panel at somebody who was already signed in.
+ */
+export type SessionState = 'checking' | 'in' | 'out' | 'unreachable';
+
+let state: SessionState = 'checking';
+
+/** What we know about the sign-in right now. */
+export function sessionState(): SessionState {
+  return state;
+}
 const beforeHooks: Array<() => Promise<void>> = [];
 const afterHooks: Array<() => void> = [];
 
@@ -51,9 +69,10 @@ export function currentUser(): Me | null {
  * instead of throwing. Anything else that goes wrong resolves null too: not knowing who
  * you are is the same outcome either way, and every page has a sign-in button for it.
  */
-export async function loadUser(onChange: () => void): Promise<void> {
-  if (asked) return;
+export async function loadUser(onChange: () => void, force = false): Promise<void> {
+  if (asked && !force) return;
   asked = true;
+  state = 'checking';
   try {
     const res = await fetch(API_BASE + '/api/v4/me', {
       // The cookie is on .wowforever.us and the API is on api.wowforever.us, so without
@@ -62,8 +81,13 @@ export async function loadUser(onChange: () => void): Promise<void> {
       headers: { Accept: 'application/json' },
     });
     me = res.ok ? ((await res.json()) as Me) : null;
+    /* 401 is the ordinary signed-out answer. Anything else is the bot having a
+       problem, which is not the reader being signed out and must not be drawn
+       as one. */
+    state = res.ok ? 'in' : res.status === 401 ? 'out' : 'unreachable';
   } catch {
     me = null;
+    state = 'unreachable';
   }
   onChange();
 }
@@ -73,8 +97,12 @@ export async function loadUser(onChange: () => void): Promise<void> {
  *
  * The cookie is the server's to clear. If the request fails the cookie may still be
  * good, so the page keeps showing the person as signed in rather than pretending.
+ *
+ * `everywhere` deletes every session the account has rather than this browser's:
+ * for a shared machine, or a phone somebody no longer has. A session somewhere
+ * else then stops being honoured on its next request instead of in thirty days.
  */
-export async function signOut(): Promise<boolean> {
+export async function signOut(everywhere = false): Promise<boolean> {
   // Work that only the session can save goes in first, while the session still exists.
   for (const hook of beforeHooks) {
     try {
@@ -84,7 +112,7 @@ export async function signOut(): Promise<boolean> {
     }
   }
   try {
-    const res = await fetch(API_BASE + '/api/v4/auth/signout', {
+    const res = await fetch(API_BASE + (everywhere ? '/api/v4/auth/signout-all' : '/api/v4/auth/signout'), {
       method: 'POST',
       credentials: 'include',
     });
@@ -94,11 +122,16 @@ export async function signOut(): Promise<boolean> {
   }
   me = null;
   asked = false;
+  state = 'out';
   for (const hook of afterHooks) hook();
   return true;
 }
 
 export const SIGN_OUT_FAILED = 'Could not sign you out. Try again.';
+
+/** Said before it happens, because it reaches browsers the reader is not sitting at. */
+export const SIGN_OUT_EVERYWHERE_ASK =
+  'Sign out of every browser and phone this account is signed in on? Anything half-typed in one of them is lost.';
 
 /** Run before the sign-out request, e.g. to land a save the session authorises. */
 export function beforeSignOut(hook: () => Promise<void>): void {
@@ -211,6 +244,13 @@ export function accountView(redraw: () => void): AccountView {
     onSignOut: () => {
       void signOut().then((ok) => {
         toast(ok ? 'Signed out.' : SIGN_OUT_FAILED);
+        redraw();
+      });
+    },
+    onSignOutEverywhere: () => {
+      if (!confirm(SIGN_OUT_EVERYWHERE_ASK)) return;
+      void signOut(true).then((ok) => {
+        toast(ok ? 'Signed out everywhere.' : SIGN_OUT_FAILED);
         redraw();
       });
     },

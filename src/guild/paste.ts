@@ -8,13 +8,29 @@
  *
  * Bags and bank are dropped before anything is sent. Nobody needs to read another
  * member's inventory, and the bot refuses a payload that carries one anyway.
+ *
+ * Dropping the two lists is not enough on its own. Everything kept is rebuilt
+ * from a named list of fields in gear-upload.ts, at every depth, because this
+ * used to forward `equipped` and `talents` as they arrived and anything nested
+ * inside an item rode along with them.
  */
 
-import type { CharacterExport, ItemRef, Slot } from '../dps/export-format';
+import type { CharacterExport, Slot } from '../dps/export-format';
 import { EXPORT_PREFIX, EXPORT_VERSION, stripPrefix } from '../dps/export-format';
 import { isCharacterShape } from '../dps/validate';
 import { CLASS_IDS, type ClassId } from '../shared/classes';
+import {
+  MAX_PASTE_CHARS,
+  MAX_UPLOAD_BYTES,
+  sheetStats,
+  talentTabs,
+  wornSet,
+  type SheetStatKey,
+  type TalentTab,
+  type WornItem,
+} from './gear-upload';
 import { isProfessionKey, MAX_PROFESSION_SKILL, type Profession } from './professions';
+import { isRuleset } from './rulesets';
 
 /** Exactly what the gear route accepts. Nothing else is sent. */
 export interface GearUpload {
@@ -22,12 +38,12 @@ export interface GearUpload {
   addonVersion: string;
   generatedAt: number;
   name: string;
-  realm: string;
+  ruleset: string | null;
   race: string;
   level: number | null;
-  stats: Record<string, number>;
-  equipped: Partial<Record<Slot, ItemRef>>;
-  talents: unknown[];
+  stats: Partial<Record<SheetStatKey, number>>;
+  equipped: Partial<Record<Slot, WornItem>>;
+  talents: TalentTab[];
   professions: Profession[];
 }
 
@@ -35,7 +51,7 @@ export interface PasteReading {
   upload: GearUpload;
   /** The character the export is of, for checking against the profile it is going on. */
   name: string;
-  realm: string;
+  ruleset: string | null;
   classId: ClassId | null;
   level: number | null;
   /** From export version 2. Empty from an older addon, which is not "none learned". */
@@ -46,15 +62,6 @@ export interface PasteReading {
 
 export type PasteResult = { ok: true; reading: PasteReading } | { ok: false; error: string };
 
-/** Only the numbers, so a stray string in the sheet cannot reach the bot. */
-function numbersOnly(raw: unknown): Record<string, number> {
-  const out: Record<string, number> = {};
-  if (!raw || typeof raw !== 'object') return out;
-  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
-    if (typeof value === 'number' && Number.isFinite(value)) out[key] = value;
-  }
-  return out;
-}
 
 /** The profession rows, dropping any key or number this site does not recognise. */
 export function readProfessions(raw: unknown): Profession[] {
@@ -78,6 +85,16 @@ export function readProfessions(raw: unknown): Profession[] {
  * one who can fix any of these.
  */
 export function readPaste(raw: string): PasteResult {
+  /* Bounded before it is parsed. An export with a whole bank in it runs to
+     hundreds of kilobytes, none of which is wanted here, and parsing all of it
+     to find that out is work done for nothing. */
+  if (typeof raw === 'string' && raw.length > MAX_PASTE_CHARS) {
+    return {
+      ok: false,
+      error: 'That paste is longer than a character export can be. Run /wfsync again and copy the box it shows.',
+    };
+  }
+
   const text = stripPrefix(raw);
   if (!text) {
     return { ok: false, error: 'Nothing to read. Run /wfsync in game and paste the whole box.' };
@@ -100,7 +117,11 @@ export function readPaste(raw: string): PasteResult {
     return { ok: false, error: 'That does not look like a character export from the sync addon.' };
   }
 
-  const source = parsed as CharacterExport & { professions?: unknown; partial?: unknown };
+  const source = parsed as CharacterExport & {
+    professions?: unknown;
+    partial?: unknown;
+    ruleset?: unknown;
+  };
   const version = Math.round(Number(source.v));
   if (!Number.isFinite(version) || version < 1) {
     return { ok: false, error: 'That export has no version number, so it cannot be read safely.' };
@@ -133,21 +154,30 @@ export function readPaste(raw: string): PasteResult {
     addonVersion: typeof source.addonVersion === 'string' ? source.addonVersion.slice(0, 32) : '',
     generatedAt: Math.max(0, Math.round(Number(source.generatedAt) || 0)),
     name: String(source.name ?? '').trim().slice(0, 32),
-    realm: String(source.realm ?? '').trim().slice(0, 64),
+    ruleset: readRuleset(source.ruleset),
     race: String(source.race ?? '').slice(0, 32),
     level,
-    stats: numbersOnly(source.stats),
-    equipped: source.equipped ?? {},
-    talents: Array.isArray(source.talents) ? source.talents : [],
+    stats: sheetStats(source.stats),
+    equipped: wornSet(source.equipped),
+    talents: talentTabs(source.talents),
     professions,
   };
+
+  /* The bot answers 413 above this size, and its message talks about bags and a
+     bank, which is no longer what a body this big can mean after the trim. */
+  if (JSON.stringify(upload).length > MAX_UPLOAD_BYTES) {
+    return {
+      ok: false,
+      error: 'That export is still too large after the trim, which should not happen. Report it rather than trying again.',
+    };
+  }
 
   return {
     ok: true,
     reading: {
       upload,
       name: upload.name,
-      realm: upload.realm,
+      ruleset: upload.ruleset,
       classId,
       level,
       professions,
@@ -166,4 +196,18 @@ export function readPaste(raw: string): PasteResult {
 export function namesDiffer(profileName: string, pastedName: string): boolean {
   if (!pastedName) return false;
   return profileName.trim().toLowerCase() !== pastedName.trim().toLowerCase();
+}
+
+/**
+ * The ruleset out of an export, or null.
+ *
+ * Forever's own call is not documented and the beta's realm name is a backend pool
+ * string that changes between sessions, so anything unrecognised is dropped rather
+ * than stored. A wrong ruleset is worse than a missing one: it says two people can
+ * group when they cannot.
+ */
+export function readRuleset(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const key = raw.trim().toLowerCase();
+  return isRuleset(key) ? key : null;
 }

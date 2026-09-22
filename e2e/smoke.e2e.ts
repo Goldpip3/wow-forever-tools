@@ -231,7 +231,9 @@ test('the guild sample runs with no account and no network', async ({ page }) =>
 
   // Searching narrows to the one character, by a profession rather than a name.
   const search = page.getByRole('searchbox', { name: 'Search characters' });
-  await search.fill('enchanting');
+  // Tailoring rather than Enchanting: the sample deliberately has no enchanter,
+  // so the leader's panel has a gap to point at.
+  await search.fill('tailoring');
   await expect(page.locator('.grow')).toHaveCount(1);
   await expect(page.locator('.grow')).toContainText('Brightwell');
 
@@ -256,9 +258,64 @@ test('the guild sample runs with no account and no network', async ({ page }) =>
 });
 
 test('a signed-out visitor is asked to sign in, not shown an empty guild', async ({ page }) => {
+  // The harness answers /api/v4/me with a 401, which is the signed-out answer. A
+  // bot that cannot be reached at all is a different state and draws differently.
   await page.goto('/guild.html');
   await expect(page.getByRole('button', { name: 'Sign in with Discord' })).toBeVisible();
   await expect(page.locator('.grow')).toHaveCount(0);
+});
+
+test('a bot that cannot be reached does not read as being signed out', async ({ page, context }) => {
+  // Overrides the harness answer: this request fails rather than answering 401.
+  await context.route(API + '/api/v4/me', (route) => route.abort());
+
+  await page.goto('/guild.html');
+  await expect(page.getByText('Could not reach the bot')).toBeVisible();
+  // Offering a sign-in button here sends somebody to fix the one thing that is
+  // not broken.
+  await expect(page.getByRole('button', { name: 'Sign in with Discord' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Try again' })).toBeVisible();
+});
+
+test('back goes from a profile to the list it was opened from', async ({ page }) => {
+  await page.goto('/guild.html#demo');
+
+  const search = page.getByRole('searchbox', { name: 'Search characters' });
+  await search.fill('thrall');
+  await expect(page.locator('.grow')).toHaveCount(1);
+
+  await page.locator('.grow').first().click();
+  await expect(page).toHaveURL(/#demo&c=1/);
+  await expect(page.locator('.gid__name')).toHaveText('Thrallsbane');
+
+  // Back used to leave the site from here, because opening a profile replaced the
+  // history entry rather than pushing one.
+  await page.goBack();
+  await expect(page).toHaveURL(/#demo$/);
+  await expect(page.locator('.grow')).toHaveCount(1);
+  // The search the reader came from is still in the box.
+  await expect(search).toHaveValue('thrall');
+});
+
+test('a half-filled form is not thrown away without asking', async ({ page }) => {
+  await page.goto('/guild.html#demo');
+  await page.getByRole('button', { name: 'Add a character' }).click();
+  await page.getByRole('textbox', { name: 'Character name' }).fill('Thrallsbane');
+
+  // Dismissed, which is the same as saying no.
+  page.once('dialog', (dialog) => {
+    expect(dialog.message()).toContain(String.fromCharCode(110, 111, 116, 32, 115, 97, 118, 101, 100));
+    void dialog.dismiss();
+  });
+  await page.getByRole('button', { name: 'Cancel' }).click();
+
+  // Still open, and still holding what was typed.
+  await expect(page.getByRole('textbox', { name: 'Character name' })).toHaveValue('Thrallsbane');
+
+  // Accepted this time, and the form goes.
+  page.once('dialog', (dialog) => void dialog.accept());
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  await expect(page.locator('.gform')).toHaveCount(0);
 });
 
 test('a pasted export sends the gear without the bags or the bank', async ({ page, context }) => {
@@ -348,4 +405,77 @@ test('a paste that is not an export says what to do about it', async ({ page, co
   await page.getByRole('textbox', { name: 'Addon export' }).fill('just some words');
   await page.getByRole('button', { name: 'Show my gear' }).click();
   await expect(page.getByRole('alert')).toContainText('WFSYNC1');
+});
+
+test('the character form previews what it is describing, and its fields are legible', async ({ page }) => {
+  await page.goto('/guild.html#demo');
+  await page.getByRole('button', { name: 'Add a character' }).click();
+
+  // Nothing typed yet, so the preview says what it is waiting for.
+  await expect(page.locator('.gpreview__name')).toHaveText('Your character');
+
+  await page.getByRole('textbox', { name: 'Character name' }).fill('Thrallsbane');
+  // By what the select contains, not by position: an officer also gets an owner
+  // picker ahead of these, and this form is shown to one.
+  await page.locator('select').filter({ has: page.locator('option[value="druid"]') }).selectOption('druid');
+  await page.locator('select').filter({ has: page.locator('option[value="guardian"]') }).selectOption('guardian');
+
+  // The preview follows the fields, and the bear is read as a tank.
+  await expect(page.locator('.gpreview__name')).toHaveText('Thrallsbane');
+  await expect(page.locator('.gpreview__meta')).toContainText('Feral Combat (bear) Druid');
+  await expect(page.locator('.gpreview__meta')).toContainText('Tank');
+
+  // A profession is a chip that toggles, and the skill row arrives with it.
+  const mining = page.locator('.gchip').filter({ hasText: 'Mining' });
+  await expect(mining).not.toHaveClass(/gchip--on/);
+  await expect(mining.locator('.gnum')).toHaveCount(0);
+  await mining.locator('.gchip__tick').check();
+  await expect(mining).toHaveClass(/gchip--on/);
+  await expect(mining.locator('.gnum')).toHaveCount(1);
+
+  // Nudged, jumped to the top of the range, and typed into: one value behind
+  // all three, and the slider follows it.
+  const skill = mining.getByRole('textbox', { name: 'Mining skill' });
+  // From an empty field a nudge lands on the bottom of the range, not on the
+  // step: five is not the smallest a skill can be.
+  await mining.getByRole('button', { name: 'Up 5' }).click();
+  await expect(skill).toHaveValue('1');
+  await mining.getByRole('button', { name: 'Up 5' }).click();
+  await expect(skill).toHaveValue('6');
+  await mining.getByRole('button', { name: 'Max' }).click();
+  await expect(skill).toHaveValue('300');
+  await expect(mining.locator('.gnum__slider')).toHaveValue('300');
+  await skill.fill('285');
+  await expect(mining.locator('.gnum__slider')).toHaveValue('285');
+
+  // Unticking it takes the row and the number with it, because keeping the
+  // number would put it back the moment the chip was ticked again.
+  await mining.locator('.gchip__tick').uncheck();
+  await expect(mining.locator('.gnum')).toHaveCount(0);
+  await mining.locator('.gchip__tick').check();
+  await expect(mining.getByRole('textbox', { name: 'Mining skill' })).toHaveValue('');
+
+  // The level is the same control, against the level cap.
+  const level = page.getByRole('textbox', { name: 'Level' });
+  const levelField = page.locator('.gfield').filter({ has: level });
+  await levelField.getByRole('button', { name: 'Max' }).click();
+  await expect(level).toHaveValue('60');
+  await expect(page.locator('.gpreview__meta')).toContainText('Level 60');
+  await levelField.getByRole('button', { name: 'Down 1' }).click();
+  await expect(level).toHaveValue('59');
+  // Letters are not a level, and the field does not hold them.
+  await level.fill('abc');
+  await expect(level).toHaveValue('');
+
+  // Every field was the browser's white box on black text before this; a dark
+  // field on a dark panel is the whole point of the change.
+  const field = page.getByRole('textbox', { name: 'Character name' });
+  const paint = await field.evaluate((el) => {
+    const c = getComputedStyle(el);
+    return { bg: c.backgroundColor, color: c.color };
+  });
+  expect(paint.bg).not.toBe('rgb(255, 255, 255)');
+  expect(paint.color).not.toBe('rgb(0, 0, 0)');
+
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
 });

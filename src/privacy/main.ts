@@ -35,14 +35,17 @@ if (app) {
     </div></section>
     <section class="panel"><div class="panel__head">Guild character profiles</div><div class="panel__body">
       <p>A character profile you save on the Guild page is stored by the API, not on this device.
-        It holds the character name, realm, class, spec, role, level, professions and your note,
+        It holds the character name, ruleset, class, spec, role, level, professions and your note,
         and it records which Discord account it belongs to and who last changed it.
         Everyone in that Discord server can read it. An officer can create or change a profile for
         another member.</p>
-      <p>Pasting an addon export on that page sends the equipped items, the character sheet stats,
-        the talents, the race and the level. Bags and bank contents are removed before the paste is
-        sent and are never stored. This is separate from the Gear and DPS page, where an export
-        stays on your device.</p>
+      <p>Pasting an addon export on that page sends the seventeen equipped slots with each item
+        name and the stats on it, your character sheet totals, your talent trees, your race and
+        your level. Nothing else from the export is sent: not your bags, not your bank, not where
+        an item was sitting, and not the raw item links. Each of those is removed field by field
+        before the paste leaves this device, and the API rebuilds the same list again before it
+        stores anything. This is separate from the Gear and DPS page, where an export stays on
+        your device.</p>
       <p>Deleting a character removes its profile and its stored gear. Removing the gear alone leaves
         the profile. Both are available to the profile’s owner and to server officers.</p>
     </div></section>
@@ -55,15 +58,20 @@ if (app) {
     <section class="panel"><div class="panel__head">Advertising and outside services</div><div class="panel__body">
       <p>The bug-report form opens GitHub with the text you entered when you choose Continue to GitHub.
         You review and submit it there. Submitted issues are public; remove private information before continuing.</p>
-      <p>The site loads Google AdSense. Google and its partners may use cookies for advertising.
-        See <a href="https://policies.google.com/technologies/partner-sites" target="_blank" rel="noopener">Google’s explanation of partner-site data</a>
+      <p>The home page, the talent calculator and this page load Google AdSense. Google and its
+        partners may use cookies for advertising. See
+        <a href="https://policies.google.com/technologies/partner-sites" target="_blank" rel="noopener">Google’s explanation of partner-site data</a>
         and <a href="https://www.google.com/settings/ads" target="_blank" rel="noopener">Google Ads Settings</a>.</p>
-      <p>Display fonts load from Google Fonts. Discord avatars may load from Discord. Requests to
-        these services, the hosting provider and the API expose connection information such as your
-        IP address to the receiving service. Their logging and retention are separate from local tool storage.</p>
+      <p>The Guild page, the raid planner and the Gear and DPS page load no advertising and no
+        other outside script. Those three hold characters, a roster link or a gear report, and a
+        script running in the page can read what is on it.</p>
+      <p>Fonts are served from this site rather than from Google. Discord avatars load from Discord
+        when you are signed in. Requests to Discord, the hosting provider and the API expose
+        connection information such as your IP address to the receiving service. Their logging and
+        retention are separate from local tool storage.</p>
     </div></section>
     <section class="panel"><div class="panel__head">Changes</div><div class="panel__body">
-      <p>Last updated 16 September 2026.</p>
+      <p>Last updated 22 September 2026.</p>
     </div></section>
   `;
   app.appendChild(renderFooter());

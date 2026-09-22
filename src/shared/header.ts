@@ -1,3 +1,4 @@
+import { BUILD_ID } from './build';
 import { iconImg } from './icons';
 import { renderFeedback } from './feedback';
 
@@ -118,7 +119,7 @@ export function renderFooter(): HTMLElement {
     <p>Fan-made and not affiliated with Blizzard Entertainment. Icons and art are Blizzard’s.</p>
     <p>WoW Forever is new and the numbers can lag the live game. Anything marked
       <span class="pill pill--unverified">unverified</span> has not been confirmed yet.</p>
-    <p><a href="${href('privacy.html')}">Privacy</a></p>
+    <p><a href="${href('privacy.html')}">Privacy</a> · <span class="site-footer__build">build ${BUILD_ID}</span></p>
   `;
   footer.appendChild(renderFeedback());
   return footer;
@@ -142,6 +143,8 @@ export interface AccountView {
   user?: { username: string; avatarUrl?: string } | null;
   onSignIn?: () => void;
   onSignOut?: () => void;
+  /** Ends every session the account has, not only this browser's. */
+  onSignOutEverywhere?: () => void;
   /** Where the account menu sends someone who wants their servers and events. */
   rosterHref?: string;
 }
@@ -202,6 +205,9 @@ function accountButton(view: AccountView): HTMLElement {
   menu.appendChild(rosters);
 
   menu.appendChild(item('Sign out', () => view.onSignOut?.()));
+  if (view.onSignOutEverywhere) {
+    menu.appendChild(item('Sign out everywhere', () => view.onSignOutEverywhere?.()));
+  }
   wrap.appendChild(menu);
 
   function close(): void {

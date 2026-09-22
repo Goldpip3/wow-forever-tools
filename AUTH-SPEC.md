@@ -153,8 +153,26 @@ needs `credentials: 'include'`, and the API needs
 `Access-Control-Allow-Credentials: true`. `Access-Control-Allow-Origin` must stay an exact
 origin: with credentials, a browser rejects `*` outright.
 
+`Domain` is set from `COOKIE_DOMAIN` and **should be left unset**. The site never reads the
+cookie: it is sent cross-origin to the API, which works with a host-only cookie. Sharing it
+with every subdomain buys nothing and widens where it can be sent. The bot warns at startup
+when the variable is set. Unsetting it on a running deployment leaves the old wide cookie in
+browsers until it expires, so do it at a moment when signing everyone out again is fine.
+
 Sign out deletes the row, not just the cookie. A cookie the server still honours is not
-signed out.
+signed out. `POST /api/v4/auth/signout-all` deletes every row the account has, for a shared
+machine or a phone somebody no longer has, and answers how many it removed.
+
+**A cookie-authorised write must name its origin.** CORS is not a defence here: a form on
+another site can post to the API with the browser attaching the cookie, and CORS withholds
+only the *response*, by which time the write has happened. So `POST`, `PUT`, `PATCH` and
+`DELETE` that arrive with the session cookie are refused unless `Origin` is one of
+`PLANNER_ORIGIN`. A roster call carrying an `Authorization` header is exempt: another site
+cannot set that header without our permission in the preflight, which is what makes it safe.
+
+**Nothing under `/api/` is cacheable** except the docs and `/api/v4/version`. Everything
+else is answered to a signed-in caller and is about one server, so it carries
+`Cache-Control: private, no-store` and `Vary: Origin`.
 
 ---
 

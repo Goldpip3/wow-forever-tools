@@ -168,6 +168,8 @@ select.btn { appearance: none; padding-right: 26px;
   color: var(--muted); font-size: 12px;
 }
 .site-footer p { margin: 4px 0; }
+/* The commit, for a bug report. Quiet: it is a diagnostic, not a credit. */
+.site-footer__build { font-family: var(--mono, monospace); opacity: 0.65; }
 
 /* ---------- class colors ---------- */
 .c-warrior { color: var(--c-warrior); }
@@ -315,6 +317,62 @@ select.btn { appearance: none; padding-right: 26px;
 .drawer__hint { color: var(--muted); font-size: 11.5px; margin: 3px 0 0; }
 .drawer__input { width: 100%; margin-bottom: 4px; }
 .spec-picker { display: flex; gap: 4px; flex-wrap: wrap; }
+
+/* ---------- text fields ----------
+   Nothing styled these, so every input and textarea on the site rendered as the
+   browser's white box with black text: the paste box on the gear page, the bug
+   report in the footer, and every field on the guild form. A field is darker than
+   the panel it sits on, so it reads as somewhere to type rather than as a card. */
+input[type='text'],
+input[type='number'],
+input[type='search'],
+input[type='url'],
+input[type='email'],
+input[type='password'],
+textarea {
+  background: #171717;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 6px 9px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 1.45;
+}
+textarea { resize: vertical; }
+
+input[type='text']:hover,
+input[type='number']:hover,
+input[type='search']:hover,
+textarea:hover { border-color: #4a4a4a; }
+
+input[type='text']:focus,
+input[type='number']:focus,
+input[type='search']:focus,
+input[type='url']:focus,
+input[type='email']:focus,
+input[type='password']:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--gold2);
+  /* A ring rather than a thicker border, so the field does not move on focus. */
+  box-shadow: 0 0 0 2px rgba(255, 209, 0, 0.18);
+}
+
+::placeholder { color: #6f6f6f; opacity: 1; }
+
+input:disabled,
+textarea:disabled,
+select:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* The tick itself, which is otherwise the operating system's blue. */
+input[type='checkbox'],
+input[type='radio'] { accent-color: var(--gold2); }
+
+/* Chrome puts stepper arrows on a number field that nobody here needs. */
+input[type='number'] { appearance: textfield; -moz-appearance: textfield; }
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button { appearance: none; margin: 0; }
 
 /* ---------- who is signed in, and their servers ----------
    Drawn by the raid page's Roster intro and by the guild page, which is why they are

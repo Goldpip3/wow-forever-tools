@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { EXPORT_PREFIX, EXPORT_VERSION } from '../src/dps/export-format';
-import { namesDiffer, readPaste, readProfessions } from '../src/guild/paste';
+import { namesDiffer, readPaste, readProfessions, readRuleset } from '../src/guild/paste';
 
 /** The smallest export that passes the shape check. */
 function exportOf(over: Record<string, unknown> = {}): string {
@@ -41,7 +41,7 @@ describe('what gets sent', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.reading.name).toBe('Thrallsbane');
-    expect(result.reading.realm).toBe('Nightslayer');
+    expect(result.reading.ruleset).toBeNull();
     expect(result.reading.classId).toBe('warrior');
     expect(result.reading.level).toBe(60);
     expect(result.reading.upload.equipped.head?.name).toBe('Lionheart Helm');
@@ -62,7 +62,7 @@ describe('what gets sent', () => {
       'name',
       'professions',
       'race',
-      'realm',
+      'ruleset',
       'stats',
       'talents',
       'v',
@@ -180,5 +180,45 @@ describe('checking the paste is of this character', () => {
 
   it('does not flag an export that carries no name', () => {
     expect(namesDiffer('Thrallsbane', '')).toBe(false);
+  });
+});
+
+describe('the ruleset, which Forever has instead of realms', () => {
+  it('reads each of the four Blizzard named, however it is cased', () => {
+    for (const [sent, expected] of [
+      ['normal', 'normal'],
+      ['PvP', 'pvp'],
+      ['Roleplaying', 'roleplaying'],
+      ['HARDCORE', 'hardcore'],
+    ]) {
+      expect(readRuleset(sent)).toBe(expected);
+    }
+  });
+
+  it('drops a realm name, which is what the client actually offers', () => {
+    // GetRealmName still answers on Forever, with a backend pool string like
+    // "Classic Beta PvP 2" that changes between sessions. Storing it would claim
+    // an identity the client does not have.
+    expect(readRuleset('Classic Beta PvP 2')).toBeNull();
+    expect(readRuleset('Nightslayer')).toBeNull();
+  });
+
+  it('drops anything that is not a string', () => {
+    for (const bad of [undefined, null, 3, {}, []]) expect(readRuleset(bad)).toBeNull();
+  });
+
+  it('comes through a paste', () => {
+    const result = readPaste(exportOf({ v: 3, ruleset: 'pvp' }));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.reading.ruleset).toBe('pvp');
+    expect(result.reading.upload.ruleset).toBe('pvp');
+  });
+
+  it('is absent rather than guessed when the export has none', () => {
+    const result = readPaste(exportOf({ v: 3 }));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.reading.ruleset).toBeNull();
   });
 });

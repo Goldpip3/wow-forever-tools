@@ -1,0 +1,56 @@
+# Response headers for Cloudflare Pages.
+#
+# Pages applies every rule whose path matches, so a page that matches two rules
+# gets both. Where that would mean two Content-Security-Policy headers the browser
+# enforces both at once, which is stricter than either. That is why the CSP below
+# is set per page rather than globally: the guild, planner and gear pages get one,
+# and the pages that carry advertising get none rather than a loose one that would
+# have to be widened every time an ad network moves.
+#
+# Extensionless and .html paths are both listed. Pages serves /guild and
+# /guild.html as the same page, and a rule for one does not cover the other.
+#
+# Nothing here can be tested from this repository. Verify it against the deployed
+# site after a release: see RELEASE-BASELINE.md §5.
+
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=(), microphone=(), camera=(), payment=(), usb=()
+
+# The three pages that hold somebody's characters, a roster token, or a gear
+# report. No advertising script runs on any of them, and this is what stops one
+# being added back by accident.
+#
+# style-src keeps 'unsafe-inline' because the pages set colours on elements as
+# they draw them. script-src does not: every script on these pages is a file.
+#
+# connect-src names the bot exactly. img-src names Discord because an avatar in
+# the header is served from their CDN. Nothing else is allowed from anywhere:
+# the fonts are served from here, so these pages make no third-party request at
+# all.
+
+/guild
+  Referrer-Policy: no-referrer
+  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https://cdn.discordapp.com; connect-src 'self' https://api.wowforever.us; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'
+
+/guild.html
+  Referrer-Policy: no-referrer
+  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https://cdn.discordapp.com; connect-src 'self' https://api.wowforever.us; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'
+
+/raid
+  Referrer-Policy: no-referrer
+  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https://cdn.discordapp.com; connect-src 'self' https://api.wowforever.us; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'
+
+/raid.html
+  Referrer-Policy: no-referrer
+  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https://cdn.discordapp.com; connect-src 'self' https://api.wowforever.us; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'
+
+/dps
+  Referrer-Policy: no-referrer
+  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https://cdn.discordapp.com; connect-src 'self' https://api.wowforever.us; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'
+
+/dps.html
+  Referrer-Policy: no-referrer
+  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https://cdn.discordapp.com; connect-src 'self' https://api.wowforever.us; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'

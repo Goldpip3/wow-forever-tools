@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { guildHash, parseGuildHash } from '../src/guild/hash';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { guildHash, parseGuildHash, writeGuildHash } from '../src/guild/hash';
 
 describe('reading the address bar', () => {
   it('takes a server on its own', () => {
@@ -62,5 +62,39 @@ describe('writing it back', () => {
   it('round-trips a sample profile, so reloading one stays on it', () => {
     const state = { guildId: null, characterId: 7, demo: true };
     expect(parseGuildHash(guildHash(state))).toEqual(state);
+  });
+});
+
+describe('which entries the Back button walks', () => {
+  function page(hash: string) {
+    const calls: Array<{ how: string; url: string }> = [];
+    vi.stubGlobal('location', { pathname: '/guild.html', search: '', hash });
+    vi.stubGlobal('history', {
+      pushState: (_s: unknown, _t: string, url: string) => calls.push({ how: 'push', url }),
+      replaceState: (_s: unknown, _t: string, url: string) => calls.push({ how: 'replace', url }),
+    });
+    return calls;
+  }
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('pushes when told to, so a profile is a place to come back from', () => {
+    const calls = page('#guild=12345');
+    writeGuildHash({ guildId: '12345', characterId: 7, demo: false }, 'push');
+    expect(calls).toEqual([{ how: 'push', url: '/guild.html#guild=12345&c=7' }]);
+  });
+
+  it('replaces by default, because a search is not a place', () => {
+    const calls = page('#guild=12345');
+    writeGuildHash({ guildId: '12345', characterId: 7, demo: false });
+    expect(calls[0]?.how).toBe('replace');
+  });
+
+  it('writes nothing at all when the address already says this', () => {
+    // Otherwise every redraw would add an entry, and Back would do nothing
+    // visible for as long as somebody kept typing in the search box.
+    const calls = page('#guild=12345&c=7');
+    writeGuildHash({ guildId: '12345', characterId: 7, demo: false }, 'push');
+    expect(calls).toEqual([]);
   });
 });

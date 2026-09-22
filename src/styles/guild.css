@@ -148,45 +148,227 @@
 }
 .gcell__name--none { color: var(--muted); font-style: italic; }
 
-/* ---------- the form ---------- */
-.gform { display: grid; gap: 10px; }
-.gfield { display: block; }
+/* ---------- the form ----------
+   Grouped into sections and laid out two across, because nine fields in one column
+   is a long scroll for something somebody fills in once. --class-accent is set by
+   the form from whichever class is picked. */
+.gform {
+  display: grid;
+  gap: 14px;
+  --class-accent: var(--gold);
+}
+
+/* The character as it is being described, above the fields describing it. */
+.gpreview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 13px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--class-accent) 13%, var(--panel2)), var(--panel2));
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--class-accent);
+  border-radius: var(--radius-sm);
+}
+.gpreview__icon { flex: 0 0 40px; width: 40px; height: 40px; }
+.gpreview__img { width: 40px; height: 40px; border-radius: 6px; }
+.gpreview__text { min-width: 0; }
+.gpreview__name { font-family: var(--font-display); font-size: 19px; font-weight: 700; line-height: 1.2; }
+.gpreview__name--empty { color: var(--muted); font-style: italic; }
+.gpreview__meta { color: var(--muted); font-size: 12px; margin-top: 1px; }
+
+/* ---------- a group of fields ---------- */
+.ggroup {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  padding: 11px 13px 13px;
+}
+.ggroup__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 9px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid var(--line);
+}
+.ggroup__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--gold);
+}
+.ggroup__hint { color: var(--muted); font-size: 11.5px; }
+
+/* Two across where there is room, one where there is not. */
+.ggrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 10px 14px;
+  align-items: start;
+}
+.gfield--wide { grid-column: 1 / -1; }
+
+.gfield { display: block; min-width: 0; }
 .gfield__label {
   display: block;
-  color: var(--muted);
-  font-size: 11.5px;
-  margin-bottom: 3px;
+  color: var(--ink2);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
   font-family: var(--font-narrow);
   text-transform: uppercase;
 }
-.gfield__hint { display: block; color: var(--muted); font-size: 11.5px; margin-top: 3px; }
-.gfield select.btn { width: 100%; }
+.gfield__hint { display: block; color: var(--muted); font-size: 11.5px; margin-top: 4px; }
+.gfield select.btn,
+.gfield .drawer__input { width: 100%; margin-bottom: 0; }
 
-.gcheck { display: flex; align-items: center; gap: 7px; cursor: pointer; }
+.gcheck {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 7px 9px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+.gcheck:hover { border-color: #4a4a4a; }
 
-.gprofedit { display: grid; gap: 5px; }
-.gprofgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 3px; }
-.gprofrow {
-  display: flex; align-items: center; gap: 6px;
-  padding: 3px 6px;
-  border: 1px solid transparent;
+/* ---------- professions as chips ----------
+   The whole chip is the target, it carries its own icon, and a chosen one is
+   obvious without reading the tick. */
+.gchips {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
+  gap: 5px;
+  margin: 4px 0 10px;
+  /* Or a ticked chip would stretch every chip in its row to match it. */
+  align-items: start;
+}
+.gchip {
+  display: block;
+  padding: 5px 8px 6px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.gchip:hover { border-color: #4a4a4a; background: #2c2c2c; }
+.gchip--on {
+  border-color: var(--gold2);
+  background: color-mix(in srgb, var(--gold) 9%, var(--panel2));
+}
+/* The row that toggles it. The skill row below is not a toggle, so neither
+   the pointer nor the no-select belongs on the whole chip. */
+.gchip__top {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  user-select: none;
+  min-height: 26px;
+}
+.gchip__tick { flex: 0 0 auto; margin: 0; }
+.gchip__icon { width: 18px; height: 18px; border-radius: 3px; flex: 0 0 18px; }
+.gchip__name {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* The skill row exists only on a chip that is ticked. Twelve number boxes at
+   half opacity was the old answer, and none of them could be read. */
+.gchip__skill { margin-top: 7px; padding-top: 7px; border-top: 1px solid var(--line); }
+
+/* ---------- saying a number ----------
+   A level and a profession skill are the same shape of question: a range with a
+   top that most answers sit at. Nudge it, drag it, or type it, and the top of
+   the range is one press away. */
+.gnum {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.gnum__step {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--ink2);
+  background: var(--bar);
+  border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   cursor: pointer;
 }
-.gprofrow:hover { border-color: var(--line); background: var(--panel2); }
-.gprofrow__name { flex: 1; font-size: 12.5px; }
-.gprofrow__skill {
-  width: 62px;
-  background: var(--panel);
+.gnum__step:hover { border-color: var(--gold2); color: var(--gold); }
+.gnum__step:active { background: #333; }
+.gnum__value {
+  flex: 0 0 auto;
+  width: 48px;
+  padding: 3px 4px;
+  text-align: center;
+  font-family: var(--font-narrow);
+  /* Bigger than the label above it: it is the answer, and it was 12px. */
+  font-size: 15px;
+  letter-spacing: 0.02em;
+}
+.gnum__slider {
+  /* Inline where there is room for a usable track, and on its own line
+     where there is not. A 40px slider is a decoration. */
+  flex: 1 1 130px;
+  min-width: 110px;
+  height: 22px;
+  margin: 0;
+  /* One line instead of six pseudo-elements per browser, and it follows the
+     gold the rest of the page uses. */
+  accent-color: var(--gold2);
+  cursor: pointer;
+}
+/* Nothing said yet. The slider sits at the bottom of the range and must not
+   read as an answer of "one". */
+.gnum__slider--unset { opacity: 0.45; }
+.gnum__max {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  font-family: var(--font-narrow);
+  font-size: 12px;
+  color: var(--ink2);
+  background: var(--panel2);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  color: var(--ink);
-  padding: 2px 5px;
-  font-family: var(--font-narrow);
+  cursor: pointer;
 }
-.gprofrow__skill:disabled { opacity: 0.4; }
+.gnum__max:hover { border-color: var(--gold2); color: var(--gold); }
 
-.gactions { display: flex; gap: 6px; }
+/* A finger is wider than a mouse pointer. */
+@media (max-width: 560px) {
+  .gnum { gap: 6px; }
+  .gnum__step { width: 36px; height: 36px; font-size: 17px; }
+  .gnum__value { width: 54px; font-size: 16px; padding: 6px 4px; }
+  .gnum__max { padding: 8px 10px; }
+  .gnum__slider { height: 30px; }
+}
+
+/* ---------- the bar at the end ---------- */
+.gactions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding-top: 2px;
+}
+.gactions .btn { min-width: 104px; justify-content: center; text-align: center; }
+
+@media (max-width: 560px) {
+  .gactions { flex-direction: column-reverse; }
+  .gactions .btn { width: 100%; }
+}
 
 /* An error from the bot, above the fields it is about. */
 .gwarn {
@@ -208,3 +390,89 @@
    somebody changes it. */
 .gpaste { margin-top: 10px; display: grid; gap: 6px; }
 .gpaste .drawer__input { margin-bottom: 0; font-family: var(--font-narrow); font-size: 12px; }
+
+/* ---------- what the guild is missing ----------
+   A leader's panel above the roster. Everything in it is a count of something
+   absent, so the styling stays quiet: the red is for a zero, not for the page. */
+.gstack { display: grid; gap: 10px; }
+
+.gheadline {
+  padding: 8px 11px;
+  margin-bottom: 10px;
+  background: color-mix(in srgb, var(--gold) 8%, var(--panel2));
+  border-left: 3px solid var(--gold);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  font-weight: 700;
+}
+.gheadline--ok {
+  background: color-mix(in srgb, var(--green2) 10%, var(--panel2));
+  border-left-color: var(--green2);
+  font-weight: 400;
+  color: var(--ink2);
+}
+
+.gcov { margin-bottom: 12px; }
+.gcov__title {
+  color: var(--muted);
+  font-size: 11px;
+  font-family: var(--font-narrow);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 5px;
+}
+.gcovgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(165px, 1fr)); gap: 4px; }
+.gcov__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+}
+/* Nobody has this one, which is the whole reason the panel exists. */
+.gcov__item--none {
+  border-color: color-mix(in srgb, var(--red) 45%, var(--line));
+  background: color-mix(in srgb, var(--red) 7%, var(--panel2));
+}
+.gcov__item--none .gcov__name { color: var(--ink2); }
+.gcov__name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gcov__count { color: var(--gold); font-family: var(--font-narrow); }
+.gcov__item--none .gcov__count { color: var(--red); }
+
+.gstat--none .gstat__value { color: var(--red); }
+
+/* People who have entered nothing. Names, because a count is not actionable. */
+.gnames { display: flex; flex-wrap: wrap; gap: 4px; }
+.gname {
+  padding: 3px 8px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 12.5px;
+  color: var(--ink2);
+}
+
+/* ---------- whose character it is ----------
+   An officer files one for somebody who has not signed in, so this is a lookup
+   rather than a list. The answers are buttons: the whole name is the target,
+   and the chosen one is obvious without reading a select. */
+.gowner { display: flex; flex-direction: column; gap: 6px; }
+.gowner__list { display: flex; flex-wrap: wrap; gap: 5px; }
+.gowner__pick {
+  padding: 4px 10px;
+  font-family: inherit;
+  font-size: 12.5px;
+  color: var(--ink);
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.gowner__pick:hover { border-color: #4a4a4a; background: #2c2c2c; }
+.gowner__pick--on {
+  border-color: var(--gold2);
+  background: color-mix(in srgb, var(--gold) 12%, var(--panel2));
+  color: var(--gold);
+}

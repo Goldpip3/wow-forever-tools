@@ -19,13 +19,31 @@
   There is no AdSense snippet here on purpose. Google's policies do not allow ads on
   error pages, which have no content of their own.
 -->
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Alegreya:ital,wght@0,400;0,500;0,700;0,800;1,400&family=Almendra:wght@400;700&display=swap" rel="stylesheet" />
 <style>
-  /* The same two faces the rest of the site uses, by the same three-step fallback as
-     fonts.css: the installed font, then a copy in public/assets/fonts/, then the free
-     stand-in from Google Fonts. */
+  /* The same two faces the rest of the site uses, by the same fallback as fonts.css:
+     the installed font, then a copy in public/assets/fonts/, then the stand-in below.
+     The stand-ins are served from here rather than from Google: this page is what a
+     mistyped /guild address lands on, and it should not announce that either. */
+  @font-face {
+    font-family: 'Alegreya';
+    src: url('/assets/fonts/webfonts/alegreya-400-normal-latin.woff2') format('woff2');
+    font-weight: 400; font-style: normal; font-display: swap;
+  }
+  @font-face {
+    font-family: 'Alegreya';
+    src: url('/assets/fonts/webfonts/alegreya-700-normal-latin.woff2') format('woff2');
+    font-weight: 700; font-style: normal; font-display: swap;
+  }
+  @font-face {
+    font-family: 'Almendra';
+    src: url('/assets/fonts/webfonts/almendra-400-normal-latin.woff2') format('woff2');
+    font-weight: 400; font-style: normal; font-display: swap;
+  }
+  @font-face {
+    font-family: 'Almendra';
+    src: url('/assets/fonts/webfonts/almendra-700-normal-latin.woff2') format('woff2');
+    font-weight: 700; font-style: normal; font-display: swap;
+  }
   @font-face {
     font-family: 'Friz Quadrata TT';
     src: local('Friz Quadrata TT'), local('FrizQuadrataTT'), local('Friz Quadrata'),
