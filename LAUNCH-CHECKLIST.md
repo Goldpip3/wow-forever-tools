@@ -8,10 +8,13 @@ been deployed. See RELEASE-BASELINE.md for which build is live and how to tell.
 - 1090 unit tests passed here, in 56 files. Production build and TypeScript check passed.
 - 365 unit tests passed on Group Builder, in 16 files, against isolated test databases and
   mocked Discord calls.
-- 30 browser tests passed: 10 each in desktop Chromium, mobile Chromium and mobile WebKit
-  emulation. These have not been re-run since the guild page changes below.
-- The guild page was driven by hand in a browser against the offline sample: opening a
-  profile, the back button, the owner picker, and leaving a half-filled form.
+- 54 browser tests passed: 18 each in desktop Chromium, mobile Chromium and mobile WebKit
+  emulation, against the production build with the network refused. Three of them are new
+  and cover the guild page: back from a profile returns to the list with the search still
+  in it, a half-filled form is not thrown away without asking, and a bot that cannot be
+  reached does not draw as being signed out.
+- The guild page was also driven by hand in a browser against the offline sample: the
+  owner picker, and the sample no longer giving one person two Discord accounts.
 - Real Discord delivery, game-client accuracy, physical phones, public deployment and
   tester invitations remain pending.
 
