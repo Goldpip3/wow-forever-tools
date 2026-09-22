@@ -19,6 +19,9 @@ through the Group Builder bot.
 - [GUILD-SPEC.md](GUILD-SPEC.md) — character profiles: the contract for `guild.html`,
   why nothing on it can be fetched, and which three files hold the profession list.
 - [INTEGRATION.md](INTEGRATION.md) — the older copy-paste handoff, still supported.
+- [RELEASE-BASELINE.md](RELEASE-BASELINE.md) — which build is live and how to tell. Pages
+  deploys `master`, the bot is deployed by hand, and they are often different ages. Read it
+  before believing a bug report or concluding that a fix is not working.
 
 ## The two modes of raid.html
 
@@ -72,7 +75,7 @@ hypothetical.
 
 ```
 npm run dev      # vite on 5273
-npm test         # vitest, 989 tests
+npm test         # vitest, 1029 tests
 npm run build    # typecheck, then dist/
 npm run e2e      # Playwright smoke tests against dist/; build first
 npm run import   # refetch talent data after the beta changes

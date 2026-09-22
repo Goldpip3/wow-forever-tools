@@ -1,3 +1,5 @@
+import { apiIdentity } from './api-contract';
+import { BUILD_ID } from './build';
 import { copyText } from './toast';
 
 declare const __SIM_REVISION__: string | undefined;
@@ -13,9 +15,18 @@ export function feedbackUrl(report: string): string {
   return url.href;
 }
 
-/** Only the page path is included: fragments and queries can carry private roster access. */
-export function feedbackTemplate(path: string, version: string): string {
-  return `Page: ${path.split(/[?#]/)[0]}\nSimulator version: ${version}\nDevice and browser:\n\nSteps to reproduce:\n1. \n\nExpected:\n\nWhat happened:\n`;
+/**
+ * Only the page path is included: fragments and queries can carry private roster
+ * access.
+ *
+ * The site build and, once a page has asked, the bot's are in here too. The two
+ * deploy separately, and a report from a stale build reads as a bug in code that
+ * has already been fixed.
+ */
+export function feedbackTemplate(path: string, version: string, build = BUILD_ID): string {
+  const api = apiIdentity();
+  const bot = api ? api.build + ' (API ' + api.api + ')' : 'not asked';
+  return `Page: ${path.split(/[?#]/)[0]}\nSite build: ${build}\nBot build: ${bot}\nSimulator version: ${version}\nDevice and browser:\n\nSteps to reproduce:\n1. \n\nExpected:\n\nWhat happened:\n`;
 }
 
 export function renderFeedback(): HTMLElement {

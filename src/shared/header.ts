@@ -1,3 +1,4 @@
+import { BUILD_ID } from './build';
 import { iconImg } from './icons';
 import { renderFeedback } from './feedback';
 
@@ -118,7 +119,7 @@ export function renderFooter(): HTMLElement {
     <p>Fan-made and not affiliated with Blizzard Entertainment. Icons and art are Blizzard’s.</p>
     <p>WoW Forever is new and the numbers can lag the live game. Anything marked
       <span class="pill pill--unverified">unverified</span> has not been confirmed yet.</p>
-    <p><a href="${href('privacy.html')}">Privacy</a></p>
+    <p><a href="${href('privacy.html')}">Privacy</a> · <span class="site-footer__build">build ${BUILD_ID}</span></p>
   `;
   footer.appendChild(renderFeedback());
   return footer;

@@ -5,6 +5,7 @@
  * from the game. A member says what they play, and the addon export fills in the gear.
  * The bot holds it, and the bot decides who may edit it; this page only asks.
  */
+import { contractProblem, GUILD_CAPABILITIES, loadApiIdentity } from '../shared/api-contract';
 import { renderFooter, renderHeader } from '../shared/header';
 import { keepFocus } from '../shared/focus';
 import { attachTooltips } from '../shared/tooltip';
@@ -79,6 +80,15 @@ let loadError: string | null = null;
 
 /** Why the last paste was refused, shown above the box. */
 let gearProblem: string | null = null;
+
+/**
+ * Why this page and the bot it is talking to cannot work together.
+ *
+ * Null while nobody has asked, and null when they agree. The two deploy
+ * separately: this page can be newer than the bot or older, and before it said
+ * so the symptom was a field that would not save for no stated reason.
+ */
+let apiProblem: string | null = null;
 
 const app = document.getElementById('app');
 
@@ -497,6 +507,17 @@ function messagePanel(title: string, detailText: string, retry: boolean): HTMLEl
   return section;
 }
 
+/** The two builds disagree. Said once, above everything, before it is asked for. */
+function versionPanel(problem: string): HTMLElement {
+  const section = el('section', 'panel');
+  const body = el('div', 'panel__body');
+  const warn = el('div', 'gwarn', problem);
+  warn.setAttribute('role', 'alert');
+  body.appendChild(warn);
+  section.appendChild(body);
+  return section;
+}
+
 function renderBody(): HTMLElement {
   if (loadError) return messagePanel('Could not read the characters', loadError, true);
   if (!list) return messagePanel('Reading the characters', 'One moment.', false);
@@ -614,6 +635,10 @@ function draw(): void {
       ),
     );
 
+    // Whichever of the two is behind, saying so beats the reader working it out
+    // from a save that quietly does nothing.
+    if (apiProblem && !demo) app.appendChild(versionPanel(apiProblem));
+
     const me = currentUser();
     if (demo) {
       app.appendChild(demoBar());
@@ -693,4 +718,13 @@ void loadUser(() => {
   draw();
   // Which server to read is only known once we know who is signed in.
   if (!demo && guildId) refresh();
+});
+
+/* What the bot on the other end is, so a mismatch reads as a mismatch. Needs no
+   session, so it is asked even while signing in is what is broken. */
+void loadApiIdentity().then((identity) => {
+  const problem = contractProblem(identity, GUILD_CAPABILITIES);
+  if (!problem) return;
+  apiProblem = problem;
+  draw();
 });

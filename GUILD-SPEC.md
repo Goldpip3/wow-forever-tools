@@ -63,7 +63,7 @@ form offers both and the profile says which.
 
 ## 3. Tables (Group Builder)
 
-Migration `0006_characters.sql`.
+Migrations `0006_characters.sql` and `0007_ruleset.sql`.
 
 ```sql
 CREATE TABLE characters (
@@ -72,7 +72,8 @@ CREATE TABLE characters (
   user_id      TEXT NOT NULL,
   display_name TEXT NOT NULL DEFAULT '',   -- Discord name snapshot, for the list
   name         TEXT NOT NULL,
-  realm        TEXT NOT NULL DEFAULT '',
+  realm        TEXT NOT NULL DEFAULT '',   -- legacy; never written, never returned
+  ruleset      TEXT,                       -- normal | pvp | roleplaying | hardcore
   class_key    TEXT NOT NULL,
   spec_key     TEXT,
   role_key     TEXT,                       -- tank | healer | melee | ranged
@@ -132,6 +133,7 @@ courtesy; the refusal is the security.
 ## 5. API
 
 ```
+GET    /api/v4/version                            (no session; RELEASE-BASELINE.md)
 GET    /api/v4/guilds/:guildId/characters
 GET    /api/v4/guilds/:guildId/characters/:id
 POST   /api/v4/guilds/:guildId/characters
@@ -146,10 +148,10 @@ DELETE /api/v4/guilds/:guildId/characters/:id/gear
 ```jsonc
 {
   "guild": { "id": "…", "name": "Nightfall" },
-  "you": { "userId": "…", "isOfficer": true },
+  "you": { "userId": "…", "isOfficer": true, "isLeader": false },
   "characters": [
     { "id": 1, "userId": "…", "displayName": "Ava", "name": "Thrallsbane",
-      "realm": "Nightslayer", "classKey": "warrior", "specKey": "prot_war",
+      "ruleset": "normal", "classKey": "warrior", "specKey": "prot_war",
       "roleKey": "tank", "level": 60, "isMain": true,
       "professions": [{ "key": "mining", "skill": 300 }],
       "note": "", "updatedBy": "…", "updatedAt": 1790000000, "hasGear": true }
@@ -159,6 +161,16 @@ DELETE /api/v4/guilds/:guildId/characters/:id/gear
 
 `hasGear` is on the list row so a row can say there is something to look at without the
 list carrying every member's gear.
+
+`isOfficer` may edit anybody's character. `isLeader` is narrower — Discord Administrator
+or Manage Server — and is the only one sent `missing`, the raiders who have filed nothing.
+A raid manager seats raids; a guild leader is the person who wants to know that nobody has
+Enchanting.
+
+`ruleset` replaced `realm`. Forever is realmless: a character is made under one of four
+rulesets and cannot move between them, which makes it the field that decides who can group
+with whom. The `realm` column is still in the table, is no longer written, and is not
+returned.
 
 **`GET …/characters/:id`** adds `gear` (or null), `attendance`, and
 `permissions: { canEdit }`.
@@ -219,14 +231,20 @@ Gear arrives only as a **`/wfsync` paste**, read by `src/guild/paste.ts` and che
 member's inventory, it keeps the row small, and the bot's 64 KB limit refuses a payload
 carrying one. A unit test and a browser test both assert they never reach the request.
 
-What is sent: `v`, `addonVersion`, `generatedAt`, `name`, `realm`, `race`, `level`,
+What is sent: `v`, `addonVersion`, `generatedAt`, `name`, `ruleset`, `race`, `level`,
 `stats`, `equipped`, `talents`, `professions`.
+
+**The identity fields are validated and then dropped.** `name` and `ruleset` are checked
+for shape and never stored on the gear row: the profile owns them, and a paste that
+disagrees with the profile is a question for the person pasting rather than an overwrite.
+An unrecognised ruleset becomes null rather than refusing the save. A wrong ruleset is
+worse than a missing one, and it is never guessed.
 
 Two behaviours worth keeping:
 
 - **A name mismatch asks, rather than refusing.** People do paste the wrong alt, and they
   also rename characters. The prompt names both.
-- **A paste fills in blanks only.** A missing realm, level or profession list is taken
+- **A paste fills in blanks only.** A missing ruleset, level or profession list is taken
   from the export; anything already entered is left alone, because the person who typed it
   meant it.
 
