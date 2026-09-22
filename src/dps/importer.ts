@@ -12,7 +12,7 @@ import type {
   CharacterExport, ItemRef, SheetStats, StatBlock, TalentTabExport, WeaponHands, WeaponInfo,
 } from './export-format';
 import {
-  EXPORT_PREFIX, EXPORT_VERSION, SCHOOLS, SLOTS, isStatKey, type School, type Slot,
+  EXPORT_PREFIX, EXPORT_VERSION, SCHOOLS, SLOTS, isStatKey, stripPrefix, type School, type Slot,
 } from './export-format';
 import type { Character, ImportIssue, ImportResult } from './types';
 import { canUse } from './proficiency';
@@ -34,15 +34,9 @@ export function looksLikeCharacterExport(value: unknown): boolean {
   return 'v' in obj && 'classId' in obj && ('equipped' in obj || 'stats' in obj);
 }
 
-/** Strips the addon's prefix and any stray wrapping the clipboard added. */
-export function stripPrefix(raw: string): string {
-  let text = (raw ?? '').trim();
-  const prefix = new RegExp('^' + EXPORT_PREFIX + '\\s*[:=]?\\s*', 'i');
-  text = text.replace(prefix, '');
-  // A paste out of a code fence keeps its backticks.
-  text = text.replace(/^```[a-z]*\s*/i, '').replace(/\s*```$/, '');
-  return text.trim();
-}
+/* stripPrefix moved beside the prefix it strips, so the guild page can unwrap a paste
+   without pulling this whole file in. Re-exported for the callers already here. */
+export { stripPrefix };
 
 /* -------------------------------------------------------------------- items */
 
@@ -354,6 +348,16 @@ export function parseCharacterValue(parsed: unknown, cls?: ClassTalents): Import
     bags,
     bank,
   };
+
+  // From export version 2. An older addon simply has none, which is not the same
+  // as a character who has learned nothing, so the field stays absent.
+  if (Array.isArray(obj.professions)) {
+    const professions = obj.professions
+      .filter((p): p is Record<string, unknown> => !!p && typeof p === 'object')
+      .map((p) => ({ key: str(p.key), skill: Math.round(num(p.skill)) }))
+      .filter((p) => p.key !== '' && p.skill > 0);
+    if (professions.length) source.professions = professions;
+  }
 
   const faction = str(obj.faction);
   if (faction) source.faction = faction;

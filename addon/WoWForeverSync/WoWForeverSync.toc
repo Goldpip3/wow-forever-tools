@@ -1,17 +1,16 @@
-## Interface: 11508, 11509
+## Interface: 16001, 11508, 11509
 ## Title: WoW Forever Sync
+## IconTexture: Interface\Icons\INV_Misc_Gear_01
 ## Notes: Exports your character, gear, bags and bank for the WoW Forever gear and DPS tool.
 ## Author: WoW Forever Tools
-## Version: 1.0.0
+## Version: 1.2.0
 ## SavedVariables: WoWForeverSyncDB
 
-# Interface is Classic Era 1.15.8 and 1.15.9, which is the API surface Forever
-# is built on. The number is major * 10000 + minor * 100 + patch.
-#
-# When the Forever client ships, get its real number in game with
+# 16001 is the Forever client, which runs on the Midnight engine. Without it the
+# addon shows as out of date and does not load. The other two are Classic Era
+# 1.15.8 and 1.15.9. If a patch moves the number, read the new one in game with
 #   /run print(select(4, GetBuildInfo()))
-# and add it to the list. Listing several is fine and is how every addon covers
-# more than one client.
+# and add it to the list.
 #
 # Releasing to CurseForge also wants a project id here, once the project exists:
 #   ## X-Curse-Project-ID: 000000

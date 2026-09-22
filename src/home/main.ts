@@ -133,6 +133,17 @@ function features(): HTMLElement {
       ],
       cta: { label: 'Analyse your gear', url: href('dps.html') },
     },
+    {
+      title: 'Guild',
+      lead: 'Who in your Discord server plays what, by character name.',
+      points: [
+        'Each member says which characters they play, with spec, professions and whether it is their main.',
+        'An officer can fill in a profile for somebody who has not signed in yet.',
+        'Paste the same addon export the gear page takes, and the profile shows what they are wearing.',
+        'Forever has no armory and no Warcraft Logs, so everything here is what people entered themselves.',
+      ],
+      cta: { label: 'Open your guild', url: href('guild.html') },
+    },
   ];
 
   const wrap = el('div', 'home-cards');

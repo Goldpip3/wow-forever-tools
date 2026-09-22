@@ -7,11 +7,11 @@
 
 export const ADDON_INFO = {
   name: 'WoWForeverSync',
-  version: '1.0.0',
+  version: '1.2.0',
   /** The client this build declares itself compatible with. */
-  interfaceVersion: '11508, 11509',
+  interfaceVersion: '16001, 11508, 11509',
   /** Relative to the site root, which is where public/ ends up. */
   file: 'downloads/WoWForeverSync.zip',
-  bytes: 11288,
+  bytes: 14132,
   files: 6,
 } as const;

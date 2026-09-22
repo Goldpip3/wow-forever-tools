@@ -12,10 +12,27 @@
 
 import type { ClassId } from '../shared/classes';
 
-export const EXPORT_VERSION = 1;
+/**
+ * 1: the original.
+ * 2: adds `professions`, which the guild page shows.
+ *
+ * The site reads every version up to this one, so an older addon keeps working.
+ */
+export const EXPORT_VERSION = 2;
 
 /** What the addon puts in front of the JSON so a paste is recognisable. */
 export const EXPORT_PREFIX = 'WFSYNC1';
+
+/** Strips the addon's prefix and any stray wrapping the clipboard added. */
+export function stripPrefix(raw: string): string {
+  let text = (raw ?? '').trim();
+  // The fence comes off first. Pasted out of Discord the export arrives inside one
+  // with the prefix still in it, and taking the prefix off first left the backticks
+  // in front of the JSON, which then failed to parse.
+  text = text.replace(/^```[a-z]*\s*/i, '').replace(/\s*```$/, '').trim();
+  const prefix = new RegExp('^' + EXPORT_PREFIX + '\\s*[:=]?\\s*', 'i');
+  return text.replace(prefix, '').trim();
+}
 
 /* ----------------------------------------------------------------- schools */
 
@@ -241,6 +258,14 @@ export interface TalentTabExport {
   list: TalentEntryExport[];
 }
 
+/** One trade skill the character has learned. */
+export interface ProfessionExport {
+  /** The site's own key, e.g. 'blacksmithing' or 'first-aid'. */
+  key: string;
+  /** The rank the trade window shows, without the bonus gear adds. */
+  skill: number;
+}
+
 export interface CharacterExport {
   v: number;
   addonVersion: string;
@@ -256,6 +281,8 @@ export interface CharacterExport {
   stats: SheetStats;
   /** Weapon skill lines, e.g. a rogue with Daggers 300. */
   skills: Record<string, number>;
+  /** Trade skills, from export version 2. Absent on anything older. */
+  professions?: ProfessionExport[];
   /** Buffs active when the export ran, so the site can avoid double counting. */
   activeBuffs?: string[];
   equipped: Partial<Record<Slot, ItemRef>>;
