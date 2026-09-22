@@ -87,6 +87,11 @@ function ui.refresh()
   if not frame then buildFrame() end
 
   local text, counts, partial, bankStale = ns.export.build()
+  if not text then
+    editBox:SetText('')
+    status:SetText('You are in combat. Press Refresh once the fight is over.')
+    return
+  end
   editBox:SetText(text)
   editBox:HighlightText()
   editBox:SetFocus()
@@ -105,6 +110,16 @@ function ui.refresh()
   status:SetText(line)
 end
 
+--- Puts the diagnostics in the same box, since that is where copying works.
+function ui.diag()
+  if not frame then buildFrame() end
+  frame:Show()
+  editBox:SetText(ns.export.diag())
+  editBox:HighlightText()
+  editBox:SetFocus()
+  status:SetText('Diagnostics. Copy this if the site is missing something.')
+end
+
 function ui.toggle()
   if not frame then buildFrame() end
   if frame:IsShown() then
@@ -118,9 +133,10 @@ end
 -- ------------------------------------------------------------------- events
 
 local events = CreateFrame('Frame')
-events:RegisterEvent('ADDON_LOADED')
-events:RegisterEvent('BANKFRAME_OPENED')
-events:RegisterEvent('BANKFRAME_CLOSED')
+-- The newer engine throws on an event name it does not know.
+for _, name in ipairs({ 'ADDON_LOADED', 'BANKFRAME_OPENED', 'BANKFRAME_CLOSED' }) do
+  pcall(events.RegisterEvent, events, name)
+end
 
 events:SetScript('OnEvent', function(_, event, name)
   if event == 'ADDON_LOADED' and name == ADDON then
@@ -139,7 +155,12 @@ end)
 SLASH_WFSYNC1 = '/wfsync'
 SLASH_WFSYNC2 = '/wowforeversync'
 SlashCmdList.WFSYNC = function(msg)
-  if msg and string.lower(string.trim and string.trim(msg) or msg) == 'bank' then
+  local word = string.lower(string.match(msg or '', '^%s*(.-)%s*$'))
+  if word == 'diag' then
+    ui.diag()
+    return
+  end
+  if word == 'bank' then
     local ok, found = ns.export.scanBank()
     say(ok and ('bank read, ' .. (found or 0) .. ' items.') or 'open your bank first.')
     return

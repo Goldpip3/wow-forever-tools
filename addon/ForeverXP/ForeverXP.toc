@@ -1,0 +1,11 @@
+## Interface: 16001, 11507, 11508, 11509
+## Title: Forever XP
+## IconTexture: Interface\Icons\INV_Misc_Book_11
+## Notes: Tracks experience from kills, quests and everything else, and shows what the mob you are looking at is worth before you kill it.
+## Author: Andres
+## Version: 1.0
+## SavedVariables: ForeverXPDB
+## SavedVariablesPerCharacter: ForeverXPCharDB
+## X-Curse-Project-ID: 1705620
+
+ForeverXP.lua

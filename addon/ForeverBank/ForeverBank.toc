@@ -1,0 +1,11 @@
+## Interface: 16001, 11507, 11508, 11509
+## Title: Forever Bank
+## IconTexture: Interface\Icons\INV_Misc_Bag_07
+## Notes: Shows what is in your bank from anywhere. Remembers the contents each time you visit the bank. Button on the backpack, /fbank, or the minimap button.
+## Author: Andres
+## Version: 1.0
+## SavedVariables: ForeverBankDB
+## X-Curse-Project-ID: 1705619
+
+ForeverSV\ForeverBank.lua
+ForeverBank.lua

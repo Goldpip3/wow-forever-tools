@@ -321,6 +321,7 @@ export function renderResultsPanel(result: SimResult, extras: ResultsExtras = {}
   const body = el('div', 'panel__body');
 
   const big = el('div', 'ddps');
+  body.appendChild(el('p', 'drawer__hint', 'Beta simulation: these results depend on estimated mechanics and incomplete item and proc coverage. Compare them with the game before making gear decisions.'));
   big.appendChild(el('span', 'ddps__value', round(result.dps, 1)));
   big.appendChild(el('span', 'ddps__unit', 'damage per second'));
   big.appendChild(el('span', 'ddps__range', 'give or take ' + round(result.dpsStderr, 1)));

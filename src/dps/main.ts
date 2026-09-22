@@ -1099,7 +1099,7 @@ function readHash(): void {
   if (hash.startsWith('r=')) {
     if (!openReport(hash.slice(2))) {
       draw();
-      toast('That link to a run would not open');
+      toast('That report is incomplete or invalid. Ask for a fresh link, or import your character and run it again.');
       return;
     }
     draw();
