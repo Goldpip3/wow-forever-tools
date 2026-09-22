@@ -203,3 +203,33 @@ about is simply not read, and `realm` was never emptied.
 - **`COOKIE_DOMAIN` is still `.wowforever.us`.** The warning now says so at every start.
   Unsetting it makes the cookie host-only, and leaves the old wide cookie in browsers
   until it expires, so it wants a moment when signing everyone out again is fine.
+
+---
+
+## 9. The site deploy, 22 September 2026
+
+`modern-character-form` was merged into `master` as `2a556e1` and pushed. Cloudflare
+Pages built it; the footer on the live site reads `build 2a556e1ac92f`, which is the
+commit.
+
+Verified against the deployed pages:
+
+- The guild page loads no advertising script and no Google Fonts stylesheet.
+- `/guild` and `/guild.html` both carry the content security policy, `no-referrer`,
+  `X-Frame-Options: DENY` and `nosniff`. The home page carries no policy, so the
+  advertising there is untouched.
+- The form asks for a ruleset, and the level and profession skills are the new control.
+
+Two Referrer-Policy headers reach the browser on those pages, one from the `/*` rule and
+one from the page rule. The last valid value is the one that applies, so the page’s
+`no-referrer` wins — and only while the `/*` rule stays first in the file, which a test
+now asserts.
+
+### The analytics beacon
+
+The first policy blocked `static.cloudflareinsights.com`, which Cloudflare injects into
+every page the zone serves. That took the page-view counts off the three pages and logged
+a violation on every load, neither of which anybody asked for. It is allowed by name now.
+To make it strict: turn Web Analytics off for the zone, then take the two
+`cloudflareinsights` entries out of `public/_headers`. In that order, or the console error
+stays.

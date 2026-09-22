@@ -99,6 +99,32 @@ describe('the policy on a private page', () => {
     }
   });
 
+  it('names the one script from anywhere else, and no others', () => {
+    /* Cloudflare injects its analytics beacon into every page the zone serves.
+       Blocking it took the counts off these pages and logged a violation on
+       every load. Anything else added here should be a decision somebody makes
+       on purpose, which is what this test is for. */
+    for (const page of PRIVATE_PAGES) {
+      const csp = table.get('/' + page)?.['Content-Security-Policy'] ?? '';
+      const scriptSrc = /script-src ([^;]+)/.exec(csp)?.[1] ?? '';
+      expect(scriptSrc.trim().split(/\s+/)).toEqual([
+        "'self'",
+        'https://static.cloudflareinsights.com',
+      ]);
+    }
+  });
+
+  it('puts the catch-all rule first, because the last referrer policy wins', () => {
+    /* Two Referrer-Policy headers reach the browser on these pages: the one
+       from /* and the one from the page. The last valid value is the one that
+       applies, so the page's no-referrer only wins while it comes second. */
+    const paths = [...table.keys()];
+    expect(paths[0]).toBe('/*');
+    for (const page of PRIVATE_PAGES) {
+      expect(paths.indexOf('/' + page)).toBeGreaterThan(0);
+    }
+  });
+
   it('sends no referrer away from a page whose address names a server', () => {
     for (const page of PRIVATE_PAGES) {
       expect(table.get('/' + page)?.['Referrer-Policy']).toBe('no-referrer');
