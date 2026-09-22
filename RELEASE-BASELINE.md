@@ -108,3 +108,40 @@ still had `realm`, so the field was silently dropped by the schema and nobody no
 - The bot's `BUILD_REF` is only correct for a build made from a checkout with history. A
   deploy from an archive reports `unknown`, which is honest but not useful.
 - Mobile was not checked on a physical device.
+
+---
+
+## 7. What has been done on top of this baseline
+
+All of it is on `modern-character-form` here and `guild-coverage` on the bot. None of it is
+deployed.
+
+| | Site | Bot |
+|---|---|---|
+| Say which build is live | footer commit, bug report carries both, version check on load | `/api/v4/version`, `/health`, `dist/build-ref.txt` |
+| Rebuild a gear paste field by field | `src/guild/gear-upload.ts` | `src/services/gearPayload.ts`, and `gearView` filters reads too |
+| Take the outside scripts off the data pages | ads off guild, raid, gear; fonts self-hosted; `public/_headers` | — |
+| A cookie-authorised write names its origin | — | `src/web/guards.ts` |
+| Say who a message may ping | — | `mentionPolicy` in `src/render/index.ts` |
+| Keep what somebody typed | `src/guild/draft.ts`, the form draws it | — |
+| One read per navigation | epochs and abort in `src/guild/main.ts` | — |
+| Back returns to the list | push and `hashchange` in `src/guild/hash.ts` | — |
+| Find a member to file for | the lookup in the form | `GET …/members?q=`, rate limited |
+
+Tests: **1090** here in 56 files, **365** on the bot in 16. Both suites green, both builds
+clean.
+
+### Deploy the bot first
+
+The site hides the member lookup when the bot does not report `members.search`, and says
+which side is behind when the API numbers disagree. Nothing breaks if the site goes first;
+the lookup is simply absent until the bot catches up.
+
+### Still to do from the plan
+
+Phase 1B (per-field visibility), 1E (a "my data" page and retention), and phases 3 and 4
+are not started. In phase 2, three items are not done: revision checks so two editors
+cannot overwrite each other, one request that saves a gear paste and the profile fields it
+fills in together, and the import-first "Add character" flow. A paste that saves the gear
+but fails to save the level and professions now says exactly that, which is a description
+of the gap rather than a fix for it.

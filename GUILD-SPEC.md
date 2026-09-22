@@ -134,6 +134,7 @@ courtesy; the refusal is the security.
 
 ```
 GET    /api/v4/version                            (no session; RELEASE-BASELINE.md)
+GET    /api/v4/guilds/:guildId/members?q=          (officers only)
 GET    /api/v4/guilds/:guildId/characters
 GET    /api/v4/guilds/:guildId/characters/:id
 POST   /api/v4/guilds/:guildId/characters
@@ -178,6 +179,13 @@ returned.
 **`POST`** creates one. An officer may pass `userId` to file it for somebody else; from
 anyone else that field is refused with 403. A name already taken answers **409** with a
 message naming who holds it.
+
+**`GET …/members?q=`** finds who to pass as that `userId`. The form used to offer only
+the people who already had a character here, which is the set that does not need one
+filed for them. Officers only; **two characters at least**, fifteen answers at most,
+`{ userId, displayName }` each, and twenty searches a minute per account. It is a lookup,
+not a member list, and the difference is the point: a roster of everybody in a Discord
+server is not something this API hands out.
 
 **`PUT`** edits. The owner never moves, so `userId` is not accepted here.
 

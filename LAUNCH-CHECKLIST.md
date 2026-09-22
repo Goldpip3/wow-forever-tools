@@ -1,14 +1,31 @@
 # Public beta readiness
 
-Updated 16 September 2026. Local changes are not a deployment.
+Updated 22 September 2026. Local changes are not a deployment, and nothing below has
+been deployed. See RELEASE-BASELINE.md for which build is live and how to tell.
 
 ## Verification completed
 
-- 890 existing and report-validation unit tests passed; the added feedback privacy test also passed (891 total).
-- Production build and TypeScript check passed.
-- 30 browser tests passed: 10 each in desktop Chromium, mobile Chromium and mobile WebKit emulation.
-- Group Builder's 21 authentication and 46 roster tests passed against isolated test databases and mocked Discord calls.
-- Real Discord delivery, game-client accuracy, physical phones, public deployment and tester invitations remain pending.
+- 1090 unit tests passed here, in 56 files. Production build and TypeScript check passed.
+- 365 unit tests passed on Group Builder, in 16 files, against isolated test databases and
+  mocked Discord calls.
+- 30 browser tests passed: 10 each in desktop Chromium, mobile Chromium and mobile WebKit
+  emulation. These have not been re-run since the guild page changes below.
+- The guild page was driven by hand in a browser against the offline sample: opening a
+  profile, the back button, the owner picker, and leaving a half-filled form.
+- Real Discord delivery, game-client accuracy, physical phones, public deployment and
+  tester invitations remain pending.
+
+## Not verified, and cannot be from here
+
+- **The response headers in `public/_headers`.** Only the deployed site can say whether
+  Cloudflare honoured them. Check the content security policy, the referrer policy and
+  both URL shapes (`/guild` and `/guild.html`) against the deployed pages.
+- **Anything needing a signed-in Discord account**: the officer member lookup, the
+  cookie-origin refusal, sign out everywhere, and a save that the bot refuses. All of
+  these are unit-tested on both sides and none has been through a real session.
+- **The order of the two deploys.** The website hides the member lookup when the bot
+  does not report `members.search`, so the bot goes first. Nothing breaks the other way
+  round; the box is simply absent until the bot catches up.
 
 ## Implemented
 
@@ -55,4 +72,8 @@ After the above checks, deploy the reviewed changes and verify the public pages 
 
 Invite a few consenting players and one raid leader. Ask them to complete the flows without coaching; record task completion, unexpected results, device/browser and reproduction steps. Do not post invitations or publish an event without the intended destination and participants.
 
-Advertising still loads AdSense. Verify the actual consent configuration in the publisher account before a broad launch; this source change does not configure that service.
+Advertising loads AdSense on the home page, the talent calculator and the privacy page.
+It has been taken off the guild page, the raid planner and the gear page, which hold
+somebody's characters, a roster token or a gear report. Verify the actual consent
+configuration in the publisher account before a broad launch; this source change does
+not configure that service.
