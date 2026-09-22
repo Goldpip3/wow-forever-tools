@@ -16,6 +16,7 @@ import {
   currentUser,
   loadUser,
   onSignedOut,
+  sessionState,
   SIGN_IN_MESSAGE,
   takeSignInOutcome,
   type Me,
@@ -35,6 +36,13 @@ import {
   type CharacterList,
 } from './api';
 import { demoCharacter, demoList } from './demo';
+import {
+  DISCARD_ASK,
+  draftChanged,
+  draftFor,
+  inputFrom,
+  type EditorDraft,
+} from './draft';
 import { parseGuildHash, writeGuildHash } from './hash';
 import { charactersOf, searchCharacters, sortCharacters } from './list';
 import { namesDiffer, readPaste } from './paste';
@@ -69,6 +77,20 @@ let query = '';
 /** Which form is open: nothing, a new character, or the one that is showing. */
 let editing: 'none' | 'new' | 'existing' = 'none';
 
+/**
+ * What the open form holds, and what it held when it opened.
+ *
+ * The form draws these rather than keeping its values in its own fields, so a
+ * redraw under a half-filled form draws the half-filled form. A refused save
+ * used to reset every field to the stored character, taking with it both what
+ * somebody had typed and their only chance to see what the bot objected to.
+ */
+let draft: EditorDraft | null = null;
+let draftBase: EditorDraft | null = null;
+
+/** The text in the gear box, for the same reason as the draft above. */
+let gearText = '';
+
 /** True while a request is in flight, so a second click cannot start another. */
 let busy = false;
 
@@ -77,6 +99,9 @@ let problem: string | null = null;
 
 /** What went wrong reading the list, shown instead of it. */
 let loadError: string | null = null;
+
+/** True while the list is being read, so "nothing yet" and "reading" differ. */
+let loadingList = false;
 
 /** Why the last paste was refused, shown above the box. */
 let gearProblem: string | null = null;
@@ -90,11 +115,51 @@ let gearProblem: string | null = null;
  */
 let apiProblem: string | null = null;
 
+/**
+ * Which navigation a read belongs to.
+ *
+ * Every read carries the number that was current when it started and checks it
+ * again when it lands. Without that, the answer to "show me this server" could
+ * arrive after the reader had switched to another one and quietly replace it,
+ * and the answer to a profile they had closed could reopen it.
+ */
+let epoch = 0;
+
+/** Aborts the reads of the epoch that has just ended. */
+let pending: AbortController | null = null;
+
+/** True when this page pushed the open profile, so Back belongs to the list. */
+let pushedProfile = false;
+
+/** How the next hash write should land. Push only for opening a profile. */
+let historyMode: 'push' | 'replace' = 'replace';
+
 const app = document.getElementById('app');
+
+/* ------------------------------------------------------------------ epochs */
+
+/**
+ * Start a navigation: drop what the last one was waiting for.
+ *
+ * Reads are abandoned; writes are not, and never carry one of these. A write
+ * that is already at the bot will land whatever the page does next, and
+ * pretending otherwise by aborting it is how a half-saved character happens.
+ */
+function startEpoch(): { seq: number; signal: AbortSignal } {
+  pending?.abort();
+  pending = new AbortController();
+  epoch += 1;
+  return { seq: epoch, signal: pending.signal };
+}
+
+/** Whether a read that has just landed still belongs to what is on screen. */
+function current(seq: number): boolean {
+  return seq === epoch;
+}
 
 /* ------------------------------------------------------------------ reading */
 
-async function loadList(): Promise<void> {
+async function loadList(seq: number, signal: AbortSignal): Promise<void> {
   if (demo) {
     list = demoList();
     loadError = null;
@@ -104,28 +169,55 @@ async function loadList(): Promise<void> {
     list = null;
     return;
   }
+
+  const forGuild = guildId;
+  loadingList = true;
   try {
-    list = await fetchCharacters(guildId);
+    const answer = await fetchCharacters(forGuild, signal);
+    // Two checks, not one: the sequence catches a reader who moved on, and the
+    // server id catches the same server being reopened while this was in flight.
+    if (!current(seq) || guildId !== forGuild) return;
+    list = answer;
     loadError = null;
   } catch (err) {
+    if (err instanceof GuildApiError && err.aborted) return;
+    if (!current(seq) || guildId !== forGuild) return;
     list = null;
     loadError = err instanceof GuildApiError ? err.message : 'Could not read that Discord server.';
+  } finally {
+    if (current(seq)) loadingList = false;
   }
 }
 
-async function loadDetail(id: number): Promise<void> {
+async function loadDetail(id: number, seq: number, signal: AbortSignal): Promise<void> {
   if (demo) {
     detail = demoCharacter(id);
     return;
   }
   if (!guildId) return;
+
+  const forGuild = guildId;
   try {
-    detail = await fetchCharacter(guildId, id);
+    const answer = await fetchCharacter(forGuild, id, signal);
+    if (!current(seq) || guildId !== forGuild || characterId !== id) return;
+    detail = answer;
   } catch (err) {
+    if (err instanceof GuildApiError && err.aborted) return;
+    if (!current(seq) || guildId !== forGuild || characterId !== id) return;
     detail = null;
     characterId = null;
     toast(err instanceof GuildApiError ? err.message : 'Could not open that character.');
   }
+}
+
+/** Read the list, then the open profile if the link named one. */
+function refresh(): void {
+  const { seq, signal } = startEpoch();
+  void loadList(seq, signal).then(() => {
+    if (!current(seq)) return;
+    draw();
+    if (characterId) void loadDetail(characterId, seq, signal).then(() => current(seq) && draw());
+  });
 }
 
 /* ------------------------------------------------------------------ writing */
@@ -136,7 +228,7 @@ async function save(input: CharacterInput, ownerId: string | null): Promise<void
   if (demo) {
     // The sample has no server behind it, and nothing it does may reach the bot.
     problem = null;
-    editing = 'none';
+    closeEditor();
     toast('This is the sample. Nothing is saved.');
     draw();
     return;
@@ -147,21 +239,29 @@ async function save(input: CharacterInput, ownerId: string | null): Promise<void
   problem = null;
   draw();
 
+  const forGuild = guildId;
   try {
+    let savedId: number;
     if (editing === 'existing' && detail) {
-      const saved = await saveCharacter(guildId, detail.character.id, input);
-      characterId = saved.character.id;
+      const saved = await saveCharacter(forGuild, detail.character.id, input);
+      savedId = saved.character.id;
     } else {
       const created = await createCharacter(
-        guildId,
+        forGuild,
         ownerId ? { ...input, userId: ownerId } : input,
       );
-      characterId = created.character.id;
+      savedId = created.character.id;
     }
-    editing = 'none';
-    await loadList();
-    if (characterId) await loadDetail(characterId);
-    toast('Saved.');
+
+    /* Saved. Everything after this is a refresh, and a refresh that fails must
+       not read as a save that failed. */
+    closeEditor();
+    characterId = savedId;
+
+    const { seq, signal } = startEpoch();
+    await loadList(seq, signal);
+    if (current(seq)) await loadDetail(savedId, seq, signal);
+    toast(loadError ? 'Saved. The list could not be read back; try again.' : 'Saved.');
   } catch (err) {
     // The bot writes these messages and knows what this page does not, such as whose
     // character a name already belongs to. Show its words rather than ours.
@@ -188,18 +288,24 @@ async function remove(): Promise<void> {
   // Deleting takes the gear with it and cannot be undone, so it is asked before rather
   // than reported after.
   const sure = confirm(
-    'Delete ' + name + '? This removes the profile and its gear, and cannot be undone.',
+    'Delete ' +
+      name +
+      '? This removes the profile, its professions and the gear pasted on it, for ' +
+      'everyone in this Discord server. It cannot be undone.',
   );
   if (!sure) return;
 
   busy = true;
   draw();
+  const forGuild = guildId;
   try {
-    await apiDeleteCharacter(guildId, detail.character.id);
+    await apiDeleteCharacter(forGuild, detail.character.id);
     detail = null;
     characterId = null;
-    editing = 'none';
-    await loadList();
+    closeEditor();
+
+    const { seq, signal } = startEpoch();
+    await loadList(seq, signal);
     toast(name + ' deleted.');
   } catch (err) {
     toast(err instanceof GuildApiError ? err.message : 'Could not delete that character.');
@@ -257,13 +363,14 @@ async function pasteGear(text: string): Promise<void> {
 
   busy = true;
   draw();
+  const forGuild = guildId;
+  const character = detail.character;
   try {
-    await saveGear(guildId, detail.character.id, reading.upload);
+    await saveGear(forGuild, character.id, reading.upload);
 
     /* The export knows things the profile may not: the level, the class, and from
        version 2 the professions. Filling a blank field in beats making somebody type
        what the addon just read. Anything already entered is left alone. */
-    const character = detail.character;
     const patch = {
       name: character.name,
       ruleset: character.ruleset ?? reading.ruleset,
@@ -279,14 +386,31 @@ async function pasteGear(text: string): Promise<void> {
       patch.ruleset !== character.ruleset ||
       patch.level !== character.level ||
       patch.professions.length !== character.professions.length;
-    if (changed) await saveCharacter(guildId, character.id, patch);
 
-    await loadList();
-    await loadDetail(character.id);
+    /* The gear is saved by this point. A failure here leaves the two disagreeing,
+       which is worth saying plainly rather than reporting as a failed paste. */
+    let profileFailed = false;
+    if (changed) {
+      try {
+        await saveCharacter(forGuild, character.id, patch);
+      } catch {
+        profileFailed = true;
+      }
+    }
+
+    // The box has done its job; keeping the text would only invite a second paste.
+    gearText = '';
+
+    const { seq, signal } = startEpoch();
+    await loadList(seq, signal);
+    if (current(seq)) await loadDetail(character.id, seq, signal);
+
     toast(
-      reading.partial
-        ? 'Gear saved. The addon said the read was incomplete, so something may be missing.'
-        : 'Gear saved.',
+      profileFailed
+        ? 'Gear saved, but the level and professions from it were not. Try the form.'
+        : reading.partial
+          ? 'Gear saved. The addon said the read was incomplete, so something may be missing.'
+          : 'Gear saved.',
     );
   } catch (err) {
     gearProblem =
@@ -311,10 +435,14 @@ async function clearGear(): Promise<void> {
   busy = true;
   gearProblem = null;
   draw();
+  const forGuild = guildId;
+  const id = detail.character.id;
   try {
-    await apiDeleteGear(guildId, detail.character.id);
-    await loadList();
-    await loadDetail(detail.character.id);
+    await apiDeleteGear(forGuild, id);
+
+    const { seq, signal } = startEpoch();
+    await loadList(seq, signal);
+    if (current(seq)) await loadDetail(id, seq, signal);
     toast('Gear removed.');
   } catch (err) {
     toast(err instanceof GuildApiError ? err.message : 'Could not remove that gear.');
@@ -324,41 +452,125 @@ async function clearGear(): Promise<void> {
   }
 }
 
+/* ------------------------------------------------------------------ the form */
+
+function openEditor(mode: 'new' | 'existing'): void {
+  editing = mode;
+  draft = draftFor(mode === 'existing' && detail ? detail.character : null);
+  draftBase = draft;
+  problem = null;
+  draw();
+}
+
+function closeEditor(): void {
+  editing = 'none';
+  draft = null;
+  draftBase = null;
+  problem = null;
+}
+
+/** Whether the form may be thrown away, asking first when there is something in it. */
+function mayLeaveEditor(): boolean {
+  if (editing === 'none' || !draft || !draftBase) return true;
+  if (!draftChanged(draft, draftBase)) return true;
+  return confirm(DISCARD_ASK);
+}
+
+function leaveEditor(): void {
+  if (!mayLeaveEditor()) return;
+  closeEditor();
+  draw();
+}
+
 /* ------------------------------------------------------------------ navigation */
 
 function openCharacter(id: number): void {
+  if (!mayLeaveEditor()) return;
   characterId = id;
-  editing = 'none';
-  problem = null;
+  closeEditor();
   gearProblem = null;
+  gearText = '';
   detail = null;
+  // A profile is a place to come back from, so it gets its own history entry.
+  pushedProfile = true;
+  historyMode = 'push';
+  const { seq, signal } = startEpoch();
   draw();
-  void loadDetail(id).then(draw);
+  void loadDetail(id, seq, signal).then(() => current(seq) && draw());
 }
 
 function backToList(): void {
+  if (!mayLeaveEditor()) return;
+  /* We pushed the profile, so the entry behind it is the list this reader came
+     from, with their search still in it. Going back is the honest move; pushing
+     another entry would make Back walk forwards. */
+  if (pushedProfile) {
+    pushedProfile = false;
+    history.back();
+    return;
+  }
   characterId = null;
   detail = null;
-  editing = 'none';
-  problem = null;
+  closeEditor();
   gearProblem = null;
+  gearText = '';
   draw();
 }
 
 function chooseServer(next: string | null): void {
+  if (!mayLeaveEditor()) return;
   guildId = next;
   characterId = null;
   detail = null;
   list = null;
   query = '';
-  editing = 'none';
+  loadError = null;
+  pushedProfile = false;
+  closeEditor();
+  gearText = '';
   draw();
-  void loadList().then(draw);
+  refresh();
 }
 
-function leaveEditor(): void {
-  editing = 'none';
-  problem = null;
+/**
+ * The address bar changed under us: Back, Forward, or a pasted link.
+ *
+ * Applies whatever it says. It is the only navigation that does not write the
+ * hash back, because the browser has already written it.
+ */
+function onHashChange(): void {
+  const opened = parseGuildHash(location.hash);
+  if (opened.demo === demo && opened.guildId === guildId && opened.characterId === characterId) {
+    return;
+  }
+
+  // Leaving by the browser's Back button is not a place to ask a question: the
+  // page has already moved. The form goes, and says so.
+  if (editing !== 'none' && draft && draftBase && draftChanged(draft, draftBase)) {
+    toast('The form was left behind. Nothing was saved.');
+  }
+  closeEditor();
+
+  demo = opened.demo;
+  const wasCharacter = characterId;
+  guildId = opened.guildId ?? guildId;
+  characterId = opened.characterId;
+  gearProblem = null;
+  gearText = '';
+  if (characterId === null) {
+    detail = null;
+    pushedProfile = false;
+    draw();
+    return;
+  }
+
+  if (characterId !== wasCharacter) {
+    detail = null;
+    const { seq, signal } = startEpoch();
+    draw();
+    void loadDetail(characterId, seq, signal).then(() => current(seq) && draw());
+    return;
+  }
   draw();
 }
 
@@ -398,7 +610,7 @@ function renderSignedOut(): HTMLElement {
     guildId = null;
     characterId = null;
     draw();
-    void loadList().then(draw);
+    refresh();
   });
   row.appendChild(look);
   body.appendChild(row);
@@ -488,17 +700,13 @@ function knownPeople(): Array<{ userId: string; displayName: string }> {
   return [...seen].map(([userId, displayName]) => ({ userId, displayName }));
 }
 
-function messagePanel(title: string, detailText: string, retry: boolean): HTMLElement {
+function messagePanel(title: string, detailText: string, retry: null | (() => void)): HTMLElement {
   const section = el('section', 'panel');
   const body = el('div', 'panel__body');
   body.appendChild(empty(title, detailText));
   if (retry) {
     const again = el('button', 'btn', 'Try again');
-    again.addEventListener('click', () => {
-      loadError = null;
-      draw();
-      void loadList().then(draw);
-    });
+    again.addEventListener('click', retry);
     const row = el('div', 'spec-picker');
     row.appendChild(again);
     body.appendChild(row);
@@ -508,10 +716,10 @@ function messagePanel(title: string, detailText: string, retry: boolean): HTMLEl
 }
 
 /** The two builds disagree. Said once, above everything, before it is asked for. */
-function versionPanel(problem: string): HTMLElement {
+function versionPanel(problemText: string): HTMLElement {
   const section = el('section', 'panel');
   const body = el('div', 'panel__body');
-  const warn = el('div', 'gwarn', problem);
+  const warn = el('div', 'gwarn', problemText);
   warn.setAttribute('role', 'alert');
   body.appendChild(warn);
   section.appendChild(body);
@@ -519,27 +727,50 @@ function versionPanel(problem: string): HTMLElement {
 }
 
 function renderBody(): HTMLElement {
-  if (loadError) return messagePanel('Could not read the characters', loadError, true);
-  if (!list) return messagePanel('Reading the characters', 'One moment.', false);
+  if (loadError) {
+    return messagePanel('Could not read the characters', loadError, () => {
+      loadError = null;
+      draw();
+      refresh();
+    });
+  }
+  if (!list) {
+    return loadingList
+      ? messagePanel('Reading the characters', 'One moment.', null)
+      : messagePanel('Nothing read yet', 'Choose a Discord server above.', null);
+  }
 
-  if (editing === 'new') {
+  if (editing === 'new' && draft) {
     return renderEditor(
       {
         character: null,
+        draft,
         people: knownPeople(),
         canPickOwner: list.you.isOfficer,
         busy,
         problem,
       },
-      { onSave: (input, ownerId) => void save(input, ownerId), onCancel: leaveEditor },
+      {
+        onSave: (next) => void save(inputFrom(next), next.ownerId),
+        onCancel: leaveEditor,
+        onChange: (next) => {
+          draft = next;
+        },
+      },
     );
   }
 
   if (characterId && detail) {
-    if (editing === 'existing') {
+    if (editing === 'existing' && draft) {
       return renderEditor(
-        { character: detail.character, people: [], canPickOwner: false, busy, problem },
-        { onSave: (input) => void save(input, null), onCancel: leaveEditor },
+        { character: detail.character, draft, people: [], canPickOwner: false, busy, problem },
+        {
+          onSave: (next) => void save(inputFrom(next), null),
+          onCancel: leaveEditor,
+          onChange: (next) => {
+            draft = next;
+          },
+        },
       );
     }
     const open = detail;
@@ -549,21 +780,21 @@ function renderBody(): HTMLElement {
     return renderProfile(open, others, {
       busy,
       gearProblem,
+      gearText,
+      onGearText: (next) => {
+        gearText = next;
+      },
       onPasteGear: (text) => void pasteGear(text),
       onClearGear: () => void clearGear(),
       onBack: backToList,
-      onEdit: () => {
-        editing = 'existing';
-        problem = null;
-        draw();
-      },
+      onEdit: () => openEditor('existing'),
       onDelete: () => void remove(),
       onOpen: openCharacter,
     });
   }
 
   if (characterId && !detail) {
-    return messagePanel('Opening that character', 'One moment.', false);
+    return messagePanel('Opening that character', 'One moment.', null);
   }
 
   const shown = query ? searchCharacters(list.characters, query) : sortCharacters(list.characters);
@@ -573,11 +804,7 @@ function renderBody(): HTMLElement {
       query = next;
       draw();
     },
-    onAdd: () => {
-      editing = 'new';
-      problem = null;
-      draw();
-    },
+    onAdd: () => openEditor('new'),
   });
 
   /* A leader gets the gaps above the roster. Nobody else does: it is a list of
@@ -607,7 +834,7 @@ function demoBar(): HTMLElement {
     detail = null;
     characterId = null;
     query = '';
-    editing = 'none';
+    closeEditor();
     draw();
   });
   bar.appendChild(out);
@@ -644,7 +871,29 @@ function draw(): void {
       app.appendChild(demoBar());
       app.appendChild(renderBody());
     } else if (!me) {
-      app.appendChild(renderSignedOut());
+      /* Four answers, not two. Before the first one arrives this drew a sign-in
+         button at somebody who was already signed in, and when the bot was down
+         it drew one that could not work. */
+      const state = sessionState();
+      if (state === 'checking') {
+        app.appendChild(messagePanel('Checking your sign-in', 'One moment.', null));
+      } else if (state === 'unreachable') {
+        app.appendChild(
+          messagePanel(
+            'Could not reach the bot',
+            'It may be offline, or your connection may be down. Your sign-in is not the problem.',
+            () => {
+              draw();
+              void loadUser(() => {
+                draw();
+                if (guildId) refresh();
+              }, true);
+            },
+          ),
+        );
+      } else {
+        app.appendChild(renderSignedOut());
+      }
     } else {
       // Honours the link when it names a server this account can see, falls back to the
       // only one there is, and otherwise leaves the picker to ask.
@@ -662,15 +911,8 @@ function draw(): void {
     app.appendChild(renderFooter());
   });
 
-  writeGuildHash({ guildId, characterId, demo });
-}
-
-/** Read the list, then the open profile if the link named one. */
-function refresh(): void {
-  void loadList().then(() => {
-    draw();
-    if (characterId) void loadDetail(characterId).then(draw);
-  });
+  writeGuildHash({ guildId, characterId, demo }, historyMode);
+  historyMode = 'replace';
 }
 
 /* ------------------------------------------------------------------ bootstrap */
@@ -698,14 +940,28 @@ guildId = opened.guildId;
 characterId = opened.characterId;
 demo = opened.demo;
 
+window.addEventListener('hashchange', onHashChange);
+
+/* A half-filled form is worth a browser prompt on the way out. The wording is the
+   browser's; nothing said here reaches the reader. */
+window.addEventListener('beforeunload', (event) => {
+  if (editing === 'none' || !draft || !draftBase) return;
+  if (!draftChanged(draft, draftBase)) return;
+  event.preventDefault();
+  event.returnValue = '';
+});
+
 onSignedOut(() => {
   // What was on screen belonged to the account, so it goes with it.
+  startEpoch();
   guildId = null;
   characterId = null;
   list = null;
   detail = null;
   query = '';
-  editing = 'none';
+  gearText = '';
+  loadError = null;
+  closeEditor();
   draw();
 });
 
@@ -723,8 +979,8 @@ void loadUser(() => {
 /* What the bot on the other end is, so a mismatch reads as a mismatch. Needs no
    session, so it is asked even while signing in is what is broken. */
 void loadApiIdentity().then((identity) => {
-  const problem = contractProblem(identity, GUILD_CAPABILITIES);
-  if (!problem) return;
-  apiProblem = problem;
+  const next = contractProblem(identity, GUILD_CAPABILITIES);
+  if (!next) return;
+  apiProblem = next;
   draw();
 });

@@ -111,20 +111,59 @@ export interface CharacterInput {
 export class GuildApiError extends Error {
   readonly status: number;
   readonly details: string[];
+  /** The page dropped this request itself. Nothing to show anybody. */
+  readonly aborted: boolean;
 
-  constructor(message: string, status: number, details: string[] = []) {
+  constructor(message: string, status: number, details: string[] = [], aborted = false) {
     super(message);
     this.name = 'GuildApiError';
     this.status = status;
     this.details = details;
+    this.aborted = aborted;
   }
 }
 
-async function request<T>(path: string, init?: { method: string; body?: unknown }): Promise<T> {
+/**
+ * How long a read may take before the page stops waiting.
+ *
+ * Without this a request to a bot that is up but wedged never settles, and the
+ * page says "One moment" for as long as the tab is open.
+ */
+export const REQUEST_TIMEOUT_MS = 15_000;
+
+/** The page abandoned this request: navigation, or the timeout above. */
+function abortError(reason: string): GuildApiError {
+  return new GuildApiError(reason, 0, [], true);
+}
+
+/**
+ * The caller signal and a timeout, as one.
+ *
+ * `AbortSignal.any` is recent enough that a browser without it should still get
+ * the timeout rather than an exception, so it falls back to whichever it has.
+ */
+function withTimeout(signal: AbortSignal | undefined): AbortSignal | undefined {
+  const timeout = typeof AbortSignal.timeout === 'function'
+    ? AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+    : undefined;
+  if (!signal) return timeout;
+  if (!timeout) return signal;
+  return typeof AbortSignal.any === 'function' ? AbortSignal.any([signal, timeout]) : signal;
+}
+
+interface Call {
+  method?: string;
+  body?: unknown;
+  /** Dropped when the page moves on. A read carries one; a write does not. */
+  signal?: AbortSignal;
+}
+
+async function request<T>(path: string, init?: Call): Promise<T> {
   let res: Response;
   try {
     res = await fetch(API_BASE + path, {
       method: init?.method ?? 'GET',
+      signal: withTimeout(init?.signal),
       /* The cookie is on .wowforever.us and the API on api.wowforever.us, so without this
          the browser sends nothing and every call answers 401 to somebody who is signed in. */
       credentials: 'include',
@@ -135,6 +174,18 @@ async function request<T>(path: string, init?: { method: string; body?: unknown 
       body: init?.body !== undefined ? JSON.stringify(init.body) : undefined,
     });
   } catch (err) {
+    /* An abort is not a failure to report: either the page moved on, in which
+       case nobody is waiting for this, or it timed out, which has its own
+       sentence. */
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw abortError('The page stopped waiting for the bot.');
+    }
+    if (err instanceof DOMException && err.name === 'TimeoutError') {
+      throw new GuildApiError(
+        'The bot took too long to answer. It may be busy; try again.',
+        0,
+      );
+    }
     throw new GuildApiError(
       'Could not reach the bot. It may be offline; try again in a minute.',
       0,
@@ -164,12 +215,48 @@ async function request<T>(path: string, init?: { method: string; body?: unknown 
 
 const base = (guildId: string) => '/api/v4/guilds/' + encodeURIComponent(guildId) + '/characters';
 
-export function fetchCharacters(guildId: string): Promise<CharacterList> {
-  return request<CharacterList>(base(guildId));
+/**
+ * Enough of a shape check to know the page can read what came back.
+ *
+ * Not a schema: the fields the page walks, so an answer from something that is
+ * not this API reads as an error rather than as a list of undefineds that throws
+ * three frames later.
+ */
+function isCharacterList(value: unknown): value is CharacterList {
+  if (!value || typeof value !== 'object') return false;
+  const list = value as Partial<CharacterList>;
+  if (!list.guild || typeof list.guild.id !== 'string') return false;
+  if (!list.you || typeof list.you.userId !== 'string') return false;
+  return Array.isArray(list.characters);
 }
 
-export function fetchCharacter(guildId: string, id: number): Promise<CharacterDetail> {
-  return request<CharacterDetail>(base(guildId) + '/' + id);
+function isCharacterDetail(value: unknown): value is CharacterDetail {
+  if (!value || typeof value !== 'object') return false;
+  const detail = value as Partial<CharacterDetail>;
+  if (!detail.character || typeof detail.character.id !== 'number') return false;
+  return !!detail.permissions && !!detail.attendance;
+}
+
+const UNREADABLE =
+  'The bot answered with something this page could not read. It may be a newer build than this page.';
+
+export async function fetchCharacters(
+  guildId: string,
+  signal?: AbortSignal,
+): Promise<CharacterList> {
+  const answer = await request<unknown>(base(guildId), { signal });
+  if (!isCharacterList(answer)) throw new GuildApiError(UNREADABLE, 0);
+  return answer;
+}
+
+export async function fetchCharacter(
+  guildId: string,
+  id: number,
+  signal?: AbortSignal,
+): Promise<CharacterDetail> {
+  const answer = await request<unknown>(base(guildId) + '/' + id, { signal });
+  if (!isCharacterDetail(answer)) throw new GuildApiError(UNREADABLE, 0);
+  return answer;
 }
 
 /** `userId` is only accepted from an officer; the bot refuses it from anyone else. */

@@ -39,6 +39,51 @@ export function focusKey(): string | null {
   return keyOf(document.activeElement);
 }
 
+/** Where the keyboard was, including the caret inside a text field. */
+export interface FocusMark {
+  key: string | null;
+  start: number | null;
+  end: number | null;
+}
+
+function isTextField(el: Element | null): el is HTMLInputElement | HTMLTextAreaElement {
+  return el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement;
+}
+
+/**
+ * Focus and the caret, so a search box does not send the caret to the end of what
+ * somebody typed every time the list under it redraws.
+ *
+ * A number field throws on selectionStart in some browsers rather than answering,
+ * so reading it is guarded.
+ */
+export function focusMark(): FocusMark {
+  const el = document.activeElement;
+  const mark: FocusMark = { key: keyOf(el), start: null, end: null };
+  if (!isTextField(el)) return mark;
+  try {
+    mark.start = el.selectionStart;
+    mark.end = el.selectionEnd;
+  } catch {
+    /* a field whose type has no selection; focus alone is what we keep */
+  }
+  return mark;
+}
+
+/** Put focus and the caret back where the mark says. */
+export function restoreFocusMark(mark: FocusMark): void {
+  if (!mark.key) return;
+  const el = find(mark.key);
+  if (!el) return;
+  el.focus({ preventScroll: true });
+  if (mark.start === null || !isTextField(el)) return;
+  try {
+    el.setSelectionRange(mark.start, mark.end ?? mark.start);
+  } catch {
+    /* same as above: focus is the part that matters */
+  }
+}
+
 /** Put focus back on the control a key names, if it is still on the page. */
 export function restoreFocus(key: string | null): void {
   if (!key) return;
@@ -47,11 +92,11 @@ export function restoreFocus(key: string | null): void {
   el.focus({ preventScroll: true });
 }
 
-/** Run a redraw and keep the keyboard where it was. */
+/** Run a redraw and keep the keyboard, and the caret, where they were. */
 export function keepFocus(redraw: () => void): void {
-  const key = focusKey();
+  const mark = focusMark();
   redraw();
-  restoreFocus(key);
+  restoreFocusMark(mark);
 }
 
 /**

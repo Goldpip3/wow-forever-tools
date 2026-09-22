@@ -7,7 +7,8 @@ import { CLASSES, CLASS_IDS, type ClassId } from '../shared/classes';
 import { iconImg } from '../shared/icons';
 import { renderGearSheet, wornCount } from '../shared/gear-view';
 import { specFromSignup, specKeyForSpecId } from '../raid/groupbuilder';
-import type { Character, CharacterDetail, CharacterInput, CharacterList } from './api';
+import type { Character, CharacterDetail, CharacterList } from './api';
+import { draftProblem, type EditorDraft } from './draft';
 import { headline, joinWords, type Coverage } from './coverage';
 import {
   MAX_PROFESSION_SKILL,
@@ -15,7 +16,6 @@ import {
   professionIcon,
   SECONDARY_PROFESSIONS,
   professionName,
-  professionProblem,
   sortProfessions,
   type Profession,
   type ProfessionKey,
@@ -240,6 +240,15 @@ export interface ProfileHandlers {
   busy: boolean;
   /** What the last paste was refused for. */
   gearProblem: string | null;
+  /**
+   * What is in the box.
+   *
+   * Held by the page rather than by the textarea, for the same reason the form
+   * holds its own values: a refused paste redraws, and a redraw that rebuilt the
+   * box empty threw away the export somebody had just pasted along with it.
+   */
+  gearText: string;
+  onGearText(next: string): void;
 }
 
 function identityPanel(detail: CharacterDetail): HTMLElement {
@@ -325,6 +334,8 @@ function pasteBox(handlers: ProfileHandlers, replacing: boolean): HTMLElement {
   area.placeholder = 'Paste the /wfsync export here';
   area.setAttribute('aria-label', 'Addon export');
   area.dataset.focusKey = 'guild-paste';
+  area.value = handlers.gearText;
+  area.addEventListener('input', () => handlers.onGearText(area.value));
   box.appendChild(area);
 
   const row = el('div', 'gactions');
@@ -505,13 +516,23 @@ export function renderProfile(
 /* ------------------------------------------------------------------ the editor */
 
 export interface EditorHandlers {
-  onSave(input: CharacterInput, userId: string | null): void;
+  onSave(draft: EditorDraft): void;
   onCancel(): void;
+  /**
+   * Every change, so the page holds what is being typed.
+   *
+   * It does not redraw on a keystroke; it only puts the value where a redraw can
+   * find it. A refused save then redraws the form as it was left, with the
+   * refusal above it, rather than as the character was last stored.
+   */
+  onChange(draft: EditorDraft): void;
 }
 
 export interface EditorOptions {
   /** The character being changed, or null when this is a new one. */
   character: Character | null;
+  /** What to draw in the fields. Held by the page, not by the fields. */
+  draft: EditorDraft;
   /** Server members an officer may file a character for. Empty for everyone else. */
   people: ReadonlyArray<{ userId: string; displayName: string }>;
   canPickOwner: boolean;
@@ -539,9 +560,11 @@ function option(value: string, label: string, selected: boolean): HTMLOptionElem
 /**
  * The form.
  *
- * Reads its own values on save rather than keeping them in module state, so a redraw
- * under a half-filled form cannot lose what somebody typed into a field they had not
- * finished with.
+ * Draws what the page hands it and reports every change back, so a redraw under a
+ * half-filled form draws the half-filled form. It used to read its values out of
+ * the DOM on save, which was fine until a save was refused: the redraw that showed
+ * the refusal also rebuilt every field from the stored character, and what somebody
+ * had just typed went with it.
  */
 export function renderEditor(opts: EditorOptions, handlers: EditorHandlers): HTMLElement {
   const existing = opts.character;
@@ -561,13 +584,15 @@ export function renderEditor(opts: EditorOptions, handlers: EditorHandlers): HTM
      Every control is built before any of it is arranged, because the preview and
      the three linked pickers all read each other. */
 
+  const draft = opts.draft;
+
   let owner: HTMLSelectElement | null = null;
   if (opts.canPickOwner && !existing) {
     owner = document.createElement('select');
     owner.className = 'btn';
-    owner.appendChild(option('', 'Me', true));
+    owner.appendChild(option('', 'Me', draft.ownerId === null));
     for (const person of opts.people) {
-      owner.appendChild(option(person.userId, person.displayName, false));
+      owner.appendChild(option(person.userId, person.displayName, draft.ownerId === person.userId));
     }
   }
 
@@ -577,7 +602,7 @@ export function renderEditor(opts: EditorOptions, handlers: EditorHandlers): HTM
   // 12 for the first name, a space, and 12 for the surname Forever gives it.
   name.maxLength = 25;
   name.autocomplete = 'off';
-  name.value = existing?.name ?? '';
+  name.value = draft.name;
   name.placeholder = 'Ana Forever';
   name.dataset.focusKey = 'guild-name';
 
@@ -585,13 +610,13 @@ export function renderEditor(opts: EditorOptions, handlers: EditorHandlers): HTM
      a Forever character and was filled in with a Classic Era name out of habit. */
   const ruleset = document.createElement('select');
   ruleset.className = 'btn';
-  ruleset.appendChild(option('', 'Not said', !existing?.ruleset));
+  ruleset.appendChild(option('', 'Not said', !draft.ruleset));
   for (const key of LIVE_RULESETS) {
-    ruleset.appendChild(option(key, RULESET_NAMES[key], existing?.ruleset === key));
+    ruleset.appendChild(option(key, RULESET_NAMES[key], draft.ruleset === key));
   }
   // A character already filed on Hardcore reads correctly even though the picker
   // does not offer it yet.
-  if (existing?.ruleset === 'hardcore') {
+  if (draft.ruleset === 'hardcore') {
     ruleset.appendChild(option('hardcore', RULESET_NAMES.hardcore, true));
   }
 
@@ -600,13 +625,13 @@ export function renderEditor(opts: EditorOptions, handlers: EditorHandlers): HTM
   level.type = 'number';
   level.min = '1';
   level.max = '100';
-  level.value = existing?.level ? String(existing.level) : '';
+  level.value = draft.level;
   level.placeholder = '60';
 
   const classSelect = document.createElement('select');
   classSelect.className = 'btn';
   for (const id of CLASS_IDS) {
-    classSelect.appendChild(option(id, CLASSES[id].name, existing?.classKey === id));
+    classSelect.appendChild(option(id, CLASSES[id].name, draft.classKey === id));
   }
 
   const specSelect = document.createElement('select');
@@ -617,13 +642,13 @@ export function renderEditor(opts: EditorOptions, handlers: EditorHandlers): HTM
 
   const main = document.createElement('input');
   main.type = 'checkbox';
-  main.checked = existing?.isMain ?? false;
+  main.checked = draft.isMain;
 
   const note = document.createElement('textarea');
   note.className = 'drawer__input';
   note.rows = 3;
   note.maxLength = 500;
-  note.value = existing?.note ?? '';
+  note.value = draft.note;
   note.placeholder = 'Anything the raid leader should know.';
 
   /* ------------------------------------------------------------- the preview
@@ -714,28 +739,37 @@ export function renderEditor(opts: EditorOptions, handlers: EditorHandlers): HTM
     }
   }
 
-  fillSpecs(existing?.specKey ?? null);
-  fillRoles(existing?.roleKey ?? null);
+  fillSpecs(draft.specKey);
+  fillRoles(draft.roleKey);
+
+  /* Redraw the preview and hand the values up. Nothing repaints the page on a
+     keystroke: this only puts what was typed somewhere a redraw can find it. */
+  function touched(): void {
+    drawPreview();
+    handlers.onChange(readDraft());
+  }
 
   classSelect.addEventListener('change', () => {
     fillSpecs(null);
     fillRoles(null);
-    drawPreview();
+    touched();
   });
   specSelect.addEventListener('change', () => {
     fillRoles(roleSelect.value || null);
-    drawPreview();
+    touched();
   });
-  for (const control of [name, level]) control.addEventListener('input', drawPreview);
-  ruleset.addEventListener('change', drawPreview);
-  for (const control of [roleSelect, main]) control.addEventListener('change', drawPreview);
+  for (const control of [name, level]) control.addEventListener('input', touched);
+  note.addEventListener('input', touched);
+  ruleset.addEventListener('change', touched);
+  for (const control of [roleSelect, main]) control.addEventListener('change', touched);
+  owner?.addEventListener('change', touched);
 
   /* ------------------------------------------------------------- professions
      A chip per profession rather than a checkbox in a row: the whole thing is the
      target, it carries its own icon, and a chosen one is obvious at a glance. */
 
   const chosen = new Map<ProfessionKey, number | null>();
-  for (const p of existing?.professions ?? []) chosen.set(p.key, p.skill);
+  for (const p of draft.professions) chosen.set(p.key, p.skill);
 
   function professionChip(key: ProfessionKey): HTMLElement {
     const chip = el('label', 'gchip');
@@ -760,6 +794,7 @@ export function renderEditor(opts: EditorOptions, handlers: EditorHandlers): HTM
         tick.checked = true;
         chip.classList.add('gchip--on');
       }
+      touched();
     });
     // A click on the number must not toggle the label it sits inside.
     skill.addEventListener('click', (event) => event.stopPropagation());
@@ -768,6 +803,7 @@ export function renderEditor(opts: EditorOptions, handlers: EditorHandlers): HTM
     tick.addEventListener('change', () => {
       chip.classList.toggle('gchip--on', tick.checked);
       if (!tick.checked) skill.value = '';
+      touched();
     });
 
     chip.append(
@@ -884,36 +920,50 @@ export function renderEditor(opts: EditorOptions, handlers: EditorHandlers): HTM
     return out;
   }
 
+  /** The form as it stands. Untrimmed: what is in the field is what is held. */
+  function readDraft(): EditorDraft {
+    return {
+      ownerId: owner?.value || null,
+      name: name.value,
+      ruleset: ruleset.value || null,
+      classKey: classSelect.value,
+      specKey: specSelect.value || null,
+      roleKey: roleSelect.value || null,
+      level: level.value,
+      isMain: main.checked,
+      professions: readProfessions(),
+      note: note.value,
+    };
+  }
+
+  /** Field-level complaints go next to the field, and take focus with them. */
+  const FIELD_CONTROL: Record<string, HTMLElement> = {
+    name,
+    level,
+    professions: profsBox,
+  };
+
   form.addEventListener('submit', (event) => {
     event.preventDefault();
     if (opts.busy) return;
 
-    const professions = readProfessions();
-    // Answered here so an obvious mistake does not cost a round trip. The bot checks
-    // the same things again, and its answer is the one that decides.
-    const problem = professionProblem(professions);
+    const next = readDraft();
+    handlers.onChange(next);
+
+    /* Answered here so an obvious mistake does not cost a round trip, and so the
+       cursor lands on the field that is wrong. The bot checks all of it again, and
+       its answer is the one that decides. */
+    const problem = draftProblem(next);
     if (problem) {
       const warn = form.querySelector('.gwarn') ?? el('div', 'gwarn');
-      warn.textContent = problem;
+      warn.textContent = problem.message;
       warn.setAttribute('role', 'alert');
       if (!warn.parentElement) form.prepend(warn);
+      FIELD_CONTROL[problem.field]?.focus?.();
       return;
     }
 
-    handlers.onSave(
-      {
-        name: name.value.trim(),
-        ruleset: ruleset.value || null,
-        classKey: classSelect.value,
-        specKey: specSelect.value || null,
-        roleKey: roleSelect.value || null,
-        level: level.value.trim() === '' ? null : Number(level.value),
-        isMain: main.checked,
-        professions,
-        note: note.value.trim(),
-      },
-      owner?.value || null,
-    );
+    handlers.onSave(next);
   });
 
   drawPreview();

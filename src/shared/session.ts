@@ -36,6 +36,24 @@ export interface Me {
 
 let me: Me | null = null;
 let asked = false;
+
+/**
+ * Whether anybody is signed in, and whether we know yet.
+ *
+ * Four states rather than two. Before this, a page that could not reach the bot
+ * drew the same thing as a page whose reader is signed out: a Sign in button,
+ * which does nothing useful when the bot is the part that is down. And the
+ * moment before the first answer arrives looked like signed out too, so every
+ * load flashed a sign-in panel at somebody who was already signed in.
+ */
+export type SessionState = 'checking' | 'in' | 'out' | 'unreachable';
+
+let state: SessionState = 'checking';
+
+/** What we know about the sign-in right now. */
+export function sessionState(): SessionState {
+  return state;
+}
 const beforeHooks: Array<() => Promise<void>> = [];
 const afterHooks: Array<() => void> = [];
 
@@ -51,9 +69,10 @@ export function currentUser(): Me | null {
  * instead of throwing. Anything else that goes wrong resolves null too: not knowing who
  * you are is the same outcome either way, and every page has a sign-in button for it.
  */
-export async function loadUser(onChange: () => void): Promise<void> {
-  if (asked) return;
+export async function loadUser(onChange: () => void, force = false): Promise<void> {
+  if (asked && !force) return;
   asked = true;
+  state = 'checking';
   try {
     const res = await fetch(API_BASE + '/api/v4/me', {
       // The cookie is on .wowforever.us and the API is on api.wowforever.us, so without
@@ -62,8 +81,13 @@ export async function loadUser(onChange: () => void): Promise<void> {
       headers: { Accept: 'application/json' },
     });
     me = res.ok ? ((await res.json()) as Me) : null;
+    /* 401 is the ordinary signed-out answer. Anything else is the bot having a
+       problem, which is not the reader being signed out and must not be drawn
+       as one. */
+    state = res.ok ? 'in' : res.status === 401 ? 'out' : 'unreachable';
   } catch {
     me = null;
+    state = 'unreachable';
   }
   onChange();
 }
@@ -98,6 +122,7 @@ export async function signOut(everywhere = false): Promise<boolean> {
   }
   me = null;
   asked = false;
+  state = 'out';
   for (const hook of afterHooks) hook();
   return true;
 }

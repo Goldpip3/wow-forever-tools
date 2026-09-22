@@ -43,13 +43,21 @@ export function guildHash(state: GuildHash): string {
 }
 
 /**
- * Put the state in the address bar without adding a history entry.
+ * Put the state in the address bar.
  *
- * Opening a profile and pressing back should leave the page, not walk through every
- * character the reader glanced at.
+ * Opening a profile pushes, so Back returns to the list the reader came from.
+ * This used to replace, on the grounds that Back should leave the page rather
+ * than walk through every character somebody glanced at; that made Back leave
+ * the site from a profile, which is not what a reader expects from a page that
+ * looks like a list and a detail.
+ *
+ * Everything else replaces: a search, a server change, opening the form. None of
+ * those is a place to come back to.
  */
-export function writeGuildHash(state: GuildHash): void {
+export function writeGuildHash(state: GuildHash, mode: 'push' | 'replace' = 'replace'): void {
   const next = guildHash(state);
   if (next === location.hash) return;
-  history.replaceState(null, '', location.pathname + location.search + next);
+  const url = location.pathname + location.search + next;
+  if (mode === 'push') history.pushState(null, '', url);
+  else history.replaceState(null, '', url);
 }
