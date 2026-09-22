@@ -162,8 +162,10 @@ at stake in the realm-to-ruleset change.
 
 After, against the live API:
 
-- `/api/v4/version` answers `build: d62c65d5bc49`, matching local `master` exactly, with
-  `members.search` in the capability list.
+- `/api/v4/version` answers the commit that is running, matching local `master` exactly,
+  with `members.search` in the capability list. It was `d62c65d` at the merge and
+  `177da6c` after the documentation commit that followed; ask the endpoint rather than
+  trusting this line.
 - Migration `0007_ruleset.sql` applied: `characters.ruleset` exists and `realm` is
   untouched.
 - `Cache-Control: private, no-store` and `Vary: Origin` on `/api/v4/me`; neither on
