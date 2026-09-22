@@ -33,7 +33,7 @@ export function sortCharacters(list: readonly Character[]): Character[] {
 /**
  * Everything matching what was typed.
  *
- * Matches the character name, the member's Discord name, the realm, the class and the
+ * Matches the character name, the member's Discord name, the ruleset, the class and the
  * professions, because all five are things somebody types into a search box when they
  * are looking for a person. A character name that starts with the query comes first:
  * typing "th" should reach Thrallsbane before it reaches somebody whose note mentions it.
@@ -48,7 +48,7 @@ export function searchCharacters(list: readonly Character[], query: string): Cha
     const haystack = [
       character.name,
       character.displayName,
-      character.realm,
+      character.ruleset ?? '',
       character.classKey,
       character.specKey ?? '',
       ...character.professions.map((p) => professionName(p.key)),

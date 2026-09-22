@@ -8,7 +8,7 @@ function character(over: Partial<Character> & Pick<Character, 'id'>): Character 
     userId: 'u' + over.id,
     displayName: 'Someone',
     name: 'Name' + over.id,
-    realm: '',
+    ruleset: null,
     classKey: 'warrior',
     specKey: null,
     roleKey: null,

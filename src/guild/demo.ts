@@ -21,7 +21,7 @@ function character(over: Partial<Character> & Pick<Character, 'id' | 'name' | 'c
   return {
     userId: 'demo-' + over.id,
     displayName: 'Someone',
-    realm: 'Nightslayer',
+    ruleset: 'normal',
     specKey: null,
     roleKey: null,
     level: 60,

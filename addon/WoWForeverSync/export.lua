@@ -12,9 +12,9 @@ local ADDON, ns = ...
 local export = {}
 ns.export = export
 
-export.VERSION = 2
+export.VERSION = 3
 export.PREFIX = 'WFSYNC1'
-export.ADDON_VERSION = '1.2.1'
+export.ADDON_VERSION = '1.3.0'
 
 local safe = ns.scan.safe
 local json = ns.json
@@ -266,6 +266,51 @@ local function professionsFromSlots()
   return found
 end
 
+--- Which of Forever's four rulesets this character is on.
+--
+-- Forever went realmless: there is no realm list, and a character belongs to one
+-- ruleset for good. GetRealmName still answers on that client, but with a backend
+-- pool name like "Classic Beta PvP 2" that changes between sessions, so it is not
+-- an identity and the website drops it.
+--
+-- C_GameRules is where the modern client keeps this. The return shape is not
+-- documented and was not measured before this shipped, so every plausible answer
+-- is squeezed into one of four keys and anything else becomes nil rather than a
+-- guess. A wrong ruleset says two people can group when they cannot.
+--
+-- `/wfsync diag` prints the raw value, which is how to find out what it really
+-- returns without a second build.
+local RULESET_WORDS = {
+  normal = 'normal', standard = 'normal', default = 'normal',
+  pvp = 'pvp',
+  roleplaying = 'roleplaying', roleplay = 'roleplaying', rp = 'roleplaying',
+  hardcore = 'hardcore',
+}
+
+local function rawRuleset()
+  if not C_GameRules then return nil end
+  local mode = safe(C_GameRules.GetActiveGameMode)
+  if mode ~= nil then return mode end
+  local info = safe(C_GameRules.GetCurrentGameModeDisplayInfo)
+  if type(info) == 'table' then
+    return safe(function() return info.displayName or info.name end)
+  end
+  return nil
+end
+
+local function readRuleset()
+  -- Hardcore has its own question, and it is the one answer worth trusting.
+  if C_GameRules and safe(C_GameRules.IsHardcoreActive) then return 'hardcore' end
+
+  local raw = rawRuleset()
+  if type(raw) ~= 'string' then return nil end
+  local word = string.lower(raw)
+  for key, value in pairs(RULESET_WORDS) do
+    if string.find(word, key, 1, true) then return value end
+  end
+  return nil
+end
+
 --- What this character can make, for the guild page.
 --
 -- Classic Era first, because its skill list carries every profession including the
@@ -384,6 +429,7 @@ function export.build()
     generatedAt = time(),
     name = safe(UnitName, 'player') or 'Unknown',
     realm = safe(GetRealmName) or '',
+    ruleset = readRuleset(),
     classId = string.lower(classToken or ''),
     level = safe(UnitLevel, 'player') or 0,
     race = raceToken or '',
@@ -431,6 +477,8 @@ local PROBES = {
   'C_ClassTalents.GetActiveConfigID', 'C_SpecializationInfo.GetTalentInfo',
   'GetNumSkillLines', 'GetSkillLineInfo',
   'GetProfessions', 'GetProfessionInfo',
+  'C_GameRules.GetActiveGameMode', 'C_GameRules.IsHardcoreActive',
+  'C_GameRules.GetCurrentGameModeDisplayInfo',
   'UnitBuff', 'C_UnitAuras.GetBuffDataByIndex',
   'Enum.BagIndex.CharacterBankTab_1', 'issecretvalue',
 }
@@ -486,6 +534,11 @@ function export.diag()
   for _, p in ipairs(professions) do
     names[#names + 1] = p.key .. ' ' .. tostring(p.skill)
   end
+  -- The raw value as well as the reading, because the return shape of this is
+  -- undocumented and this line is how it gets found out.
+  put('ruleset ' .. tostring(readRuleset()) .. ', raw ' .. tostring(rawRuleset()) ..
+    ', realm ' .. tostring(safe(GetRealmName)))
+
   put('professions via ' .. route .. ': ' .. (#names > 0 and table.concat(names, ', ') or 'none found'))
 
   for _, slot in ipairs(SLOTS) do

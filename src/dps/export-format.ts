@@ -15,10 +15,12 @@ import type { ClassId } from '../shared/classes';
 /**
  * 1: the original.
  * 2: adds `professions`, which the guild page shows.
+ * 3: adds `ruleset`. Forever is realmless, so `realm` carries a backend pool
+ *    name that changes between sessions and is not an identity.
  *
  * The site reads every version up to this one, so an older addon keeps working.
  */
-export const EXPORT_VERSION = 2;
+export const EXPORT_VERSION = 3;
 
 /** What the addon puts in front of the JSON so a paste is recognisable. */
 export const EXPORT_PREFIX = 'WFSYNC1';
@@ -283,6 +285,14 @@ export interface CharacterExport {
   skills: Record<string, number>;
   /** Trade skills, from export version 2. Absent on anything older. */
   professions?: ProfessionExport[];
+  /**
+   * Which of Forever's four rulesets, from export version 3.
+   *
+   * Absent on Classic Era, which has realms instead, and absent on Forever when
+   * the client would not say. Never guessed: a wrong ruleset claims two people
+   * can group when they cannot.
+   */
+  ruleset?: string;
   /** Buffs active when the export ran, so the site can avoid double counting. */
   activeBuffs?: string[];
   equipped: Partial<Record<Slot, ItemRef>>;

@@ -20,6 +20,7 @@ import {
   type Profession,
   type ProfessionKey,
 } from './professions';
+import { LIVE_RULESETS, RULESET_NAMES, rulesetName } from './rulesets';
 
 export function el(tag: string, cls?: string, text?: string): HTMLElement {
   const node = document.createElement(tag);
@@ -204,7 +205,7 @@ export function renderList(
       empty(
         'Nobody has added a character yet',
         canAdd
-          ? 'Add yours, and anyone else in the server can add theirs. An officer can fill one in for somebody who has not signed in.'
+          ? 'Add yours, and anyone else in the Discord server can add theirs. An officer can fill one in for somebody who has not signed in.'
           : 'Add yours and it appears here.',
       ),
     );
@@ -261,7 +262,7 @@ function identityPanel(detail: CharacterDetail): HTMLElement {
     character.level ? 'Level ' + character.level : null,
     spec ? spec + ' ' + classNameOf(character.classKey) : classNameOf(character.classKey),
     role,
-    character.realm || null,
+    rulesetName(character.ruleset),
   ].filter(Boolean);
   text.appendChild(el('div', 'gid__meta', bits.join(' · ')));
   text.appendChild(
@@ -345,7 +346,7 @@ function pasteBox(handlers: ProfileHandlers, replacing: boolean): HTMLElement {
     el(
       'div',
       'drawer__hint',
-      'Only what you are wearing is stored, never your bags or your bank. Everyone in this server can see it.',
+      'Only what you are wearing is stored, never your bags or your bank. Everyone in this Discord server can see it.',
     ),
   );
   return box;
@@ -559,19 +560,26 @@ export function renderEditor(opts: EditorOptions, handlers: EditorHandlers): HTM
   const name = document.createElement('input');
   name.className = 'drawer__input';
   name.type = 'text';
-  name.maxLength = 12;
+  // 12 for the first name, a space, and 12 for the surname Forever gives it.
+  name.maxLength = 25;
   name.autocomplete = 'off';
   name.value = existing?.name ?? '';
-  name.placeholder = 'Thrallsbane';
+  name.placeholder = 'Ana Forever';
   name.dataset.focusKey = 'guild-name';
 
-  const realm = document.createElement('input');
-  realm.className = 'drawer__input';
-  realm.type = 'text';
-  realm.maxLength = 64;
-  realm.autocomplete = 'off';
-  realm.value = existing?.realm ?? '';
-  realm.placeholder = 'Nightslayer';
+  /* Forever is realmless. This used to ask for a realm, which meant nothing on
+     a Forever character and was filled in with a Classic Era name out of habit. */
+  const ruleset = document.createElement('select');
+  ruleset.className = 'btn';
+  ruleset.appendChild(option('', 'Not said', !existing?.ruleset));
+  for (const key of LIVE_RULESETS) {
+    ruleset.appendChild(option(key, RULESET_NAMES[key], existing?.ruleset === key));
+  }
+  // A character already filed on Hardcore reads correctly even though the picker
+  // does not offer it yet.
+  if (existing?.ruleset === 'hardcore') {
+    ruleset.appendChild(option('hardcore', RULESET_NAMES.hardcore, true));
+  }
 
   const level = document.createElement('input');
   level.className = 'drawer__input';
@@ -636,7 +644,7 @@ export function renderEditor(opts: EditorOptions, handlers: EditorHandlers): HTM
       level.value.trim() ? 'Level ' + level.value.trim() : null,
       spec ? spec + ' ' + classNameOf(classSelect.value) : classNameOf(classSelect.value),
       role ? ROLE_NAME[role] : null,
-      realm.value.trim() || null,
+      rulesetName(ruleset.value || null),
       main.checked ? 'main' : null,
     ].filter(Boolean);
     previewMeta.textContent = bits.join(' · ');
@@ -704,7 +712,8 @@ export function renderEditor(opts: EditorOptions, handlers: EditorHandlers): HTM
     fillRoles(roleSelect.value || null);
     drawPreview();
   });
-  for (const control of [name, realm, level]) control.addEventListener('input', drawPreview);
+  for (const control of [name, level]) control.addEventListener('input', drawPreview);
+  ruleset.addEventListener('change', drawPreview);
   for (const control of [roleSelect, main]) control.addEventListener('change', drawPreview);
 
   /* ------------------------------------------------------------- professions
@@ -787,8 +796,20 @@ export function renderEditor(opts: EditorOptions, handlers: EditorHandlers): HTM
       ),
     );
   }
-  who.rows.appendChild(field('Character name', name, '2 to 12 letters, spelled as it is in game.'));
-  who.rows.appendChild(field('Realm', realm, 'Optional.'));
+  who.rows.appendChild(
+    field(
+      'Character name',
+      name,
+      'As it is in game, surname and all. Forever gives every character one.',
+    ),
+  );
+  who.rows.appendChild(
+    field(
+      'Ruleset',
+      ruleset,
+      'Forever has no realms. A character stays on the ruleset it was made on, and cannot group across them.',
+    ),
+  );
   who.rows.appendChild(field('Level', level, 'Optional.'));
   form.appendChild(who.group);
 
@@ -816,7 +837,7 @@ export function renderEditor(opts: EditorOptions, handlers: EditorHandlers): HTM
   form.appendChild(profs.group);
 
   const extra = group('Anything else');
-  const noteField = field('Note', note, 'Optional, and everyone in the server can read it.');
+  const noteField = field('Note', note, 'Optional, and everyone in the Discord server can read it.');
   noteField.classList.add('gfield--wide');
   extra.rows.appendChild(noteField);
   form.appendChild(extra.group);
@@ -868,7 +889,7 @@ export function renderEditor(opts: EditorOptions, handlers: EditorHandlers): HTM
     handlers.onSave(
       {
         name: name.value.trim(),
-        realm: realm.value.trim(),
+        ruleset: ruleset.value || null,
         classKey: classSelect.value,
         specKey: specSelect.value || null,
         roleKey: roleSelect.value || null,
@@ -923,7 +944,7 @@ export function renderCoverage(opts: CoveragePanelOptions): HTMLElement {
         el(
           'p',
           'drawer__hint',
-          'This server has not said which role means raider, so there is nobody to compare against. Set one with /settings raider_role.',
+          'This Discord server has not said which role means raider, so there is nobody to compare against. Set one with /settings raider_role.',
         ),
       );
     } else if (!missing.without.length) {

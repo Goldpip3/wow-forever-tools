@@ -15,7 +15,8 @@ export interface Character {
   userId: string;
   displayName: string;
   name: string;
-  realm: string;
+  /** One of Forever's four rulesets, or null when nobody has said. */
+  ruleset: string | null;
   classKey: string;
   specKey: string | null;
   roleKey: string | null;
@@ -83,7 +84,7 @@ export interface CharacterDetail {
 /** What the form sends. The owner never moves, so it is not in here. */
 export interface CharacterInput {
   name: string;
-  realm: string;
+  ruleset: string | null;
   classKey: string;
   specKey: string | null;
   roleKey: string | null;

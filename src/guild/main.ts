@@ -99,7 +99,7 @@ async function loadList(): Promise<void> {
     loadError = null;
   } catch (err) {
     list = null;
-    loadError = err instanceof GuildApiError ? err.message : 'Could not read that server.';
+    loadError = err instanceof GuildApiError ? err.message : 'Could not read that Discord server.';
   }
 }
 
@@ -256,7 +256,7 @@ async function pasteGear(text: string): Promise<void> {
     const character = detail.character;
     const patch = {
       name: character.name,
-      realm: character.realm || reading.realm,
+      ruleset: character.ruleset ?? reading.ruleset,
       classKey: character.classKey,
       specKey: character.specKey,
       roleKey: character.roleKey,
@@ -266,7 +266,7 @@ async function pasteGear(text: string): Promise<void> {
       note: character.note,
     };
     const changed =
-      patch.realm !== character.realm ||
+      patch.ruleset !== character.ruleset ||
       patch.level !== character.level ||
       patch.professions.length !== character.professions.length;
     if (changed) await saveCharacter(guildId, character.id, patch);
@@ -366,14 +366,14 @@ function renderSignedOut(): HTMLElement {
     el(
       'p',
       '',
-      'Every member says which characters they play: class, spec, professions and the gear from their last export. Sign in and you see everyone in the servers you share with the bot.',
+      'Every member says which characters they play: class, spec, professions and the gear from their last export. Sign in and you see everyone in the Discord servers you share with the bot.',
     ),
   );
   body.appendChild(
     el(
       'p',
       'drawer__hint',
-      'Discord is asked only to confirm who you are. What you may edit comes from your roles in each server, read at the moment you click.',
+      'Discord is asked only to confirm who you are. What you may edit comes from your Discord roles, read at the moment you click.',
     ),
   );
 
@@ -407,7 +407,7 @@ const ROLE_LABEL: Record<Me['guilds'][number]['role'], string> = {
 function renderServerPicker(me: Me): HTMLElement {
   const section = el('section', 'panel');
   const head = el('div', 'panel__head');
-  head.appendChild(el('span', '', 'Server'));
+  head.appendChild(el('span', '', 'Discord server'));
   section.appendChild(head);
   const body = el('div', 'panel__body');
   section.appendChild(body);
@@ -415,7 +415,7 @@ function renderServerPicker(me: Me): HTMLElement {
   if (!me.guilds.length) {
     body.appendChild(
       empty(
-        'The bot is not in any of your servers',
+        'The bot is not in any of your Discord servers',
         'Invite it to the one your guild uses, and its members appear here.',
       ),
     );
@@ -423,7 +423,7 @@ function renderServerPicker(me: Me): HTMLElement {
   }
 
   const row = el('div', 'gpick');
-  row.appendChild(el('span', 'gpick__label', 'Looking at'));
+  row.appendChild(el('span', 'gpick__label', 'Guild'));
 
   const select = document.createElement('select');
   select.className = 'btn';
@@ -433,7 +433,7 @@ function renderServerPicker(me: Me): HTMLElement {
   if (!guildId) {
     const ask = document.createElement('option');
     ask.value = '';
-    ask.textContent = 'Choose a server';
+    ask.textContent = 'Choose a Discord server';
     ask.selected = true;
     select.appendChild(ask);
   }
@@ -461,7 +461,7 @@ function renderServerPicker(me: Me): HTMLElement {
       el(
         'div',
         'drawer__hint',
-        'You are in this server but not an officer. You can read every profile and edit your own.',
+        'You are in this Discord server but not an officer. You can read every profile and edit your own.',
       ),
     );
   }
