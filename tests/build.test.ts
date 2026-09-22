@@ -723,3 +723,48 @@ describe('one set of rules at every way in', () => {
     expect(fixed.code).toBe('warrior/10/01000000000000000-000000000000000000-000000000000000000');
   });
 });
+
+describe('the shapes the imported data is expected to have', () => {
+  /* An import can change a shape as well as a number. Legacy perks went from a
+     [name, max, text, icon] tuple to an object in build 1.60.1.69876, which threw
+     while rendering and took the whole talents page down with it. Nothing in the
+     unit suite noticed; a browser test caught it. These assert the shapes the code
+     destructures, so the next change of this kind fails here instead. */
+
+  it('gives every legacy perk a name, an icon and text for each rank', () => {
+    const trees = DATA.legacy?.trees ?? [];
+    expect(trees.length).toBeGreaterThan(0);
+
+    for (const tree of trees) {
+      expect(typeof tree.name, 'tree name').toBe('string');
+      expect(Array.isArray(tree.perks), tree.name + ' perks').toBe(true);
+
+      for (const perk of tree.perks) {
+        // An array here is the old tuple shape, which renderLegacy cannot read.
+        expect(Array.isArray(perk), tree.name + ' perk is a tuple again').toBe(false);
+        expect(typeof perk.name, 'perk name').toBe('string');
+        expect(typeof perk.icon, perk.name + ' icon').toBe('string');
+        expect(Array.isArray(perk.ranks), perk.name + ' ranks').toBe(true);
+        expect(perk.ranks.length, perk.name + ' has no rank text').toBeGreaterThan(0);
+        expect(perk.ranks.length, perk.name + ' rank count').toBe(perk.max);
+      }
+    }
+  });
+
+  it('gives every talent a description that build.ts can read', () => {
+    const classes = Object.entries(DATA.talents) as Array<[string, ClassTalents]>;
+    for (const [classKey, data] of classes) {
+      for (const tree of data.trees) {
+        for (const talent of tree.talents) {
+          const where = classKey + '|' + talent.name;
+          expect(typeof talent.name, where).toBe('string');
+          expect(typeof talent.max, where + ' max').toBe('number');
+          // Either the per-rank array or the rank-keyed object; anything else is
+          // a shape rankText would silently return nothing useful for.
+          const desc: unknown = talent.desc;
+          expect(Array.isArray(desc) || (desc !== null && typeof desc === 'object'), where + ' desc').toBe(true);
+        }
+      }
+    }
+  });
+});

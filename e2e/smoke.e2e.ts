@@ -47,7 +47,7 @@ test('a reload keeps the bags and bank', async ({ page }) => {
 });
 
 test('a talent link that breaks the rules is repaired and says so, and an illegal removal is refused', async ({ page }) => {
-  await page.goto('/talents.html#warrior/10/05000000000000000-000000000000000000-0000000000000000000');
+  await page.goto('/talents.html#warrior/10/05000000000000000-000000000000000000-000000000000000000');
   await expect(page.locator('#toast')).toContainText('4 points in that link broke the talent rules');
   await expect(page).toHaveURL(/#warrior\/10\/01000000000000000-/);
 

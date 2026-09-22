@@ -75,11 +75,29 @@ export interface RaceInfo {
   abilities: Array<[string, string, string]>;
 }
 
+/**
+ * One account-wide perk.
+ *
+ * This was a [name, maxRank, text, icon] tuple until the beta client data landed;
+ * it is an object now, and carries the text of every rank rather than one line.
+ */
+export interface LegacyPerk {
+  name: string;
+  max: number;
+  icon: string;
+  /** One entry per rank, in order. */
+  ranks: string[];
+  row?: number;
+  col?: number;
+  /** Points needed in the tree before this opens. */
+  gate?: number;
+}
+
 export interface LegacyTree {
+  id?: string;
   name: string;
   icon: string;
-  /** [name, maxRank, text, icon] */
-  perks: Array<[string, number, string, string]>;
+  perks: LegacyPerk[];
 }
 
 export interface ChangelogEntry {

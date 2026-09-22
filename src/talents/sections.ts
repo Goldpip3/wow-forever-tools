@@ -171,13 +171,17 @@ export function renderLegacy(legacy: { note: string; trees: LegacyTree[] } | und
     head.appendChild(iconImg(tree.icon, '', 'card__icon'));
     head.appendChild(el('div', 'card__name', tree.name));
     col.appendChild(head);
-    for (const [name, max, text, icon] of tree.perks ?? []) {
+    for (const perkData of tree.perks ?? []) {
       perkCount += 1;
       const perk = el('div', 'perk');
-      perk.appendChild(iconImg(icon, '', ''));
+      perk.appendChild(iconImg(perkData.icon, '', ''));
       const info = el('div');
-      info.appendChild(el('b', '', name + ' (' + max + ' ranks)'));
-      info.appendChild(el('span', '', text));
+      const max = perkData.max ?? perkData.ranks?.length ?? 1;
+      info.appendChild(el('b', '', perkData.name + (max > 1 ? ' (' + max + ' ranks)' : '')));
+      /* The data carries a line per rank. The last one is what the perk does when it is
+         finished, which is the number somebody deciding whether to chase it wants. */
+      const ranks = perkData.ranks ?? [];
+      info.appendChild(el('span', '', ranks[ranks.length - 1] ?? ''));
       perk.appendChild(info);
       col.appendChild(perk);
     }
