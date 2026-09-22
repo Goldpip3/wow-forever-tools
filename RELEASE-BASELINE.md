@@ -20,6 +20,8 @@ version endpoint. Neither the site nor the bot used to say what it was.
 | Site (`wow-forever-tools`) | `origin/master` `f85867b` | `modern-character-form` `769b9d6` | 3 |
 | Bot (`group-builder`) | `production/master` `5c72b90` | `guild-coverage` `a1a0e00` | 2 |
 
+**The bot has since been deployed** — see §8. The site has not.
+
 The three site commits are the dark character form, the coverage panel, and asking for a
 ruleset instead of a realm. The two bot commits are the `ruleset` column with its
 migration, and telling a leader who has filed nothing.
@@ -145,3 +147,57 @@ cannot overwrite each other, one request that saves a gear paste and the profile
 fills in together, and the import-first "Add character" flow. A paste that saves the gear
 but fails to save the level and professions now says exactly that, which is a description
 of the gap rather than a fix for it.
+
+---
+
+## 8. The bot deploy, 22 September 2026
+
+`guild-coverage` was merged into `master` as `d62c65d` and pushed to the VPS. The site
+was **not** deployed and is still `f85867b`.
+
+Before: a `sqlite3 .backup` of the live database to
+`/opt/groupbuilder-backups/groupbuilder-pre-ruleset-deploy.sqlite`, integrity checked. It
+held **no characters at all** and ten sign-in sessions, so nothing a member had typed was
+at stake in the realm-to-ruleset change.
+
+After, against the live API:
+
+- `/api/v4/version` answers `build: d62c65d5bc49`, matching local `master` exactly, with
+  `members.search` in the capability list.
+- Migration `0007_ruleset.sql` applied: `characters.ruleset` exists and `realm` is
+  untouched.
+- `Cache-Control: private, no-store` and `Vary: Origin` on `/api/v4/me`; neither on
+  `/api/v4/docs/commands`, which stays public with `Access-Control-Allow-Origin: *`.
+- The CORS preflight from `https://wowforever.us` still allows credentials and every verb,
+  so the deployed site's writes are unaffected by the new origin check.
+- A roster read with no token still answers 401. The service log has no errors, and the
+  new `COOKIE_DOMAIN` warning appears as intended.
+
+The deploy hook was changed to pass the commit it checked out as `BUILD_REF`; without it
+the build cannot name its own commit and the version endpoint answered `unknown`. The old
+hook is beside it as `post-receive.bak-2026-09-22`.
+
+### Rolling this back
+
+```bash
+# code
+git push production 5c72b90:master --force
+# database, only if a migration has to come out with it
+ssh root@147.93.180.249 systemctl stop groupbuilder
+ssh root@147.93.180.249 cp /opt/groupbuilder-backups/groupbuilder-pre-ruleset-deploy.sqlite \
+  /opt/groupbuilder-data/groupbuilder.sqlite
+ssh root@147.93.180.249 systemctl start groupbuilder
+```
+
+Rolling the code back alone is safe: the `ruleset` column an older build does not know
+about is simply not read, and `realm` was never emptied.
+
+### Two things this deploy left open
+
+- **`www.wowforever.us` serves the site too**, and its origin is not in `PLANNER_ORIGIN`.
+  A signed-in visitor there could not write before this deploy either — CORS already
+  refused them — so nothing regressed, but it is worth either redirecting www to the apex
+  or adding the origin.
+- **`COOKIE_DOMAIN` is still `.wowforever.us`.** The warning now says so at every start.
+  Unsetting it makes the cookie host-only, and leaves the old wide cookie in browsers
+  until it expires, so it wants a moment when signing everyone out again is fine.
