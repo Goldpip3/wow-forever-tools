@@ -45,14 +45,27 @@ export const WARLOCK_EFFECTS: Effect[] = [
     providers: [{ classId: "warlock", specs: ANY, choice: CURSE }],
     forever: {
       status: "unverified",
-      note: "Not in the beta client spellbook at build 1.60.1.69876. Curse of the Elements covers all Magic schools now, which would make this one redundant.",
+      note: "Not in the beta client's level 60 spellbook at build 1.60.1.70009. Curse of the Elements covers all Magic schools now, which would make this one redundant.",
     },
   },
   /*
-   * Curse of Recklessness is not tracked: it raises the target's attack power and stops it
-   * fleeing. On a raid boss that is a downside for the tanks, so nobody casts it, and it
-   * would cost the Warlock the one curse slot that Elements or Shadow wants.
+   * Curse of Recklessness used to raise the target's attack power, which made it a cost to
+   * the tanks on a raid boss. Forever dropped that half, so it is an armor curse now and a
+   * real choice for the Warlock's one curse slot when the raid is mostly melee.
    */
+  {
+    id: "curse-of-recklessness",
+    name: "Curse of Recklessness",
+    icon: "spell_shadow_unholystrength",
+    kind: "debuff",
+    scope: "target",
+    categories: ["reduced-armor"],
+    providers: [{ classId: "warlock", specs: ANY, choice: CURSE }],
+    forever: {
+      status: "changed",
+      note: "No longer raises the target's attack power. Rank 4 only takes 505 armor off the target, so it costs the tanks nothing.",
+    },
+  },
   /*
    * Curse of Weakness is not tracked, for the same reason as Expose Armor. It does not
    * stack with Demoralizing Shout, every raid has warriors shouting, and casting it costs
@@ -155,7 +168,7 @@ export const WARLOCK_EFFECTS: Effect[] = [
     ],
     forever: {
       status: "changed",
-      note: "Improved Felhunter cuts its cooldown by up to 2 sec.",
+      note: "Improved Felhunter cuts its cooldown by up to 6 sec.",
     },
   },
   {

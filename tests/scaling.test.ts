@@ -117,14 +117,14 @@ describe('what the reader ends up seeing', () => {
   });
 
   it('leaves the numbers a talent point does not move alone', () => {
-    // Bloodthrill scales its proc chance; the attack count and the duration are fixed.
+    // Bloodthrill scales its proc chance; the duration is fixed.
     const talent = find('Warrior|Bloodthrill')!;
     for (let r = 1; r <= talent.max; r += 1) {
       const text = rankText(talent, r).text;
-      expect(text, 'rank ' + r).toContain('for 1 attack');
       expect(text, 'rank ' + r).toContain('Lasts 6 sec');
     }
-    expect(rankText(talent, 5).text).toContain('10% chance');
+    expect(rankText(talent, 1).text).toContain('4% chance');
+    expect(rankText(talent, 5).text).toContain('20% chance');
   });
 });
 

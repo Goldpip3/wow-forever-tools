@@ -234,13 +234,15 @@ const base = {
     status: 'unverified' as const,
     note:
       'Forever moved the warrior trees, so the talents here are read from its own text rather ' +
-      'than from Classic. The abilities the trees say nothing about are still Classic values.',
+      'than from Classic. Ability damage, costs and cooldowns are the level 60 spellbook of ' +
+      'build 1.60.1.70009. Rage from damage is still the Classic formula.',
   },
 
   unmodelledTalents: {
     Deflection: 'a parry chance, which does nothing to a warrior standing behind a boss.',
     'Improved Rend': 'no rotation here keeps Rend up, so nothing reads it.',
-    Bloodthrill: 'it needs Rend on the target and an Overpower to activate, neither of which is modelled.',
+    Bloodthrill: 'it lets your main hand open Overpower on a target bleeding from your Rend, and no rotation here keeps Rend up or presses Overpower.',
+
     'Sweeping Strikes': 'it hits one extra target, and extra targets are a first pass here.',
     'Blood Craze': 'it restores health, which nothing here tracks.',
     'Improved Tactical Mastery': 'it keeps rage through a stance change, and nothing changes stance.',

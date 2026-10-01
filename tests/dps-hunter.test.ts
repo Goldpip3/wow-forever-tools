@@ -88,20 +88,36 @@ describe('Auto Shot', () => {
     const aimed = run({}, {}, [{ spellId: 'aimed-shot' }]);
     const autos = (r: typeof plain) => r.abilities.find((a) => a.id === AUTO_ATTACK_ID.ranged)!.casts;
     expect(autos(aimed)).toBeLessThan(autos(plain));
-    // About every six seconds: three to cast, then a full three second Auto
-    // Shot, which is one Auto Shot for each Aimed Shot rather than two.
+    // Every six seconds: two to cast, then a full three second Auto Shot, and
+    // the next Aimed Shot starts the swing over again. One Auto Shot for each
+    // Aimed Shot, give or take the one the fight ends on.
     const casts = aimed.abilities.find((a) => a.id === 'aimed-shot')!.casts;
     expect(casts).toBeGreaterThanOrEqual(48);
-    expect(autos(aimed)).toBe(casts);
+    expect(Math.abs(autos(aimed) - casts)).toBeLessThanOrEqual(1);
   });
 
-  it('is never pushed back by Sniper Shot when the rotation waits for it', () => {
+  it('holds back at most one Auto Shot for each Sniper Shot when the rotation waits for it', () => {
     const plain = run({}, {}, [{ spellId: 'arcane-shot', text: 'time < 0' }]);
     const line = hunterMarksmanship.rotations.standard!({ 'Sniper Shot': 1 }).find((e) => e.spellId === 'sniper-shot')!;
     const sniping = run({ 'Sniper Shot': 1 }, {}, [{ spellId: 'sniper-shot', text: line.text }]);
-    expect(sniping.abilities.find((a) => a.id === 'sniper-shot')!.casts).toBeGreaterThan(50);
-    expect(sniping.abilities.find((a) => a.id === AUTO_ATTACK_ID.ranged)!.casts)
-      .toBe(plain.abilities.find((a) => a.id === AUTO_ATTACK_ID.ranged)!.casts);
+    // A fifteen second cooldown allows twenty in five minutes.
+    const snipes = sniping.abilities.find((a) => a.id === 'sniper-shot')!.casts;
+    expect(snipes).toBeGreaterThanOrEqual(18);
+    expect(snipes).toBeLessThanOrEqual(20);
+    // Four seconds of cast against a three second bow: each one costs part of
+    // an Auto Shot, never more than one.
+    const lost = plain.abilities.find((a) => a.id === AUTO_ATTACK_ID.ranged)!.casts
+      - sniping.abilities.find((a) => a.id === AUTO_ATTACK_ID.ranged)!.casts;
+    expect(lost).toBeGreaterThan(0);
+    expect(lost).toBeLessThanOrEqual(snipes);
+  });
+
+  it('shares one cooldown between Aimed Shot and Multi-Shot', () => {
+    const both = run({}, {}, [{ spellId: 'aimed-shot' }, { spellId: 'multi-shot' }]);
+    const aimed = both.abilities.find((a) => a.id === 'aimed-shot')?.casts ?? 0;
+    const multi = both.abilities.find((a) => a.id === 'multi-shot')?.casts ?? 0;
+    expect(aimed).toBeGreaterThan(0);
+    expect(multi).toBe(0);
   });
 });
 
@@ -121,7 +137,7 @@ describe('Arcane Shot', () => {
     const armored = { ...TARGET, armor: 3000 };
     const plain = run({}, { target: armored }, [{ spellId: 'arcane-shot' }]);
     const shot = plain.abilities.find((a) => a.id === 'arcane-shot')!;
-    expect(shot.damage / shot.hits).toBeCloseTo(183, 6);
+    expect(shot.damage / shot.hits).toBeCloseTo(217, 6);
     expect(shot.casts).toBeLessThanOrEqual(50);
     const improved = run({ 'Improved Arcane Shot': 5 }, {}, [{ spellId: 'arcane-shot' }]);
     // Four and a half seconds rather than six.
@@ -180,9 +196,12 @@ describe('the sample hunter', () => {
     };
     const result = simulate(config, hunterMarksmanship);
     const ids = result.abilities.map((a) => a.id);
-    for (const id of [AUTO_ATTACK_ID.ranged, 'aimed-shot', 'multi-shot', SERPENT_STING_DOT_ID, 'sniper-shot']) {
+    for (const id of [AUTO_ATTACK_ID.ranged, 'aimed-shot', SERPENT_STING_DOT_ID, 'sniper-shot']) {
       expect(ids).toContain(id);
     }
+    // Multi-Shot shares Aimed Shot's cooldown and sits below it in the
+    // rotation, so against one target it never comes up.
+    expect(ids).not.toContain('multi-shot');
     expect(result.dps).toBeGreaterThan(100);
   });
 });

@@ -1,9 +1,9 @@
 /**
  * Enhancement Shaman: a two-handed weapon, Windfury on it, and Stormstrike to
- * make the shocks land harder.
+ * make the next Earth Shock land harder.
  *
- * Windfury Weapon is the spec. A fifth of the swings that land take another
- * swing at once with three hundred and fifteen more attack power, and nothing
+ * Windfury Weapon is the spec. A fifth of the swings that land take two more
+ * swings at once with 333 more attack power each, and nothing
  * else in the tree comes close to what that adds. Everything the rotation does
  * is pressed around the swing timer rather than instead of it.
  *
@@ -58,8 +58,8 @@ export const shamanEnhancement: SpecModule = {
         text: 'talent.stormstrike',
       },
       {
-        // Earth Shock is only worth a global once Stormstrike has made the
-        // target soft to Nature, and only while there is mana to spare.
+        // Earth Shock is only worth a global while Stormstrike is waiting to
+        // add to it, and only while there is mana to spare.
         spellId: 'earth-shock',
         when: (ctx) => ctx.onTarget(SHAMAN_AURAS.stormstrike) && ctx.manaPct > 0.3,
         text: 'debuff.stormstrike.up and mana_pct > 0.3',
@@ -90,7 +90,7 @@ export const shamanEnhancement: SpecModule = {
 
     const connected = outcome !== 'miss' && outcome !== 'dodge' && outcome !== 'parry';
     if (hand === 'main' && connected && rng.chance(WINDFURY_WEAPON.chance)) {
-      extraAttack(windfuryAttackPower(mods), 'windfury');
+      for (let n = 0; n < WINDFURY_WEAPON.attacks; n += 1) extraAttack(windfuryAttackPower(mods), 'windfury');
     }
   },
 
@@ -98,16 +98,15 @@ export const shamanEnhancement: SpecModule = {
     status: 'unverified',
     note:
       'Forever rebuilt the Enhancement tree, so the talents here are read from its own text. The ' +
-      'abilities it says nothing about are still Classic values.',
+      'abilities are the beta client\'s level sixty ranks at build 1.60.1.70009.',
   },
 
   unmodelledTalents: SHAMAN_UNMODELLED,
 
   notes: [
-    'Windfury Weapon is assumed to be on the main hand, at the Classic Rank 4 attack power. It ' +
-      'does not stack with Windfury Totem, so leave the totem unticked.',
-    'Rage of the Farseer has no cooldown in the tree, so it is assumed to come back every three ' +
-      'minutes.',
+    'Windfury Weapon is assumed to be on the main hand: Rank 4, two extra attacks with 333 attack ' +
+      'power. On the main hand it turns off Windfury Totem for you, so leave the totem unticked.',
+    'Rage of the Farseer speeds up your swings, not your casts.',
     'The simulated shaman never hesitates between globals, which is worth a few per cent more than ' +
       'anyone actually manages.',
   ],

@@ -36,7 +36,9 @@ const DEFAULT_CHOICES: Record<number, Record<string, string[]>> = {
      as picked while nothing was. */
   302: { 'warlock-curse': ['curse-of-the-elements'], 'warlock-pet': ['blood-pact'] },
   303: { 'warlock-curse': ['curse-of-the-elements'], 'warlock-pet': ['blood-pact'] },
-  301: { 'warlock-curse': ['curse-of-shadow'], 'warlock-pet': ['blood-pact'] },
+  /* Destruction used to default to Curse of Shadow. It is not in the level 60 spellbook at
+     build 1.60.1.70009, and Elements covers shadow damage now. */
+  301: { 'warlock-curse': ['curse-of-the-elements'], 'warlock-pet': ['blood-pact'] },
 
   /* Hunter: Beast Mastery, Marksmanship, Survival */
   361: { 'hunter-sting': ['scorpid-sting'], 'hunter-pet': ['furious-howl'] },

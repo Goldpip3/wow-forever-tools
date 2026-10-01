@@ -3,9 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { simulate, AUTO_ATTACK_ID } from '../src/dps/sim/sim';
 import { emptyStatSheet, type FightConfig, type SimConfig, type StatSheet } from '../src/dps/sim/types';
 import {
-  druidFeral, DRUID_AURAS, RAKE_BLEED_ID, RIP_BLEED_ID, TIGERS_FURY_HIT_ID,
+  druidFeral, DRUID_AURAS, RAKE_BLEED_ID, RIP_BLEED_ID,
 } from '../src/dps/sim/specs/druid-feral';
-import { CAT_FORM, CAT_PAWS, RIP } from '../src/dps/data/druid';
+import { CAT_FORM, CAT_PAWS, RIP, TIGERS_FURY } from '../src/dps/data/druid';
 import { specModule, supportedSpecs } from '../src/dps/sim/specs';
 import { parseCharacterExport } from '../src/dps/importer';
 import { SAMPLE_DRUID_EXPORT } from '../src/dps/sample-druid';
@@ -90,13 +90,18 @@ describe('Shred', () => {
 });
 
 describe('Rip', () => {
-  it('bleeds for 222 a point over twelve seconds, and is not refreshed while it runs', () => {
-    const result = run({});
+  it('bleeds for 855 over twelve seconds at five points, and is not refreshed while it runs', () => {
+    // Without Tiger's Fury, which a Rip takes with it when it is up.
+    const result = run({}, {}, [
+      { spellId: 'rip', text: 'combo >= 5 and not debuff.rip.up' },
+      { spellId: 'shred' },
+    ]);
     const rip = result.abilities.find((a) => a.id === RIP_BLEED_ID)!;
     expect(rip.name).toBe('Rip, over time');
     const casts = result.abilities.find((a) => a.id === 'rip')!.casts;
     // Five points every time, in six ticks.
-    expect(rip.damage / rip.hits).toBeCloseTo((RIP.perPoint * 5) / RIP.ticks, 6);
+    expect(RIP.base + RIP.perPoint * 5).toBe(855);
+    expect(rip.damage / rip.hits).toBeCloseTo(855 / RIP.ticks, 6);
     expect(casts).toBeLessThanOrEqual(Math.ceil(300 / 12));
     expect(result.auras.some((a) => a.id === DRUID_AURAS.rip)).toBe(true);
   });
@@ -122,14 +127,27 @@ describe('the talents', () => {
     expect(claw.crits / claw.hits).toBeGreaterThan(0.75);
   });
 
-  it("King of the Jungle hands energy back through Tiger's Fury, which adds forty a hit", () => {
+  it("King of the Jungle hands energy back through Tiger's Fury", () => {
     const apl = [{ spellId: 'tigers-fury', text: 'not buff.tigers-fury.up' }, { spellId: 'claw' }];
     const without = run({}, {}, apl);
     const withIt = run({ 'King of the Jungle': 3 }, {}, apl);
     const claws = (r: typeof without) => r.abilities.find((a) => a.id === 'claw')?.casts ?? 0;
     expect(claws(withIt)).toBeGreaterThan(claws(without));
-    const fury = withIt.abilities.find((a) => a.id === TIGERS_FURY_HIT_ID)!;
-    expect(fury.damage / fury.hits).toBeCloseTo(40, 6);
+  });
+
+  it("Tiger's Fury raises physical damage by 15% for six seconds in every thirty", () => {
+    const paws = (r: ReturnType<typeof run>) => r.abilities.find((a) => a.id === AUTO_ATTACK_ID.main)!;
+    const idle = [{ spellId: 'claw', text: 'energy > 200' }];
+    const plain = run({}, { duration: 30 }, idle);
+    const fury = run({}, { duration: 30 }, [{ spellId: 'tigers-fury' }, ...idle]);
+    // Whole swings of the thirty, each a sixth again as hard: five or six of
+    // them, depending on whether the swing at the edge of the six seconds counts.
+    const per = paws(plain).damage / paws(plain).hits;
+    const swings = (paws(fury).damage - paws(plain).damage) / (per * TIGERS_FURY.damage);
+    expect(swings).toBeCloseTo(Math.round(swings), 6);
+    expect(Math.round(swings)).toBeGreaterThanOrEqual(5);
+    expect(Math.round(swings)).toBeLessThanOrEqual(6);
+    expect(fury.abilities.find((a) => a.id === 'tigers-fury')!.casts).toBe(1);
   });
 
   it('Rend and Tear only helps while something bleeds', () => {

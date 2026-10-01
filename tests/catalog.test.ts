@@ -158,18 +158,24 @@ describe('effect catalog', () => {
     expect(effectById('sunder-armor')!.exclusiveWith ?? []).not.toContain('expose-armor');
   });
 
+  it('tracks Curse of Recklessness as armor, now that it no longer raises attack power', () => {
+    /* The game's text at build 1.60.1.70009 is armor alone: "reducing the target's armor
+       by 505". The old version's attack power is what kept it off the page. */
+    const curse = effectById('curse-of-recklessness')!;
+    expect(curse.categories).toEqual(['reduced-armor']);
+    expect(curse.providers[0]!.choice?.group).toBe('warlock-curse');
+  });
+
   it('still covers reduced armor without it', () => {
     const sunder = effectById('sunder-armor')!;
     expect(sunder.categories).toContain('reduced-armor');
   });
 
-  it('does not track the curses no raid casts', () => {
+  it('does not track the curse no raid casts', () => {
     /* Same test as Expose Armor. Curse of Weakness does not stack with Demoralizing Shout
-       and every raid has warriors shouting; Curse of Recklessness raises the boss's attack
-       power. Either one costs the Warlock the curse slot that Elements or Shadow wants, so
-       nobody casts them and listing them put gaps on the page for nothing. */
+       and every raid has warriors shouting, so it costs the Warlock a curse slot for
+       nothing and listing it put a gap on the page. */
     expect(effectById('curse-of-weakness')).toBeUndefined();
-    expect(effectById('curse-of-recklessness')).toBeUndefined();
     // Reduced melee attack power is still covered by the shout itself.
     expect(effectById('demoralizing-shout')!.categories).toContain('reduced-melee-attack-power');
   });

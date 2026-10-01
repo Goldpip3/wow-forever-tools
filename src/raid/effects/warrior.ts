@@ -14,10 +14,13 @@ export const WARRIOR_EFFECTS: Effect[] = [
     scope: "party",
     categories: ["melee-attack-power"],
     providers: [{ classId: "warrior", specs: ANY }],
-    values: { classic: "Flat melee attack power to the party, 2 min" },
+    values: {
+      classic: "232 melee attack power to the party, 2 min",
+      forever: "139 melee attack power to the party, 3 min",
+    },
     forever: {
       status: "changed",
-      note: "Improved Battle Shout is gone from the Fury tree, so every Warrior brings the base value.",
+      note: "Rank 7 gives 139 melee attack power for 3 min, down from Classic's 232 for 2 min. Improved Battle Shout is gone from the Fury tree, so every Warrior brings the same value.",
     },
   },
   {
@@ -29,9 +32,13 @@ export const WARRIOR_EFFECTS: Effect[] = [
     categories: ["reduced-melee-attack-power"],
     providers: [{ classId: "warrior", specs: ANY }],
     exclusiveWith: ["demoralizing-roar"],
+    values: {
+      classic: "146 less melee attack power for 30 sec",
+      forever: "204 less melee attack power for 45 sec",
+    },
     forever: {
       status: "changed",
-      note: "Improved Demoralizing Shout was cut from the Fury tree, so this is the base value now.",
+      note: "Rank 5 lowers melee attack power by 204 for 45 sec, up from Classic's 146 for 30 sec. Improved Demoralizing Shout was cut from the Fury tree, so every Warrior brings the same value.",
     },
   },
   {
@@ -44,11 +51,11 @@ export const WARRIOR_EFFECTS: Effect[] = [
     providers: [{ classId: "warrior", specs: ANY }],
     values: {
       classic: "10% slower attacks for 30 sec",
-      forever: "20% slower attacks for 22 sec, up to 4 targets",
+      forever: "20% slower attacks for 30 sec, up to 4 targets",
     },
     forever: {
       status: "changed",
-      note: "Works in Battle or Defensive Stance now. Rank 4 slows attacks 20% for 22 sec and hits up to 4 targets.",
+      note: "Rank 6 slows attacks 20% for 30 sec and hits up to 4 targets, twice Classic's 10%. Works in Battle or Defensive Stance now, on a 6 sec cooldown.",
     },
   },
   {
@@ -63,7 +70,7 @@ export const WARRIOR_EFFECTS: Effect[] = [
     // raid assigns it over the Sunder its warriors are already stacking.
     forever: {
       status: "same",
-      note: "Improved Sunder Armor now only cuts the Rage cost.",
+      note: "Same 450 armor per application, up to 5 times, for 30 sec. Improved Sunder Armor now only cuts the Rage cost.",
     },
   },
   {
@@ -154,8 +161,8 @@ export const WARRIOR_EFFECTS: Effect[] = [
       },
     ],
     forever: {
-      status: "same",
-      note: "Same 5 sec stun. The talent moved within Protection.",
+      status: "changed",
+      note: "Same 5 sec stun on a 45 sec cooldown, but it costs 10 Rage instead of 15. The talent moved within Protection.",
     },
   },
   /* A raid boss cannot be slowed, so this is not a debuff the raid covers. Kept as
@@ -190,7 +197,7 @@ export const WARRIOR_EFFECTS: Effect[] = [
     providers: [{ classId: "warrior", specs: ANY }],
     forever: {
       status: "changed",
-      note: "Improved Disarm now cuts the cooldown by up to 7 sec per rank.",
+      note: "Improved Disarm now cuts the 1 min cooldown by 7 sec at rank 1 and 20 sec at rank 3.",
     },
   },
   {
@@ -202,8 +209,9 @@ export const WARRIOR_EFFECTS: Effect[] = [
     categories: ["external-cooldowns"],
     providers: [{ classId: "warrior", specs: ANY }],
     forever: {
-      status: "changed",
-      note: "Still in the game via Improved Intercept in Fury, but it was not in the level 38 spellbook, so it is probably learned later than 30 now.",
+      status: "same",
+      note: "Learned at level 30, as in Classic. Rank 3 stuns for 3 sec on a 30 sec cooldown, and Improved Intercept in Fury takes up to 10 sec off that.",
     },
+
   },
 ];

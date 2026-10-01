@@ -31,7 +31,7 @@ export const DRUID_EFFECTS: Effect[] = [
     providers: [{ classId: "druid", specs: ANY }],
     forever: {
       status: "changed",
-      note: "Improved Mark of the Wild was cut from Restoration, so every Druid gives the base values.",
+      note: "Rank 7 gives 385 armor, 16 to all attributes and 27 to all resistances, up from 285, 12 and 20. Improved Mark of the Wild was cut from Restoration, so every Druid gives the same.",
     },
   },
   {
@@ -91,7 +91,7 @@ export const DRUID_EFFECTS: Effect[] = [
     providers: [{ classId: "druid", specs: ANY }],
     forever: {
       status: "changed",
-      note: "Faerie Fire (Feral) was cut from the Feral tree, so only the caster version is left. Every Druid has it.",
+      note: "Faerie Fire (Feral) was cut from the Feral tree. The Faerie Fire that is left takes 505 armor off at Rank 4 and requires Cat Form or Bear Form, which any Druid can shift into.",
     },
   },
   {
@@ -108,7 +108,7 @@ export const DRUID_EFFECTS: Effect[] = [
         talent: { tree: "Balance", name: "Insect Swarm" },
       },
     ],
-    values: { forever: "2% lower chance to hit, 55 nature damage over 12 sec" },
+    values: { forever: "2% lower chance to hit, 186 Nature damage over 12 sec at Rank 5" },
     forever: {
       status: "changed",
       note: "Forever lists a 2% hit reduction. Nature’s Splendor adds 2 sec of duration.",
@@ -125,7 +125,7 @@ export const DRUID_EFFECTS: Effect[] = [
     exclusiveWith: ["demoralizing-shout"],
     forever: {
       status: "changed",
-      note: "Feral Aggression was cut from the Feral tree, so this is the base value now.",
+      note: "Rank 5 takes 204 melee attack power off, up from 138. Feral Aggression was cut from the Feral tree, so every Druid gives the same.",
     },
   },
   {
@@ -138,7 +138,7 @@ export const DRUID_EFFECTS: Effect[] = [
     providers: [{ classId: "druid", specs: ANY }],
     forever: {
       status: "changed",
-      note: "Improved Thorns was cut from the Balance tree.",
+      note: "Rank 6 deals 22 Nature damage to attackers, up from 18. Improved Thorns was cut from the Balance tree.",
     },
   },
   {
@@ -187,7 +187,7 @@ export const DRUID_EFFECTS: Effect[] = [
     providers: [{ classId: "druid", specs: ANY }],
     forever: {
       status: "changed",
-      note: "Improved Tranquility now cuts its threat by 50% and its cooldown by 30%.",
+      note: "Improved Tranquility now cuts its threat by up to 100% and its cooldown by up to 60%.",
     },
   },
   {
@@ -208,7 +208,10 @@ export const DRUID_EFFECTS: Effect[] = [
     scope: "self",
     categories: ["friendly-curse-dispels"],
     providers: [{ classId: "druid", specs: ANY }],
-    forever: { status: "same" },
+    forever: {
+      status: "changed",
+      note: "Dispels 1 Curse or Bane. The Warlock's Banes are Bane of Agony, Bane of Doom and Bane of Havoc.",
+    },
   },
   {
     id: "abolish-poison",
@@ -219,8 +222,8 @@ export const DRUID_EFFECTS: Effect[] = [
     categories: ["friendly-poison-dispels"],
     providers: [{ classId: "druid", specs: ANY }],
     forever: {
-      status: "changed",
-      note: "Cure Poison is gone in Forever, so Abolish Poison is the only poison cure a Druid has.",
+      status: "same",
+      note: "Cure Poison is in the level 60 spellbook too at build 1.60.1.70009.",
     },
   },
   {
@@ -252,7 +255,7 @@ export const DRUID_EFFECTS: Effect[] = [
     providers: [{ classId: "druid", specs: ANY }],
     forever: {
       status: "changed",
-      note: "Brutal Impact now also cuts the Bash cooldown by 15 sec.",
+      note: "Brutal Impact now also cuts the Bash cooldown by up to 30 sec.",
     },
   },
   {
@@ -275,7 +278,7 @@ export const DRUID_EFFECTS: Effect[] = [
     providers: [{ classId: "druid", specs: ANY }],
     forever: {
       status: "changed",
-      note: "Improved Entangling Roots adds damage, and the new Overgrowth talent lets you root one extra target.",
+      note: "Improved Entangling Roots adds damage, and the new Overgrowth talent lets you root up to two more targets.",
     },
   },
   {

@@ -112,7 +112,7 @@ export const priestShadow: SpecModule = {
     status: 'unverified',
     note:
       'Forever rebuilt the Shadow tree, so the talents here are read from its own ' +
-      'text. The spells are Classic level-sixty ranks.',
+      "text. The spells are the beta client's level sixty ranks at build 1.60.1.70009.",
   },
 
   unmodelledTalents: {
@@ -128,7 +128,7 @@ export const priestShadow: SpecModule = {
       'the intellect it adds is already on your sheet, but new intellect from a gear change is not scaled by it.',
     'Soul Warding': 'shields are not simulated.',
     'Improved Mana Burn': 'Mana Burn is not in any rotation.',
-    Penance: 'at the one rank the tree shows it hits for less than Mind Flay.',
+    Penance: 'it is not in the rotation. Rank 4 deals 131 Holy three times over 2 sec, on a 12 sec cooldown.',
     'Renewed Hope': 'healing is not simulated.',
     'Divine Aegis': 'healing is not simulated.',
     'Twilight Focus': 'nothing here interrupts a cast.',

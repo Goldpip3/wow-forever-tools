@@ -18,6 +18,7 @@ import {
   SHAMAN_TALENT_HOOKS,
   SHOCKS,
   STORMSTRIKE,
+  STORMSTRIKE_SPELLS,
   WINDFURY_WEAPON,
   shockCooldown,
   windfuryAttackPower,
@@ -83,10 +84,6 @@ export const shamanBase = {
   }): number =>
     (DAMAGE_SPELLS.has(spellId) && actor.auras.has(SHAMAN_AURAS.clearcasting, now) ? 0 : baseCost),
 
-  /** Rage of the Farseer is the only thing that speeds a cast up. */
-  castSpeedFor: (actor: Actor, now: number): number =>
-    (actor.auras.has(SHAMAN_AURAS.farseer, now) ? 1 + RAGE_OF_THE_FARSEER.speed : 1),
-
   critBonusFor: ({ spellId, actor, now, mods }: {
     spellId: string; actor: Actor; now: number; mods: SpellMods;
   }): number => {
@@ -99,16 +96,16 @@ export const shamanBase = {
   },
 
   /**
-   * Stormstrike makes the target take more Nature, and Flame Shock makes Lava
-   * Burst hit harder. Both are on the target, so both are read at the moment
-   * the damage lands.
+   * Stormstrike makes the next Lightning Bolt, Chain Lightning or Earth Shock
+   * hit harder, and Flame Shock makes Lava Burst hit harder. Both are on the
+   * target, so both are read at the moment the damage lands.
    */
-  damageBonusFor: ({ spellId, school, actor, now }: {
+  damageBonusFor: ({ spellId, actor, now }: {
     spellId: string; school: string; actor: Actor; now: number;
   }): number => {
     let factor = 1;
-    if (school === 'nature' && actor.targetAuras.has(SHAMAN_AURAS.stormstrike, now)) {
-      factor *= 1 + STORMSTRIKE.natureTaken;
+    if (STORMSTRIKE_SPELLS.includes(spellId) && actor.targetAuras.has(SHAMAN_AURAS.stormstrike, now)) {
+      factor *= 1 + STORMSTRIKE.bonus;
     }
     if (spellId === 'lava-burst' && actor.targetAuras.has(SHAMAN_AURAS.flameShock, now)) factor *= 1.2;
     return factor;
@@ -138,6 +135,12 @@ export const shamanBase = {
     spellId: string; outcome: string; actor: Actor; now: number;
     rng: { chance(p: number): boolean }; mods: SpellMods; echo?: (m: number) => void;
   }): void => {
+    // The first of those spells to land spends Stormstrike, so a Chain
+    // Lightning's jumps and an Overload echo do not get it.
+    if (outcome !== 'miss' && STORMSTRIKE_SPELLS.includes(spellId)) {
+      actor.targetAuras.consume(SHAMAN_AURAS.stormstrike, now);
+    }
+
     const focus = mods.flags.elementalFocus ?? 0;
     if (focus > 0 && DAMAGE_SPELLS.has(spellId) && rng.chance(focus)) {
       actor.auras.apply(SHAMAN_AURAS.clearcasting, now, { duration: CLEARCASTING.duration });

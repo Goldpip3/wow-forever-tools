@@ -8,8 +8,9 @@
  *
  * A cast shot is the part a melee spec never had to think about. Aimed Shot
  * starts Auto Shot over once it is loosed, and Sniper Shot holds Auto Shot back
- * until it is done, which is why the rotation only starts Sniper Shot when the
- * next Auto Shot is far enough away.
+ * until it is done. Sniper Shot takes four seconds, longer than any bow takes
+ * to fire, so it always holds one Auto Shot back; the rotation starts it just
+ * after an Auto Shot so the hold is as short as it can be.
  */
 
 import { spiritRegenPer2s } from '../../data/conversions';
@@ -24,6 +25,7 @@ import {
   HUNTER_TALENT_HOOKS,
   RAPID_FIRE,
   SERPENT_STING,
+  SHARED_SHOT_COOLDOWN,
   SNIPER_SHOT_CAST,
 } from '../../data/hunter';
 import type { SpecModule } from '../spec';
@@ -36,6 +38,9 @@ export const HUNTER_AURAS = {
   deadlyAspects: 'deadly-aspects',
   serpentSting: 'serpent-sting',
 };
+
+/** Seconds left on the bow's swing before Sniper Shot is started. */
+const SNIPER_SHOT_WAIT = 2;
 
 /** Where Serpent Sting's ticks are billed. */
 export const SERPENT_STING_DOT_ID = 'serpent-sting-dot';
@@ -96,12 +101,15 @@ export function hunterSpec(specId: number, label: string): SpecModule {
           text: 'time_left > 15',
         },
         // A hunter runs out of mana long before the fight ends, so the shots
-        // go in order of damage for the mana. Sniper Shot is the best of them,
-        // and is only started when Auto Shot will not be due before it finishes.
+        // go in order of damage for the mana. Sniper Shot is the best of them.
+        // Its cast is longer than a bow's swing, so it always holds one Auto
+        // Shot back. Waiting until more than two seconds are left on the swing
+        // starts it just after an Auto Shot, which holds the next one back
+        // least. A bow hasted below two seconds never satisfies it.
         {
           spellId: 'sniper-shot',
-          when: (ctx) => (talents['Sniper Shot'] ?? 0) > 0 && ctx.swingIn('ranged') > SNIPER_SHOT_CAST,
-          text: 'talent.sniper-shot and swing.ranged.remains > 1.5',
+          when: (ctx) => (talents['Sniper Shot'] ?? 0) > 0 && ctx.swingIn('ranged') > SNIPER_SHOT_WAIT,
+          text: 'talent.sniper-shot and swing.ranged.remains > 2',
         },
         {
           spellId: 'aimed-shot',
@@ -168,6 +176,9 @@ export function hunterSpec(specId: number, label: string): SpecModule {
       if (spellId === 'arcane-shot') {
         actor.startCooldown(spellId, now, ARCANE_SHOT_COOLDOWN - (mods.flags.arcaneShotCooldownOff ?? 0));
       }
+      // Aimed Shot and Multi-Shot share one cooldown, so pressing either holds both.
+      if (spellId === 'aimed-shot') actor.startCooldown('multi-shot', now, SHARED_SHOT_COOLDOWN);
+      if (spellId === 'multi-shot') actor.startCooldown('aimed-shot', now, SHARED_SHOT_COOLDOWN);
       // Aimed Shot starts Auto Shot over from the moment it is loosed. Sniper
       // Shot only holds it back until the cast is done.
       if (spellId === 'aimed-shot' && timer) timer.reset(now + AIMED_SHOT_CAST);
@@ -197,7 +208,8 @@ export function hunterSpec(specId: number, label: string): SpecModule {
       status: 'unverified',
       note:
         'Forever rebuilt the hunter trees, so the talents here are read from their own text. The ' +
-        'shots the trees say nothing about are Classic values.',
+        'shots are the beta client\'s level sixty ranks at build 1.60.1.70009, except Multi-Shot\'s ' +
+        'damage, which the client does not give and is still Classic.',
     },
 
     partlyModelledTalents: {

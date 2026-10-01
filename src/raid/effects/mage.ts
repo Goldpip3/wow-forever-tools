@@ -16,7 +16,7 @@ export const MAGE_EFFECTS: Effect[] = [
     providers: [{ classId: "mage", specs: ANY }],
     forever: {
       status: "same",
-      note: "Arcane Brilliance covers the raid at 56.",
+      note: "Rank 5 gives 31 Intellect, as in Classic. Arcane Brilliance covers the party and raid at 56.",
     },
   },
   {
@@ -45,7 +45,7 @@ export const MAGE_EFFECTS: Effect[] = [
     ],
     forever: {
       status: "changed",
-      note: "Now silences for 2 sec rather than the Classic 4.",
+      note: "Now a certain silence: 2 sec at rank 1 and 4 sec at rank 2. Classic gave a 50% chance at a 4 sec silence.",
     },
   },
   {
@@ -56,7 +56,10 @@ export const MAGE_EFFECTS: Effect[] = [
     scope: "self",
     categories: ["friendly-curse-dispels"],
     providers: [{ classId: "mage", specs: ANY }],
-    forever: { status: "same" },
+    forever: {
+      status: "changed",
+      note: "Removes 1 Curse or Bane. The Warlock's Banes are Bane of Agony, Bane of Doom and Bane of Havoc.",
+    },
   },
   {
     id: "polymorph",
@@ -97,7 +100,7 @@ export const MAGE_EFFECTS: Effect[] = [
     providers: [{ classId: "mage", specs: ANY }],
     forever: {
       status: "changed",
-      note: "Classic gave 30 spell damage and 60 healing. The beta gives 113 and 225.",
+      note: "Rank 4 raises spell damage taken by up to 113 and healing by up to 225. Classic gave 75 and 150.",
     },
   },
   {
@@ -109,8 +112,8 @@ export const MAGE_EFFECTS: Effect[] = [
     categories: ["external-cooldowns"],
     providers: [{ classId: "mage", specs: ANY }],
     forever: {
-      status: "unverified",
-      note: "Confirmed in the beta client: 135 spell damage and 270 healing. The only earlier text is the level 38 demo rank, which says nothing about Classic.",
+      status: "changed",
+      note: "Rank 5 cuts spell damage taken by up to 135 and healing by up to 270. Classic cut 90 and 180.",
     },
   },
   {
@@ -121,7 +124,10 @@ export const MAGE_EFFECTS: Effect[] = [
     scope: "self",
     categories: ["in-combat-cc"],
     providers: [{ classId: "mage", specs: ANY }],
-    forever: { status: "same" },
+    forever: {
+      status: "changed",
+      note: "Still freezes for up to 8 sec on a 25 sec cooldown. Rank 4 hits for 71 to 79 rather than 73 to 81.",
+    },
   },
   {
     id: "winters-chill",
@@ -139,7 +145,7 @@ export const MAGE_EFFECTS: Effect[] = [
     ],
     forever: {
       status: "changed",
-      note: "Forever only raises the Mage’s own Ice Lance and Frostbolt crit chance and stacks once. It is no longer a raid-wide frost crit debuff.",
+      note: "Forever only raises the Mage’s own Ice Lance and Frostbolt crit chance, 2% a stack up to 5 at rank 5. It is no longer a raid-wide frost crit debuff.",
     },
   },
   {
@@ -179,7 +185,10 @@ export const MAGE_EFFECTS: Effect[] = [
     scope: "self",
     categories: ["misc-utility"],
     providers: [{ classId: "mage", specs: ANY }],
-    forever: { status: "same" },
+    forever: {
+      status: "changed",
+      note: "Adds Teleport: Dalaran at 50.",
+    },
   },
   {
     id: "comprehend-scroll",

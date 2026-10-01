@@ -100,7 +100,7 @@ describe('Lightning Bolt', () => {
     expect(again.damage / again.hits).toBeCloseTo((bolts.damage / bolts.hits) / 2, -1);
   });
 
-  it('is sped up by Rage of the Farseer while it is up', () => {
+  it('is not sped up by Rage of the Farseer, which only speeds up attacks at build 70009', () => {
     const plain = simulate(
       { specId: 261, stats: caster(), talents: {}, fight: fight(), apl: [{ spellId: 'lightning-bolt' }] },
       shamanElemental,
@@ -113,7 +113,7 @@ describe('Lightning Bolt', () => {
       shamanElemental,
     );
     expect(hasted.abilities.find((a) => a.id === 'lightning-bolt')!.casts)
-      .toBeGreaterThan(plain.abilities.find((a) => a.id === 'lightning-bolt')!.casts);
+      .toBe(plain.abilities.find((a) => a.id === 'lightning-bolt')!.casts);
   });
 });
 
@@ -185,7 +185,7 @@ describe('Windfury Weapon', () => {
     expect(windfuryAttackPower(two)).toBeCloseTo(WINDFURY_WEAPON.attackPower * 1.27, 6);
   });
 
-  it('takes an extra swing on about a fifth of the swings that land', () => {
+  it('takes two extra swings on about a fifth of the swings that land', () => {
     const result = simulate(
       {
         specId: 263, stats: fighter(), talents: {},
@@ -197,15 +197,35 @@ describe('Windfury Weapon', () => {
     const swings = result.abilities.find((a) => a.id === AUTO_ATTACK_ID.main)!;
     const windfury = result.abilities.find((a) => a.id === 'windfury')!;
     expect(windfury.name).toBe('Windfury Weapon');
-    expect(windfury.casts / swings.casts).toBeGreaterThan(0.15);
-    expect(windfury.casts / swings.casts).toBeLessThan(0.25);
-    // Three hundred and fifteen attack power over a three second weapon.
-    expect(windfury.damage / windfury.hits).toBeCloseTo(300 + (315 / 14) * 3, 6);
+    expect(windfury.casts / swings.casts).toBeGreaterThan(0.3);
+    expect(windfury.casts / swings.casts).toBeLessThan(0.5);
+    // Three hundred and thirty-three attack power over a three second weapon.
+    expect(WINDFURY_WEAPON.attacks).toBe(2);
+    expect(windfury.damage / windfury.hits).toBeCloseTo(300 + (333 / 14) * 3, 6);
   });
 });
 
 describe('Stormstrike', () => {
-  it('makes the target take a fifth more Nature damage', () => {
+  it('adds a fifth to the next Earth Shock and no more', () => {
+    const plain = simulate(
+      { specId: 263, stats: fighter(), talents: {}, fight: fight(), apl: [{ spellId: 'earth-shock' }] },
+      shamanEnhancement,
+    );
+    const struck = simulate(
+      {
+        specId: 263, stats: fighter(), talents: { Stormstrike: 1 }, fight: fight({ duration: 9 }),
+        apl: [{ spellId: 'stormstrike', text: 'time < 1' }, { spellId: 'earth-shock' }],
+      },
+      shamanEnhancement,
+    );
+    const esPlain = plain.abilities.find((a) => a.id === 'earth-shock')!;
+    const esStruck = struck.abilities.find((a) => a.id === 'earth-shock')!;
+    // Two shocks in nine seconds, and only the first gets the fifth.
+    expect(esStruck.hits).toBe(2);
+    expect(esStruck.damage).toBeCloseTo((esPlain.damage / esPlain.hits) * 2.2, 6);
+  });
+
+  it('makes the next shock hit harder', () => {
     const plain = simulate(
       { specId: 263, stats: fighter(), talents: {}, fight: fight(), apl: [{ spellId: 'earth-shock' }] },
       shamanEnhancement,

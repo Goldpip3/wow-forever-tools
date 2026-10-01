@@ -6,7 +6,8 @@
  * than the one that set them off, so each is decided when a cast starts and
  * remembered for that cast, the same way the mage does it.
  *
- * Balance of Nature left the tree in build 1.60.1.69876, so nothing sets its flag
+ * Balance of Nature left the tree in build 1.60.1.69876 and is still gone in
+ * 1.60.1.70009, so nothing sets its flag
  * and its branch below never runs. It is kept rather than deleted because talents
  * have moved between beta builds and rewriting it costs more than leaving it.
  */
@@ -160,7 +161,7 @@ export const druidBalance: SpecModule = {
     status: 'unverified',
     note:
       'Forever rebuilt the Balance tree, so the talents here are read from its own text. The ' +
-      'spells are Classic level-sixty ranks.',
+      'spells are the level sixty ranks the beta client gives at build 1.60.1.70009.',
   },
 
   unmodelledTalents: {
@@ -177,9 +178,9 @@ export const druidBalance: SpecModule = {
     'Feral Charge': 'the druid here is not in Cat Form.',
     'Sharpened Claws': 'the druid here is not in Cat or Bear Form.',
     'Shredding Attacks': 'the druid here is not in Cat Form.',
-    Mangle: 'the druid here is not in Cat Form.',
+    'Primal Bite': 'the druid here is not in Bear Form.',
     'Predatory Strikes': 'the druid here is not in Cat Form.',
-    'Primal Fury': 'the druid here is not in Cat Form.',
+    'Blood Frenzy': 'the druid here is not in Cat or Bear Form.',
     'Predatory Instincts': 'the druid here is not in Cat Form.',
     'Leader of the Pack': 'the druid here is in Moonkin Form, which it cannot share with.',
     'King of the Jungle': 'the druid here is not in Cat Form.',

@@ -7,9 +7,10 @@
  * is keyed by the name in public/data/talents.generated.json and cites the
  * description it was read from.
  *
- * The shots the trees say nothing about are their Classic level-sixty values,
- * and each one says so. The arrows are assumed too: the export does not say
- * what is in the quiver.
+ * Each shot is the highest rank a level sixty can learn, read from the beta
+ * client's own tooltip at build 1.60.1.70009. Where the tooltip leaves a number
+ * out, the Classic one stands in and the note says so. The arrows are assumed
+ * too: the export does not say what is in the quiver.
  */
 
 import type { AbilityDef, TalentHook } from '../sim/spells';
@@ -22,7 +23,12 @@ export const AMMO_DPS = 17.5;
 
 /** Ranged attack power the hunter puts up before the pull. */
 export const ASPECT_OF_THE_HAWK = { rangedAttackPower: 120 };
-export const HUNTERS_MARK = { rangedAttackPower: 110 };
+/**
+ * Rank 4, learned at 58: 71 ranged attack power for everyone attacking the
+ * target. Rank 3 reads 98 in the same client, so one of the two tooltips may be
+ * wrong; the highest rank's own text is what is used.
+ */
+export const HUNTERS_MARK = { rangedAttackPower: 71 };
 
 export const RAPID_FIRE = { haste: 0.4, duration: 15, cooldown: 300 };
 export const DEADLY_ASPECTS = { haste: 0.3, duration: 12 };
@@ -30,11 +36,17 @@ export const SERPENT_STING = { damage: 555, ticks: 5, interval: 3 };
 /** Started by the spec, because Improved Arcane Shot shortens it. */
 export const ARCANE_SHOT_COOLDOWN = 6;
 
-export const AIMED_SHOT_CAST = 3;
-export const SNIPER_SHOT_CAST = 1.5;
+export const AIMED_SHOT_CAST = 2;
+export const SNIPER_SHOT_CAST = 4;
+/** "Aimed Shot shares its cooldown with Multi-Shot", and the other way round. */
+export const SHARED_SHOT_COOLDOWN = 6;
+
+/** Hunter base mana at sixty, for the costs the client gives as a share of it. */
+const BASE_MANA = 1691;
 
 const classic = (note?: string) =>
   (note ? { status: 'unverified' as const, note } : { status: 'unverified' as const });
+const changed = (note: string) => ({ status: 'changed' as const, note });
 
 /* -------------------------------------------------------------- abilities */
 
@@ -47,14 +59,15 @@ export const AIMED_SHOT: AbilityDef = {
   resource: 'mana',
   castTime: AIMED_SHOT_CAST,
   cost: 310,
-  cooldown: 6,
+  cooldown: SHARED_SHOT_COOLDOWN,
   minDamage: 0,
   maxDamage: 0,
   coefficient: 0,
-  weapon: { hand: 'ranged', multiplier: 1, flat: 600, normalised: false },
-  forever: classic(
-    'Rank 6 at the Classic values: the weapon plus six hundred, three seconds to cast, and Auto ' +
-      'Shot starting over once it is loosed.',
+  weapon: { hand: 'ranged', multiplier: 1, flat: 166, normalised: false },
+  forever: changed(
+    'Rank 6 in the beta client at build 1.60.1.70009: the weapon plus 166, two seconds to cast, ' +
+      '310 mana, and a six second cooldown shared with Multi-Shot. Classic was the weapon plus 600 ' +
+      'over three seconds. Auto Shot starting over once it is loosed is carried over from Classic.',
   ),
 };
 
@@ -65,15 +78,19 @@ export const MULTI_SHOT: AbilityDef = {
   school: 'physical',
   kind: 'ranged',
   resource: 'mana',
-  castTime: 0,
-  cost: 230,
-  cooldown: 10,
+  castTime: 0.5,
+  cost: Math.round(BASE_MANA * 0.139),
+  cooldown: SHARED_SHOT_COOLDOWN,
   minDamage: 0,
   maxDamage: 0,
   coefficient: 0,
   aoe: { maxTargets: 3 },
   weapon: { hand: 'ranged', multiplier: 1, flat: 150, normalised: false },
-  forever: classic('Rank 5 at the Classic values: the weapon plus a hundred and fifty, to three targets.'),
+  forever: classic(
+    'The beta client at build 1.60.1.70009 has one rank: half a second to cast, 13.9% of base ' +
+      'mana, three targets, and a six second cooldown shared with Aimed Shot. It gives no damage, ' +
+      'so the weapon plus 150 is Classic Rank 5.',
+  ),
 };
 
 export const ARCANE_SHOT: AbilityDef = {
@@ -84,12 +101,15 @@ export const ARCANE_SHOT: AbilityDef = {
   kind: 'ranged',
   resource: 'mana',
   castTime: 0,
-  cost: 105,
+  cost: 190,
   minDamage: 0,
   maxDamage: 0,
   coefficient: 0,
-  weapon: { hand: 'ranged', multiplier: 0, flat: 183, normalised: false },
-  forever: classic('Rank 8 at the Classic values: 183 Arcane damage, which armor does not touch.'),
+  weapon: { hand: 'ranged', multiplier: 0, flat: 217, normalised: false },
+  forever: changed(
+    'Rank 8 in the beta client at build 1.60.1.70009: 217 Arcane damage for 190 mana, every six ' +
+      'seconds. Classic was 183. Armor does not touch it.',
+  ),
 };
 
 /** The sting. The shot itself does nothing; the damage is all over time. */
@@ -106,7 +126,10 @@ export const SERPENT_STING_SPELL: AbilityDef = {
   maxDamage: 0,
   coefficient: 0,
   weapon: { hand: 'ranged', multiplier: 0, flat: 0, normalised: false },
-  forever: classic('Rank 9 at the Classic values: 555 Nature damage over fifteen seconds.'),
+  forever: {
+    status: 'same',
+    note: 'Rank 9 in the beta client at build 1.60.1.70009: 555 Nature damage over 15 sec for 250 mana, as in Classic.',
+  },
 };
 
 export const SNIPER_SHOT: AbilityDef = {
@@ -117,17 +140,18 @@ export const SNIPER_SHOT: AbilityDef = {
   kind: 'ranged',
   resource: 'mana',
   castTime: SNIPER_SHOT_CAST,
-  cost: 110,
+  cost: 365,
+  cooldown: 15,
   minDamage: 0,
   maxDamage: 0,
   coefficient: 0,
-  weapon: { hand: 'ranged', multiplier: 1, flat: 160, normalised: false },
+  weapon: { hand: 'ranged', multiplier: 1, flat: 295, normalised: false },
   forever: {
     status: 'new',
     note:
-      'The weapon plus a hundred and sixty is what the Marksmanship tree says. Nothing else is ' +
-      'given: a second and a half to cast, a hundred and ten mana and no cooldown are assumed ' +
-      'from "steady", and Auto Shot waits for it rather than starting over.',
+      'Rank 3, learned at 58, in the beta client at build 1.60.1.70009: the weapon plus 295, four ' +
+      'seconds to cast, 365 mana and a fifteen second cooldown. That Auto Shot waits for it rather ' +
+      'than starting over is assumed.',
   },
 };
 
@@ -144,7 +168,10 @@ export const RAPID_FIRE_SPELL: AbilityDef = {
   minDamage: 0,
   maxDamage: 0,
   coefficient: 0,
-  forever: classic('Forty per cent faster shooting for fifteen seconds, every five minutes. The Classic figures.'),
+  forever: changed(
+    'Forty per cent faster for fifteen seconds, every five minutes, for 100 mana, at build ' +
+      '1.60.1.70009. Forever adds melee attack speed, which a hunter who is shooting does not use.',
+  ),
 };
 
 export const HUNTER_ABILITIES: AbilityDef[] = [
@@ -164,14 +191,14 @@ const SHOTS = [AIMED_SHOT, MULTI_SHOT, ARCANE_SHOT, SNIPER_SHOT];
 export const HUNTER_TALENT_HOOKS: Record<string, TalentHook> = {
   /* --------------------------------------------------------- Beast Mastery */
 
-  // 'While Aspect of the Hawk is active, all normal ranged attacks have a 2%
-  // chance of increasing ranged attack speed by 30% for 12 sec.'
+  // 'While Aspect of the Hawk is active, Auto Shot has a 2% chance of
+  // increasing ranged attack speed by 30% for 12 sec.'
   'Deadly Aspects': (rank, mods) => {
     mods.flags.deadlyAspects = 0.02 * rank;
   },
 
-  // 'Increases all damage you deal by 1% while your pet is active.' Read by the
-  // pet choice in the fight settings.
+  // 'Increases all damage you and your pet deal by 1% while your pet is
+  // active.' Read by the pet choice in the fight settings.
   'Focused Fire': (rank, mods) => {
     mods.flags.focusedFire = 0.01 * rank;
   },

@@ -375,8 +375,8 @@ describe('percentage buffs and debuffs', () => {
     expect(delta.attackPower).toBeCloseTo(20, 9);
   });
 
-  it('Curse of Shadow does nothing to a warrior and something to a mage', () => {
-    const { stats } = buffStats(['curse-of-shadow']);
+  it('Curse of the Elements does nothing to a warrior', () => {
+    const { stats } = buffStats(['curse-of-the-elements']);
     expect(stats.attackPower ?? 0).toBe(0);
 
     const result = simulate(
@@ -384,7 +384,7 @@ describe('percentage buffs and debuffs', () => {
         specId: 9001,
         stats: sheet(),
         talents: {},
-        fight: fight({ debuffs: ['curse-of-shadow'] }),
+        fight: fight({ debuffs: ['curse-of-the-elements'] }),
       },
       swingsOnly,
     );

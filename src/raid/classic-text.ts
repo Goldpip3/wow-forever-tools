@@ -107,7 +107,7 @@ export const CLASSIC_TEXT: Record<string, ClassicEntry> = {
   'wound-poison': {
     lines: [['', '']],
     rank: 'Wound Poison IV',
-    text: 'Coats a weapon with poison that lasts for 30 minutes. Each strike has a 30% chance of poisoning the enemy for 75 Nature damage and reducing the effectiveness of any healing on the target by 45% for 15 sec. Stacks up to 5 times on a single target.',
+    text: 'Coats a weapon with poison that lasts for 30 minutes. Each strike has a 30% chance of poisoning the enemy, reducing all healing effects used on them by 135 for 15 sec.',
   },
   'crippling-poison': {
     lines: [['', '']],

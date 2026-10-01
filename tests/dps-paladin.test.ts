@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { simulate, AUTO_ATTACK_ID } from '../src/dps/sim/sim';
 import { emptyStatSheet, type FightConfig, type SimConfig, type StatSheet } from '../src/dps/sim/types';
-import { paladinRetribution, PALADIN_AURAS, SEAL_HIT_ID } from '../src/dps/sim/specs/paladin-retribution';
+import { paladinRetribution, PALADIN_AURAS, SEAL_HIT_ID, HOLY_STRIKE_HOLY_ID } from '../src/dps/sim/specs/paladin-retribution';
 import { HAMMER_OF_WRATH } from '../src/dps/data/paladin';
 import { specModule, supportedSpecs } from '../src/dps/sim/specs';
 import { parseCharacterExport } from '../src/dps/importer';
@@ -107,9 +107,9 @@ describe('Vengeance', () => {
     const over = { overrides: { forceAverageDamage: true, forceMeleeTable: crits, infiniteMana: true } };
     const plain = run({}, over, []);
     const avenged = run({ Vengeance: 3 }, over, []);
-    // Five stacks of three per cent, less the first few swings spent building them.
-    expect(avenged.dps / plain.dps).toBeGreaterThan(1.14);
-    expect(avenged.dps / plain.dps).toBeLessThanOrEqual(1.15);
+    // Three stacks of three per cent, less the first few swings spent building them.
+    expect(avenged.dps / plain.dps).toBeGreaterThan(1.085);
+    expect(avenged.dps / plain.dps).toBeLessThanOrEqual(1.09 + 1e-9);
     expect(avenged.auras.some((a) => a.id === PALADIN_AURAS.vengeance)).toBe(true);
   });
 });
@@ -141,5 +141,19 @@ describe('the sample paladin', () => {
     const ids = result.abilities.map((a) => a.id);
     for (const id of [AUTO_ATTACK_ID.main, SEAL_HIT_ID, 'judgement', 'holy-strike']) expect(ids).toContain(id);
     expect(result.dps).toBeGreaterThan(100);
+  });
+});
+
+describe('Holy Strike', () => {
+  it('lands half the weapon plus 40 to 53 Holy, on a ten second cooldown', () => {
+    const result = run({}, {}, [{ spellId: 'holy-strike' }]);
+    const strike = result.abilities.find((a) => a.id === 'holy-strike')!;
+    const holy = result.abilities.find((a) => a.id === HOLY_STRIKE_HOLY_ID)!;
+    expect(holy.name).toBe('Holy Strike, Holy part');
+    expect(strike.casts).toBe(30);
+    expect(strike.damage / strike.hits).toBeCloseTo(150, 6);
+    expect(holy.hits).toBe(strike.hits);
+    expect(holy.damage / holy.hits).toBeGreaterThanOrEqual(40);
+    expect(holy.damage / holy.hits).toBeLessThanOrEqual(53);
   });
 });

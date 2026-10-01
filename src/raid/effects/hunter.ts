@@ -9,6 +9,8 @@ const ANY = [BM, MM, SURV];
 const STING = { group: "hunter-sting", limit: 1 };
 /** One pet out at a time. */
 const PET = { group: "hunter-pet", limit: 1 };
+/** "Only one Aspect can be active at a time." */
+const ASPECT = { group: "hunter-aspect", limit: 1 };
 
 export const HUNTER_EFFECTS: Effect[] = [
   {
@@ -17,7 +19,8 @@ export const HUNTER_EFFECTS: Effect[] = [
     icon: "ability_trueshot",
     kind: "buff",
     scope: "party",
-    categories: ["melee-attack-power", "ranged-attack-power"],
+    // Ranged attack power only. Classic's aura gave melee attack power too.
+    categories: ["ranged-attack-power"],
     providers: [
       {
         classId: "hunter",
@@ -26,11 +29,11 @@ export const HUNTER_EFFECTS: Effect[] = [
       },
     ],
     values: {
-      forever: "+30 ranged attack power to the party within 45 yards, 30 min",
+      forever: "+50 ranged attack power to the party within 45 yards at Rank 5, 30 min",
     },
     forever: {
       status: "changed",
-      note: "Forever gives a flat +30 ranged attack power to party members within 45 yards and lasts 30 min.",
+      note: "Ranged attack power only, for party members within 45 yards, 30 min. The talent is Rank 1 at 30. Rank 5, learned at 60, reads 50 in the beta client at build 1.60.1.70009, below Rank 4's 75.",
     },
   },
   {
@@ -43,7 +46,7 @@ export const HUNTER_EFFECTS: Effect[] = [
     providers: [{ classId: "hunter", specs: ANY }],
     forever: {
       status: "changed",
-      note: "Improved Hunter's Mark was cut from the Marksmanship tree.",
+      note: "Rank 4 gives everyone attacking the target 71 ranged attack power at build 1.60.1.70009, against Classic's 110, and Rank 3 reads 98. Improved Hunter's Mark was cut from the Marksmanship tree.",
     },
   },
   {
@@ -52,11 +55,13 @@ export const HUNTER_EFFECTS: Effect[] = [
     icon: "ability_hunter_criticalshot",
     kind: "debuff",
     scope: "target",
-    categories: ["reduced-melee-attack-power"],
+    // Forever's sting lowers the target's hit chance. Classic's took Strength
+    // and Agility, which is why it used to sit with attack power reductions.
+    categories: ["reduced-hit-chance"],
     providers: [{ classId: "hunter", specs: ANY, choice: STING }],
     forever: {
       status: "changed",
-      note: "Improved Scorpid Sting was cut. Improved Stings in Marksmanship now adds 15 sec of duration per rank instead.",
+      note: "Lowers the target's chance to hit by 2% for 20 sec, where Classic took 20 Strength and Agility. Improved Scorpid Sting was cut; Improved Stings in Marksmanship adds 15 sec of duration per rank instead.",
     },
   },
   {
@@ -69,7 +74,7 @@ export const HUNTER_EFFECTS: Effect[] = [
     providers: [{ classId: "hunter", specs: ANY, choice: STING }],
     forever: {
       status: "changed",
-      note: "Improved Stings cuts its cooldown by 2 sec per rank.",
+      note: "Has a 15 sec cooldown in Forever. Improved Stings cuts it by 2 sec per rank. Rank 3 drains 1,108 mana over 8 sec.",
     },
   },
   {
@@ -108,7 +113,7 @@ export const HUNTER_EFFECTS: Effect[] = [
     providers: [{ classId: "hunter", specs: ANY, pet: "bat", choice: PET }],
     forever: {
       status: "unverified",
-      note: "Not in the beta client's level 60 data at build 1.60.1.69876. Pet abilities are not in a player spellbook, so this is not evidence it was cut.",
+      note: "No bat Screech at build 1.60.1.70009: the Pets tab of the level 60 spellbook gives bats Dive only. The closest ability is Demoralizing Screech, a Carrion Bird's: 204 melee attack power off all enemies in melee range for 30 sec.",
     },
   },
   {
@@ -209,7 +214,26 @@ export const HUNTER_EFFECTS: Effect[] = [
     providers: [{ classId: "hunter", specs: ANY }],
     forever: {
       status: "changed",
-      note: "Survival now has Survival Tactics for trap hit chance and Survivalist’s Discipline for a 20% shorter trap cooldown.",
+      note: "The cooldown is 30 sec, up from 15. Survivalist’s Discipline in Survival cuts it by up to 40%, and Survival Tactics adds trap hit chance.",
+    },
+  },
+  /*
+   * Classic's Aspect of the Wild only reached the Hunter's group. Forever's reaches the
+   * raid, so one Hunter can cover Nature resistance for everyone, at the cost of
+   * Aspect of the Hawk. That makes it a real choice, so it is tracked.
+   */
+  {
+    id: "aspect-of-the-wild",
+    name: "Aspect of the Wild",
+    icon: "spell_nature_protectionformnature",
+    kind: "buff",
+    scope: "raid",
+    categories: ["nature-resist"],
+    providers: [{ classId: "hunter", specs: ANY, choice: ASPECT }],
+    values: { forever: "+60 Nature resistance to the raid within 30 yards" },
+    forever: {
+      status: "changed",
+      note: "Reaches all party and raid members within 30 yards, where Classic reached only the group. Rank 2 gives 60 Nature resistance. Only one Aspect can be up, so it replaces Aspect of the Hawk.",
     },
   },
   {

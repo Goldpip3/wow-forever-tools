@@ -552,9 +552,9 @@ describe('spreading choices across classmates', () => {
     const roster = emptyRoster(40);
     const picks = fill(roster, 'warlock', 302, 4).map((p) => p.loadout['warlock-curse']?.[0]);
     expect(picks[0]).toBe('curse-of-the-elements');
-    /* Three curses reach the boss now that Recklessness and Weakness are gone, so the
-       fourth Warlock repeats rather than being pushed onto something no raid casts. */
-    expect(new Set(picks.slice(0, 3)).size).toBe(3);
+    /* Four curses reach the boss: Elements, Shadow, Tongues, and Recklessness now that
+       Forever took the attack power off it. Weakness is still left out. */
+    expect(new Set(picks).size).toBe(4);
   });
 
   it('gives four Paladins four different blessings', () => {

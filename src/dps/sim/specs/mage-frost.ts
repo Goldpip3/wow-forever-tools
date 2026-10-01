@@ -95,7 +95,7 @@ export const mageFrost: SpecModule = {
   manaRegen: (stats, mods) => ({
     per2s: spiritRegenPer2s('mage', stats.spirit),
     // Nothing gives a frost mage regeneration while casting unless Mage Armor
-    // is up, and the demo did not confirm what Forever's version does.
+    // is up.
     castingFraction: mods.flags.spiritWhileCasting ?? 0,
   }),
 
@@ -145,7 +145,10 @@ export const mageFrost: SpecModule = {
       // Frostbolt slows, and a slow is the Chill that Fingers of Frost watches.
       const fingersChance = mods.flags.fingersOfFrostChance ?? 0;
       if (spellId === FROSTBOLT.id && fingersChance > 0 && rng.chance(fingersChance)) {
-        actor.auras.apply(FINGERS_OF_FROST, now, { duration: FINGERS_OF_FROST_DURATION });
+        const charges = Math.max(1, mods.flags.fingersOfFrostCharges ?? 1);
+        actor.auras.apply(FINGERS_OF_FROST, now, {
+          duration: FINGERS_OF_FROST_DURATION, maxStacks: charges, stacks: charges,
+        });
       }
     }
 
@@ -156,15 +159,14 @@ export const mageFrost: SpecModule = {
   },
 
   forever: {
-    status: 'unverified',
+    status: 'changed',
     note:
-      'Frostbolt is modelled at the Classic Rank 11 values because the demo footage stopped ' +
-      'at level thirty-eight.',
+      'Frostbolt is Rank 11 as the beta client gives it at build 1.60.1.70009, and the talents ' +
+      'are read from Forever’s own tree.',
   },
 
   notes: [
-    'Ice Lance is in the Forever tree but only its first rank was ever shown, so no rotation ' +
-      'casts it and it counts for nothing here.',
+    'Ice Lance is in the Forever tree, but no rotation casts it yet, so it counts for nothing here.',
     'Shatter only helps while the target counts as frozen, which against a boss means the ' +
       'Fingers of Frost window and nothing else. Frostbite is left out for the same reason.',
     'The simulated player never hesitates between casts, which is worth a few per cent more ' +

@@ -12,11 +12,15 @@ export const ROGUE_EFFECTS: Effect[] = [
   /*
    * Expose Armor is deliberately not tracked.
    *
-   * It does not stack with Sunder Armor, it overwrites it, and any raid that has warriors
-   * tanking already has Sunder up. A rogue spending combo points and energy to replace a
-   * debuff that is already there loses damage for nothing, so no raid assigns it. Listing
-   * it as a debuff to cover put an empty slot on the page that implied the raid was
+   * In Classic it did not stack with Sunder Armor, it overwrote it, and any raid that has
+   * warriors tanking already has Sunder up. A rogue spending combo points and energy to
+   * replace a debuff that is already there loses damage for nothing, so no raid assigns it.
+   * Listing it as a debuff to cover put an empty slot on the page that implied the raid was
    * missing something it was not.
+   *
+   * Build 1.60.1.70009 makes rank 5 worth 2,250 armor at five points, the same as five
+   * Sunders (Classic: 1,700), and Improved Expose Armor now refunds combo points. The game's
+   * text does not say whether the two stack, so the reasoning above still stands.
    *
    * Sunder Armor still covers reduced-armor, so the category itself is unaffected.
    */
@@ -69,7 +73,7 @@ export const ROGUE_EFFECTS: Effect[] = [
     providers: [{ classId: "rogue", specs: ANY }],
     forever: {
       status: "changed",
-      note: "Dirty Tricks in Subtlety cuts the energy cost of Blind and Sap by up to 25%.",
+      note: "Dirty Tricks in Subtlety cuts the energy cost of Blind and Sap by 25% a rank, up to 50%. Elusiveness cuts Blind's 5 min cooldown by up to 90 sec.",
     },
   },
   {
@@ -82,7 +86,7 @@ export const ROGUE_EFFECTS: Effect[] = [
     providers: [{ classId: "rogue", specs: ANY }],
     forever: {
       status: "changed",
-      note: "Improved Sap was cut from Subtlety, but the new Dirty Tricks cuts its energy cost.",
+      note: "Improved Sap was cut from Subtlety, but the new Dirty Tricks cuts its energy cost by up to 50%. Sap no longer breaks Stealth.",
     },
   },
   {
@@ -95,20 +99,23 @@ export const ROGUE_EFFECTS: Effect[] = [
     providers: [{ classId: "rogue", specs: ANY, choice: POISON }],
     forever: {
       status: "same",
-      note: "Same 20% chance and 60% casting time for 14 sec. The beta adds a charge count.",
+      note: "Same 20% chance and 60% longer casting time for 14 sec. Rank 3 now has 150 charges, up from Classic's 100.",
     },
   },
+  /* Wound Poison cuts healing on the target. It never raised physical damage taken, so it
+       sits with Mortal Strike as utility rather than covering a debuff row. */
   {
     id: "wound-poison",
     name: "Wound Poison",
     icon: "inv_misc_herb_16",
-    kind: "debuff",
+    kind: "list",
     scope: "target",
-    categories: ["physical-damage-taken"],
+    categories: ["misc-utility"],
+    debuffSlots: 0,
     providers: [{ classId: "rogue", specs: ANY, choice: POISON }],
     forever: {
       status: "changed",
-      note: "Improved Poisons now also gives applications a 10% chance not to consume a charge.",
+      note: "Rank 4 reduces healing on the target by 165 for 15 sec, stacking 5 times, up from Classic's 135. Improved Poisons also gives each application up to a 50% chance not to use a charge.",
     },
   },
   /* A raid boss cannot be slowed, so this is not a debuff the raid covers. Kept as
@@ -124,12 +131,14 @@ export const ROGUE_EFFECTS: Effect[] = [
     providers: [{ classId: "rogue", specs: ANY, choice: POISON }],
     forever: { status: "same" },
   },
+  /* Turned personal: listed as the Rogue's own, the way Winter's Chill is, so it no longer
+       fills the Physical Damage Taken row or a debuff slot. */
   {
     id: "hemorrhage",
     name: "Hemorrhage",
     icon: "spell_shadow_lifedrain",
-    kind: "debuff",
-    scope: "target",
+    kind: "buff",
+    scope: "self",
     categories: ["physical-damage-taken"],
     providers: [
       {
@@ -159,7 +168,8 @@ export const ROGUE_EFFECTS: Effect[] = [
     ],
     forever: {
       status: "new",
-      note: "New Assassination talent. Both weapons for 75% damage, 20% more against poisoned targets, and it awards 2 combo points.",
+      note: "New Assassination talent. Both weapons for 75% weapon damage plus 38 each at rank 4, 20% more against poisoned targets, and it awards 2 combo points.",
+
     },
   },
   {

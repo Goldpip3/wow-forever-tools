@@ -16,7 +16,7 @@ export const PRIEST_EFFECTS: Effect[] = [
     providers: [{ classId: "priest", specs: ANY }],
     forever: {
       status: "changed",
-      note: "Improved Power Word: Fortitude was cut from Discipline, so every Priest gives the base stamina.",
+      note: "70 Stamina for 1 hour at rank 6, up from 54 for 30 min, and Prayer of Fortitude now covers the whole raid rather than one party. Improved Power Word: Fortitude was cut from Discipline, so every Priest gives the same amount.",
     },
   },
   {
@@ -29,7 +29,7 @@ export const PRIEST_EFFECTS: Effect[] = [
     providers: [{ classId: "priest", specs: ANY }],
     forever: {
       status: "changed",
-      note: "Trainable in Forever rather than a Discipline talent. Rank 1 was in the level 38 spellbook, so every Priest brings it.",
+      note: "Trainable in Forever rather than a Discipline talent, so every Priest brings it. Rank 4 gives 40 Spirit for 1 hour rather than 30 min, and Prayer of Spirit covers the whole raid.",
     },
   },
   {
@@ -41,8 +41,8 @@ export const PRIEST_EFFECTS: Effect[] = [
     categories: ["shadow-resist"],
     providers: [{ classId: "priest", specs: ANY }],
     forever: {
-      status: "same",
-      note: "Still trainable, sits in the Shadow tab.",
+      status: "changed",
+      note: "Same 60 Shadow resistance, but Prayer of Shadow Protection now covers the whole raid rather than one party.",
     },
   },
   {
@@ -55,7 +55,7 @@ export const PRIEST_EFFECTS: Effect[] = [
     providers: [{ classId: "priest", specs: ANY }],
     forever: {
       status: "changed",
-      note: "Every Priest gets it in Forever on a 3 min cooldown, not just Dwarves.",
+      note: "Every Priest gets it in Forever, not just Dwarves. It has a 3 min cooldown, and the ward lasts 3 min rather than 10.",
     },
   },
   {
@@ -93,7 +93,7 @@ export const PRIEST_EFFECTS: Effect[] = [
     ],
     forever: {
       status: "changed",
-      note: "Heals the party for 20% of the Priest’s Shadow damage and can now proc Spirit Tap. Improved Vampiric Embrace was cut.",
+      note: "Heals the party for 20% of the Priest’s Shadow damage for 30 sec rather than 1 min, and can now proc Spirit Tap. Improved Vampiric Embrace was cut.",
     },
   },
   {
@@ -113,6 +113,19 @@ export const PRIEST_EFFECTS: Effect[] = [
     forever: {
       status: "changed",
       note: "Now a self-buff: the Priest’s own Shadow damage goes up 2% per stack, up to 5. It is no longer a raid-wide debuff on the target.",
+    },
+  },
+  {
+    id: "hex-of-weakness",
+    name: "Hex of Weakness",
+    icon: "spell_shadow_fingerofdeath",
+    kind: "debuff",
+    scope: "target",
+    categories: ["reduced-melee-attack-power"],
+    providers: [{ classId: "priest", specs: ANY }],
+    forever: {
+      status: "changed",
+      note: "In every Priest's level 60 spellbook at build 1.60.1.70009, not only Trolls'. Rank 6 lowers melee attack power by 204 for 2 min, where Classic took 20 off each hit. Whether it stacks with Demoralizing Shout is not known.",
     },
   },
   {
@@ -200,7 +213,7 @@ export const PRIEST_EFFECTS: Effect[] = [
     ],
     forever: {
       status: "changed",
-      note: "Non-periodic critical heals now raise the target armor by up to 8% per rank for 15 sec.",
+      note: "Non-periodic critical heals raise the target's armor by 25% for 15 sec at 3 ranks, up from 8% per rank.",
     },
   },
   {
@@ -255,7 +268,10 @@ export const PRIEST_EFFECTS: Effect[] = [
         talent: { tree: "Holy", name: "Lightwell" },
       },
     ],
-    forever: { status: "removed", note: "Cut from the Holy tree in Forever." },
+    forever: {
+      status: "removed",
+      note: "Not in the Holy tree, and not in the level 60 spellbook at build 1.60.1.70009.",
+    },
   },
   {
     id: "spirit-of-redemption",
@@ -273,7 +289,7 @@ export const PRIEST_EFFECTS: Effect[] = [
     ],
     forever: {
       status: "changed",
-      note: "Duration and behaviour were adjusted in the demo tooltip.",
+      note: "The spirit lasts 15 sec rather than 10.",
     },
   },
 ];

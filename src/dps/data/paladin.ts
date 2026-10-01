@@ -2,16 +2,15 @@
  * Paladin abilities and the talents that change them, for Retribution.
  *
  * Forever rebuilt the paladin's damage. Judgement no longer eats the seal and
- * sits on a ten second cooldown of its own, which the class notes read off the
- * demo. Holy Strike is baseline: weapon damage plus Holy, on twelve seconds.
- * Consecration and Blessing of Kings are trained rather than talented. Every
- * hook below is keyed by the name in public/data/talents.generated.json and
- * cites the description it was read from.
+ * sits on a ten second cooldown of its own. Holy Strike is baseline: half the
+ * weapon's damage plus Holy, on ten seconds. Consecration and Blessing of Kings
+ * are trained rather than talented. Every hook below is keyed by the name in
+ * public/data/talents.generated.json and cites the description it was read
+ * from. The spell numbers are the beta client's text at build 1.60.1.70009,
+ * at the highest rank a level sixty can train.
  *
- * Two numbers the data leaves out are said out loud. How large the Holy part
- * of Holy Strike is at level sixty is not given, so only its weapon half is
- * counted. And Seal of Command's own chance to fire is not given either, so it
- * runs at the Classic seven a minute and says so.
+ * Seal of Command's own chance to fire is not given, so it runs at the Classic
+ * seven a minute and says so.
  */
 
 import type { AbilityDef, TalentHook } from '../sim/spells';
@@ -27,13 +26,15 @@ export const SEAL_OF_COMMAND = {
   duration: 30,
 };
 
-export const HOLY_STRIKE = { cooldown: 12 };
+/**
+ * Rank 8: 'An instant strike that causes 50% weapon damage plus an additional
+ * 40 to 53 as Holy damage.' 10 sec cooldown.
+ */
+export const HOLY_STRIKE = { cooldown: 10, weaponShare: 0.5, holyMin: 40, holyMax: 53 };
 export const JUDGEMENT = { cooldown: 10 };
-export const VENGEANCE = { duration: 30, stacks: 5 };
+export const VENGEANCE = { duration: 30, stacks: 3 };
 
 const changed = (note: string) => ({ status: 'changed' as const, note });
-const classic = (note?: string) =>
-  (note ? { status: 'unverified' as const, note } : { status: 'unverified' as const });
 
 /* -------------------------------------------------------------- abilities */
 
@@ -45,19 +46,20 @@ export const SEAL_OF_COMMAND_SPELL: AbilityDef = {
   kind: 'item',
   resource: 'mana',
   castTime: 0,
-  cost: 65,
+  cost: 210,
   minDamage: 0,
   maxDamage: 0,
   coefficient: 0,
   forever: changed(
-    'Seventy per cent of normal weapon damage as Holy, which is what the Retribution tree says. ' +
-      'It does not say how often; seven times a minute is the Classic rate. The cost is Classic.',
+    'Rank 5 from the beta client at build 1.60.1.70009: seventy per cent of normal weapon ' +
+      'damage as Holy, for 210 mana. It does not say how often; seven times a minute is the ' +
+      'Classic rate.',
   ),
 };
 
 /**
- * Judging Seal of Command. The tree gives 68 to 73, which is the rank the talent
- * teaches rather than the rank a level sixty paladin would have trained.
+ * Judging Seal of Command at rank 5: 'instantly causing 169 to 187 Holy damage'.
+ * The talent teaches rank 1; the trainer sells the rest.
  */
 export const JUDGEMENT_SPELL: AbilityDef = {
   id: 'judgement',
@@ -68,13 +70,13 @@ export const JUDGEMENT_SPELL: AbilityDef = {
   castTime: 0,
   gcd: 0,
   cost: 86,
-  minDamage: 68,
-  maxDamage: 73,
-  coefficient: 0.43,
+  minDamage: 169,
+  maxDamage: 187,
+  coefficient: 0.429,
   forever: changed(
-    'Ten seconds and the seal stays up, from the class notes. 68 to 73 is what the tree shows, ' +
-      'which is the rank the talent teaches, so this understates a level sixty paladin. The ' +
-      'share of spell power is Classic.',
+    'Ten seconds and the seal stays up. 169 to 187 is rank 5 of Seal of Command in the beta ' +
+      'client at build 1.60.1.70009, with 42.9% of spell power from the same data. The cost ' +
+      'is 6% of base mana in game; 86 is the Classic figure.',
   ),
 };
 
@@ -86,16 +88,17 @@ export const HOLY_STRIKE_SPELL: AbilityDef = {
   kind: 'melee',
   resource: 'mana',
   castTime: 0,
-  cost: 60,
+  cost: 20,
   minDamage: 0,
   maxDamage: 0,
   coefficient: 0,
-  weapon: { hand: 'main', multiplier: 1, flat: 0, normalised: false },
+  weapon: { hand: 'main', multiplier: HOLY_STRIKE.weaponShare, flat: 0, normalised: false },
   forever: {
     status: 'new',
     note:
-      'Baseline in Forever on a twelve second cooldown, from the class notes. Only the weapon ' +
-      'half is counted: how much Holy it adds at level sixty is not given. The cost is assumed.',
+      'Rank 8 from the beta client at build 1.60.1.70009: 50% weapon damage plus 40 to 53 Holy, ' +
+      '20 mana, 10 sec cooldown. The Holy part rolls its own critical strike here and takes ' +
+      'no spell power, since the data gives it no coefficient.',
   },
 };
 
@@ -111,9 +114,13 @@ export const CONSECRATION: AbilityDef = {
   minDamage: 0,
   maxDamage: 0,
   coefficient: 0,
-  dot: { ticks: 4, interval: 2, damage: 384, coefficient: 0.33 },
-  aoe: { maxTargets: 10 },
-  forever: classic('Trained rather than talented in Forever. Rank 5 at the Classic values.'),
+  dot: { ticks: 4, interval: 2, damage: 312, coefficient: 0.38 },
+  aoe: { maxTargets: 4 },
+  forever: changed(
+    'Rank 5 from the beta client at build 1.60.1.70009: 96 Holy over 8 sec, and another 216 ' +
+      'to the first 4 enemies, so 312 is counted on up to 4 targets and the 96 beyond them is ' +
+      'left out. 9.5% of spell power a tick is from the data; four ticks is assumed.',
+  ),
 };
 
 export const HAMMER_OF_WRATH: AbilityDef = {
@@ -123,13 +130,16 @@ export const HAMMER_OF_WRATH: AbilityDef = {
   school: 'holy',
   kind: 'spell',
   castTime: 1,
-  cost: 295,
+  cost: 425,
   cooldown: 6,
-  minDamage: 316,
-  maxDamage: 348,
-  coefficient: 0.43,
+  minDamage: 474,
+  maxDamage: 522,
+  coefficient: 0.429,
   execute: { belowPct: 0.2 },
-  forever: classic('Rank 3 at the Classic values: only usable once the target is below a fifth.'),
+  forever: changed(
+    'Rank 3 from the beta client at build 1.60.1.70009: 474 to 522 Holy for 425 mana, 42.9% ' +
+      'of spell power, only on a target at 20% health or less.',
+  ),
 };
 
 export const PALADIN_ABILITIES: AbilityDef[] = [
@@ -151,15 +161,12 @@ export const PALADIN_TALENT_HOOKS: Record<string, TalentHook> = {
     multiplyDamage(mods, JUDGEMENT_SPELL.id, 1 + 0.05 * rank);
   },
 
-  // 'Reduces the cooldown of your Holy Strike ability by 1 sec.'
-  'Improved Holy Strike': (rank, mods) => {
-    mods.flags.holyStrikeCooldownOff = rank;
-  },
-
-  // 'Increases the critical strike chance of your Holy Shock spell by 3%, and
-  // all other spells by 1%.'
+  // 'Increases the critical strike chance of your Holy Shock and Holy Strike
+  // spells by 3%, and all other spells by 1%.' The spec reads the Holy Strike
+  // part from the flag.
   'Holy Power': (rank, mods) => {
     mods.spellCrit.holy = (mods.spellCrit.holy ?? 0) + rank;
+    mods.flags.holyStrikeCrit = 3 * rank;
   },
 
   // 'Increases your chance to hit with Holy spells by 6%.'
@@ -181,9 +188,10 @@ export const PALADIN_TALENT_HOOKS: Record<string, TalentHook> = {
     mods.spellHit += rank;
   },
 
-  // 'Increases the damage you deal with one-handed melee weapons by 3%.'
+  // 'Increases the damage you deal with one-handed melee weapons by 3%.' 7% at
+  // rank 2, 10% at rank 3.
   'One-Handed Weapon Specialization': (rank, mods) => {
-    mods.flags.oneHandedDamage = 0.03 * rank;
+    mods.flags.oneHandedDamage = [0, 0.03, 0.07, 0.1][Math.max(0, Math.min(3, rank))] ?? 0;
   },
 
   /* --------------------------------------------------------- Retribution */
@@ -200,26 +208,26 @@ export const PALADIN_TALENT_HOOKS: Record<string, TalentHook> = {
     mods.flags.judgementCooldownOff = rank;
   },
 
+  // 'Gives your Judgement ability a 33% chance to return 20% of the Mana cost of
+  // the judged seal.' 66% for 40% at rank 2, 100% for 60% at rank 3.
+  'Sanctified Judgement': (rank, mods) => {
+    const r = Math.max(1, Math.min(3, rank));
+    mods.flags.sanctifiedChance = [0.33, 0.66, 1][r - 1]!;
+    mods.flags.sanctifiedShare = [0.2, 0.4, 0.6][r - 1]!;
+  },
+
   // 'Increases your chance to get a critical strike with melee attacks by 1%.'
   Conviction: (rank, mods) => {
     mods.meleeCrit += rank;
   },
 
-  // 'Increases all damage dealt by 1%.' The extra against demons and undead is
-  // not counted, because the fight does not say what the boss is.
-  Crusade: (rank, mods) => {
-    mods.physicalDamage *= 1 + 0.01 * rank;
-    mods.schoolDamage.holy = (mods.schoolDamage.holy ?? 1) * (1 + 0.01 * rank);
-    mods.flags.crusade = 0.01 * rank;
-  },
-
-  // 'Increases the damage you deal with two-handed melee weapons by 3%.'
+  // 'Increases the damage you deal with two-handed melee weapons by 2%.'
   'Two-Handed Weapon Specialization': (rank, mods) => {
-    mods.flags.twoHandedDamage = 0.03 * rank;
+    mods.flags.twoHandedDamage = 0.02 * rank;
   },
 
   // 'Increases your Physical and Holy damage dealt by 1% for 30 sec after
-  // landing a critical strike. Stacks up to 5 times.'
+  // landing a non-periodic critical strike. Stacks up to 3 times.'
   Vengeance: (rank, mods) => {
     mods.flags.vengeance = 0.01 * rank;
   },
@@ -230,9 +238,17 @@ export const PALADIN_TALENT_HOOKS: Record<string, TalentHook> = {
     for (const id of [CONSECRATION.id, HAMMER_OF_WRATH.id]) multiplyCost(mods, id, 1 - 0.2 * rank);
   },
 
-  // 'Increases the damage of your Holy Strike ability by 10%.'
+  // 'Increases the damage of your Holy Strike ability by 20% and causes it to
+  // refresh all Judgement effects on the target.'
   'Sacred Arbiter': (_rank, mods) => {
-    multiplyDamage(mods, HOLY_STRIKE_SPELL.id, 1.1);
+    multiplyDamage(mods, HOLY_STRIKE_SPELL.id, 1.2);
+  },
+
+  // 'Reduces the Mana cost of your Seal spells by 20%, and when you replace your
+  // Seal of Command ... gain an Echo of that Seal.' Only the cost is counted:
+  // the rotation never swaps seals.
+  'Twist of Light': (_rank, mods) => {
+    multiplyCost(mods, SEAL_OF_COMMAND_SPELL.id, 0.8);
   },
 
   // 'Reduces the cast time of your Hammer of Wrath by 0.5 sec.' Both ranks given.

@@ -7,10 +7,9 @@
  * the name in public/data/talents.generated.json and cites the description it
  * was read from.
  *
- * The spells the trees give a number for give the rank the talent teaches. The
- * ones with a Classic rank a level sixty warlock would cast use it and say so;
- * the new ones with no other rank are left out of the rotation, and the notes
- * say why.
+ * Every spell is the highest rank a level sixty warlock learns, at the numbers
+ * the beta client gives (build 1.60.1.70009). Forever's spells hit for roughly
+ * half what Classic's did at the same rank.
  */
 
 import type { SpellDef, TalentHook } from '../sim/spells';
@@ -24,7 +23,7 @@ export const IMPROVED_SHADOW_BOLT = { duration: 12 };
 export const SHADOW_AND_FLAME = { duration: 20 };
 export const CONFLAGRATE_COOLDOWN = 10;
 
-const classic = (note: string) => ({ status: 'unverified' as const, note });
+const beta = (note: string) => ({ status: 'changed' as const, note });
 
 /* ----------------------------------------------------------------- spells */
 
@@ -35,10 +34,10 @@ export const SHADOW_BOLT: SpellDef = {
   school: 'shadow',
   castTime: 3,
   cost: 380,
-  minDamage: 482,
-  maxDamage: 538,
+  minDamage: 253,
+  maxDamage: 283,
   coefficient: 0.8571,
-  forever: classic('Rank 10 at the Classic values.'),
+  forever: beta('Rank 10, 253 to 283, from the beta client. Classic gave 482 to 538.'),
 };
 
 export const CORRUPTION: SpellDef = {
@@ -51,8 +50,8 @@ export const CORRUPTION: SpellDef = {
   minDamage: 0,
   maxDamage: 0,
   coefficient: 0,
-  dot: { ticks: 6, interval: 3, damage: 822, coefficient: 1 },
-  forever: classic('Rank 7 at the Classic values: 822 over eighteen seconds.'),
+  dot: { ticks: 6, interval: 3, damage: 438, coefficient: 1.2 },
+  forever: beta('Rank 7, 438 over eighteen seconds and 20% of spell power a tick, from the beta client. Classic gave 822.'),
 };
 
 export const BANE_OF_AGONY: SpellDef = {
@@ -61,14 +60,15 @@ export const BANE_OF_AGONY: SpellDef = {
   icon: 'spell_shadow_curseofsargeras',
   school: 'shadow',
   castTime: 0,
-  cost: 265,
+  cost: 215,
   minDamage: 0,
   maxDamage: 0,
   coefficient: 0,
-  dot: { ticks: 12, interval: 2, damage: 1044, coefficient: 1 },
-  forever: classic(
-    'Classic\'s Curse of Agony under Forever\'s name, at Rank 6: 1044 over twenty-four seconds. ' +
-      'Classic ramped the ticks up; here they are even.',
+  dot: { ticks: 12, interval: 2, damage: 552, coefficient: 1.6 },
+  forever: beta(
+    'Rank 6, 552 over twenty-four seconds and 13.3% of spell power a tick, from the beta client. ' +
+      'The tooltip does not give the tick count; twelve two-second ticks is a guess from Classic. ' +
+      'The game ramps the ticks up; here they are even.',
   ),
 };
 
@@ -79,11 +79,11 @@ export const IMMOLATE: SpellDef = {
   school: 'fire',
   castTime: 2,
   cost: 380,
-  minDamage: 279,
-  maxDamage: 279,
+  minDamage: 158,
+  maxDamage: 158,
   coefficient: 0.2,
-  dot: { ticks: 5, interval: 3, damage: 510, coefficient: 0.65 },
-  forever: classic('Rank 8 at the Classic values: 279 at once and 510 over fifteen seconds.'),
+  dot: { ticks: 5, interval: 3, damage: 275, coefficient: 0.65 },
+  forever: beta('Rank 8, 158 at once and 275 over fifteen seconds, from the beta client. Classic gave 279 and 510.'),
 };
 
 export const CONFLAGRATE: SpellDef = {
@@ -92,14 +92,11 @@ export const CONFLAGRATE: SpellDef = {
   icon: 'spell_fire_fireball',
   school: 'fire',
   castTime: 0,
-  cost: 305,
-  minDamage: 447,
-  maxDamage: 557,
+  cost: 255,
+  minDamage: 251,
+  maxDamage: 313,
   coefficient: 0.4286,
-  forever: classic(
-    'The Destruction tree gives 109 to 132, which is the rank the talent teaches. Rank 5 is taken ' +
-      'at the Classic values, on a ten second cooldown.',
-  ),
+  forever: beta('Rank 6, 251 to 313 on a ten second cooldown, from the beta client.'),
 };
 
 export const LIFE_TAP: SpellDef = {
@@ -114,7 +111,7 @@ export const LIFE_TAP: SpellDef = {
   coefficient: 0,
   restoresMana: LIFE_TAP_MANA,
   useBelowMana: 0.3,
-  forever: classic('Rank 6 at the Classic values: 424 mana for 424 health, which is not counted.'),
+  forever: { status: 'same', note: 'Rank 6, 424 mana for 424 health, which is not counted.' },
 };
 
 export const WARLOCK_SPELLS: SpellDef[] = [
@@ -184,7 +181,8 @@ export const WARLOCK_TALENT_HOOKS: Record<string, TalentHook> = {
   // 'Increases your spell damage and healing by up to 33% of your level while
   // you have a summoned Demon pet active.'
   'Demonic Knowledge': (rank, mods) => {
-    mods.flags.demonicKnowledge = 0.33 * rank;
+    // 33, 67 and 100 by rank.
+    mods.flags.demonicKnowledge = [0, 0.33, 0.67, 1][rank] ?? 1;
   },
   // 'Imp - Increases Fire damage done by 2%. ... Succubus/Incubus - Increases
   // Shadow damage done by 2%.'
@@ -208,8 +206,10 @@ export const WARLOCK_TALENT_HOOKS: Record<string, TalentHook> = {
   },
 
   // 'Reduces the Mana cost of your Destruction spells by 3%.'
+  // The tree rounds: 3, 6 and 10 by rank.
   Cataclysm: (rank, mods) => {
-    for (const spell of DESTRUCTION) multiplyCost(mods, spell.id, 1 - 0.03 * rank);
+    const cut = [0, 0.03, 0.06, 0.1][rank] ?? 0.1;
+    for (const spell of DESTRUCTION) multiplyCost(mods, spell.id, 1 - cut);
   },
 
   // 'Increases the initial damage of your Immolate spell by 10% ...' Only the
@@ -226,13 +226,16 @@ export const WARLOCK_TALENT_HOOKS: Record<string, TalentHook> = {
   },
 
   // '... the damage done by all your Destruction spells by 3%.'
+  // 3, 7 and 10 by rank.
   'Agonizing Flames': (rank, mods) => {
-    for (const spell of DESTRUCTION) multiplyDamage(mods, spell.id, 1 + 0.03 * rank);
+    const more = [0, 0.03, 0.07, 0.1][rank] ?? 0.1;
+    for (const spell of DESTRUCTION) multiplyDamage(mods, spell.id, 1 + more);
   },
 
   // 'Increases the critical strike chance of your Conflagrate spell by 8%.'
   'Fire and Brimstone': (rank, mods) => {
-    mods.flags.fireAndBrimstone = 8 * rank;
+    // 8, 17 and 25 by rank.
+    mods.flags.fireAndBrimstone = [0, 8, 17, 25][rank] ?? 25;
   },
 
   // 'Hitting an enemy with Conflagrate increases all Shadow damage you deal by

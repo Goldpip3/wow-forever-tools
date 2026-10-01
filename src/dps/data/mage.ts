@@ -1,12 +1,9 @@
 /**
  * Mage spells and the talents that change them.
  *
- * Where the demo footage gave a number, the note says so. Where it did not, the
- * value is the Classic one. The footage only reached level thirty-eight, so
- * every level-sixty rank here is a Classic rank carried over, and the Frostbolt
- * the demo showed was Rank 7 at two and a half seconds with that character's
- * own talents included, which is consistent with the Classic three seconds and
- * five points in Improved Frostbolt rather than proof of a change.
+ * Spell numbers are the highest rank a level sixty mage learns, as the beta
+ * client gives it at build 1.60.1.70009. Where the client gives no spell power
+ * share, the Classic one is kept and the note says so.
  */
 
 import type { SpellDef, SpellMods, TalentHook } from '../sim/spells';
@@ -14,7 +11,7 @@ import {
   addCastTime, addCritBonus, multiplyCost, multiplySchool,
 } from '../sim/spells';
 
-/** Evocation in the demo: mana regeneration up by fifteen hundred per cent. */
+/** Evocation: mana regeneration up by fifteen hundred per cent. */
 export const EVOCATION = {
   /** A fifteen hundred per cent increase is sixteen times the rate. */
   multiplier: 16,
@@ -24,14 +21,21 @@ export const EVOCATION = {
   cooldown: 480,
 };
 
-/** The share of spirit regeneration Mage Armor keeps going while casting. */
-export const MAGE_ARMOR_REGEN = 0.3;
+/**
+ * The share of mana regeneration Mage Armor keeps going while casting: 'allows
+ * 50% of your mana regeneration to continue while casting' at Rank 3. Classic
+ * was 30%.
+ */
+export const MAGE_ARMOR_REGEN = 0.5;
 
 export const CLEARCASTING_DURATION = 15;
 export const WINTERS_CHILL_DURATION = 15;
 export const WINTERS_CHILL_PER_STACK = 2;
 export const FINGERS_OF_FROST_DURATION = 15;
+/** 'a 15% chance' at both ranks; the second rank covers 2 spells rather than 1. */
+export const FINGERS_OF_FROST_CHANCE = 0.15;
 
+/** Mana Ruby: 'restore 1,000 to 1,200 mana', taken at the middle. */
 export const MANA_GEM_AMOUNT = 1100;
 export const MANA_POTION_AMOUNT = 1800;
 
@@ -42,14 +46,14 @@ export const FROSTBOLT: SpellDef = {
   school: 'frost',
   castTime: 3,
   cost: 290,
-  minDamage: 515,
-  maxDamage: 555,
+  minDamage: 457,
+  maxDamage: 493,
   coefficient: 0.814,
   forever: {
-    status: 'unverified',
+    status: 'changed',
     note:
-      'Rank 11 at the Classic values. The demo only reached level thirty-eight and showed ' +
-      'Rank 7 at 2.5 seconds with the character’s own talents included.',
+      'Rank 11 in the beta client at build 1.60.1.70009: 457 to 493 in 3 sec for 290 mana, ' +
+      'with 81.4% of spell power. Classic was 515 to 555.',
   },
 };
 
@@ -59,15 +63,16 @@ export const ICE_LANCE: SpellDef = {
   icon: 'spell_frost_frostblast',
   school: 'frost',
   castTime: 0,
-  cost: 45,
-  minDamage: 28,
-  maxDamage: 33,
+  cost: 160,
+  minDamage: 136,
+  maxDamage: 160,
   coefficient: 0.4286,
   forever: {
     status: 'new',
     note:
-      'New in Forever, and the demo only showed its first rank at 28 to 33 damage. What it ' +
-      'hits for at level sixty is unknown, so no rotation uses it yet.',
+      'Rank 6 in the beta client at build 1.60.1.70009: 136 to 160 for 160 mana, and 300% more ' +
+      'against a frozen target. The client gives no spell power share, so the one here is a ' +
+      'guess. No rotation uses it yet.',
   },
 };
 
@@ -86,7 +91,9 @@ export const EVOCATION_SPELL: SpellDef = {
   useBelowMana: 0.2,
   forever: {
     status: 'changed',
-    note: 'The demo confirmed eight seconds, an eight minute cooldown and fifteen hundred per cent regeneration.',
+    note:
+      'Eight seconds of mana regeneration up by 1,500% on an eight minute cooldown, as the beta ' +
+      'client gives it at build 1.60.1.70009.',
   },
 };
 
@@ -105,8 +112,8 @@ export const MANA_GEM: SpellDef = {
   restoresMana: MANA_GEM_AMOUNT,
   useBelowMana: 0.75,
   forever: {
-    status: 'unverified',
-    note: 'A Classic Mana Ruby. The demo showed the lower ranks conjured at level twenty-eight and thirty-eight.',
+    status: 'same',
+    note: 'A Mana Ruby, 1,000 to 1,200 mana, as the beta client gives it at build 1.60.1.70009.',
   },
 };
 
@@ -182,13 +189,18 @@ export const FROST_TALENT_HOOKS: Record<string, TalentHook> = {
     mods.flags.wintersChillMaxStacks = rank;
   },
 
+  // 'Gives your Chill effects a 15% chance to grant you the Fingers of Frost
+  // effect, which treats your next 1 spell cast as if the target were Frozen.'
+  // The second rank keeps the chance and makes it 2 spells.
   'Fingers of Frost': (rank, mods) => {
-    mods.flags.fingersOfFrostChance = 0.15 * rank;
+    mods.flags.fingersOfFrostChance = FINGERS_OF_FROST_CHANCE;
+    mods.flags.fingersOfFrostCharges = rank;
   },
 
+  // 'Increases the critical strike chance of all your spells against Frozen
+  // targets by 17%.' Fifty at three ranks.
   Shatter: (rank, mods) => {
-    // Seventeen points at the first rank was all the demo showed.
-    mods.flags.shatterCrit = 17 * rank;
+    mods.flags.shatterCrit = [0, 17, 33, 50][Math.min(rank, 3)] ?? 0;
   },
 };
 

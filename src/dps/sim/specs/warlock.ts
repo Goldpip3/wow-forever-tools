@@ -187,10 +187,10 @@ export function warlockSpec(specId: number, label: string): SpecModule {
     },
 
     forever: {
-      status: 'unverified',
+      status: 'changed',
       note:
         'Forever rebuilt the warlock trees, so the talents here are read from their own text. The ' +
-        'spells are Classic level-sixty ranks.',
+        "spells are the beta client's level-sixty ranks at build 1.60.1.70009.",
     },
 
     unmodelledTalents: {

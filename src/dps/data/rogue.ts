@@ -8,8 +8,10 @@
  * target. Every hook below is keyed by the name in
  * public/data/talents.generated.json and cites the description it was read from.
  *
- * The abilities the trees say nothing about are their Classic level-sixty
- * values, carried over the way Frostbolt was, and each one says so.
+ * Damage, cost and cooldown are the highest rank in the level-sixty spellbook
+ * of the beta client, build 1.60.1.70009. 'same' means the game's text matches
+ * Classic and 'changed' means it does not. No tooltip gives a coefficient, so
+ * the one attack power figure here is an estimate and says so.
  */
 
 import type { AbilityDef, SpellMods, TalentHook } from '../sim/spells';
@@ -33,8 +35,6 @@ export const BLADE_FLURRY = { duration: 15, cooldown: 120, haste: 0.2 };
 export const ROGUE_ENERGY = 100;
 
 const changed = (note: string) => ({ status: 'changed' as const, note });
-const classic = (note?: string) =>
-  (note ? { status: 'unverified' as const, note } : { status: 'unverified' as const });
 
 /* -------------------------------------------------------------- abilities */
 
@@ -52,7 +52,10 @@ export const SINISTER_STRIKE: AbilityDef = {
   coefficient: 0,
   combo: { generates: 1 },
   weapon: { hand: 'main', multiplier: 1, flat: 68, normalised: false },
-  forever: classic('Rank 8 at the Classic sixty-eight damage. The tree only speaks about its cost.'),
+  forever: {
+    status: 'same',
+    note: 'Rank 8, learned at level 54 in build 1.60.1.70009: weapon damage plus 68 for 45 Energy, as in Classic.',
+  },
 };
 
 export const BACKSTAB: AbilityDef = {
@@ -68,16 +71,24 @@ export const BACKSTAB: AbilityDef = {
   maxDamage: 0,
   coefficient: 0,
   combo: { generates: 1 },
-  weapon: { hand: 'main', multiplier: 1.5, flat: 210, normalised: false },
-  forever: classic(
-    'Rank 9 at the Classic values: half again the weapon plus two hundred and ten. It needs a ' +
-      'dagger and it needs you behind the target, and the rotation only offers it with one on.',
-  ),
+  weapon: { hand: 'main', multiplier: 1.5, flat: 225, normalised: false },
+  forever: {
+    status: 'same',
+    note:
+      'Rank 9, learned at level 60 in build 1.60.1.70009: 150% weapon damage plus 225 for 60 ' +
+      'Energy. It needs a dagger and it needs you behind the target, and the rotation only ' +
+      'offers it with one on.',
+  },
 };
 
 /**
  * The finisher. Its damage is not a number, it is a number per combo point,
  * which is why the engine spends the points before it rolls anything.
+ *
+ * The game's rank 9 is 224-332 at one point and 170 more per point after it,
+ * which a flat amount per point cannot match at every count. It is set to the
+ * five-point figure, 904-1,012, because that is the only count the rotation
+ * spends; at fewer points it comes out low.
  */
 export const EVISCERATE: AbilityDef = {
   id: 'eviscerate',
@@ -92,12 +103,15 @@ export const EVISCERATE: AbilityDef = {
   maxDamage: 0,
   coefficient: 0,
   combo: { spends: true },
-  comboDamage: { min: 45, max: 135, apCoefficient: 0.03 },
+  comboDamage: { min: 904 / 5, max: 1012 / 5, apCoefficient: 0.03 },
   weapon: { hand: 'main', multiplier: 0, flat: 0, normalised: false },
-  forever: classic(
-    'Rank 9 at the Classic values, which come to 224 to 676 at five combo points. It reads no ' +
-      'weapon damage at all, only the points it spends.',
-  ),
+  forever: {
+    status: 'same',
+    note:
+      'Rank 9, learned at level 60 in build 1.60.1.70009: 904 to 1,012 at five combo points, as ' +
+      'in Classic. The game says attack power raises it but gives no figure, so the three per ' +
+      'cent of attack power a point is an estimate.',
+  },
 };
 
 export const SLICE_AND_DICE_SPELL: AbilityDef = {
@@ -113,10 +127,12 @@ export const SLICE_AND_DICE_SPELL: AbilityDef = {
   maxDamage: 0,
   coefficient: 0,
   combo: { spends: true },
-  forever: classic(
-    'A third again attack speed, for nine seconds at one combo point and three more for each ' +
-      'point after it. The Classic figures.',
-  ),
+  forever: {
+    status: 'same',
+    note:
+      'Rank 2, learned at level 42 in build 1.60.1.70009: thirty per cent attack speed, for nine ' +
+      'seconds at one combo point and three more for each point after it, as in Classic.',
+  },
 };
 
 export const ADRENALINE_RUSH_SPELL: AbilityDef = {
@@ -133,10 +149,10 @@ export const ADRENALINE_RUSH_SPELL: AbilityDef = {
   minDamage: 0,
   maxDamage: 0,
   coefficient: 0,
-  forever: changed(
-    'Twice the energy back for fifteen seconds, which is what the Combat tree says. The five ' +
-      'minute cooldown is the Classic one; the tree does not give one.',
-  ),
+  forever: {
+    status: 'same',
+    note: 'Twice the energy back for fifteen seconds, on a 5 min cooldown, as in Classic.',
+  },
 };
 
 export const BLADE_FLURRY_SPELL: AbilityDef = {
@@ -154,8 +170,8 @@ export const BLADE_FLURRY_SPELL: AbilityDef = {
   maxDamage: 0,
   coefficient: 0,
   forever: changed(
-    'A fifth faster and an extra target for fifteen seconds, which is what the Combat tree says. ' +
-      'Classic gave the extra target and no attack speed. The two minute cooldown is Classic.',
+    'A fifth faster and an extra target for fifteen seconds, on a 2 min cooldown, which is what ' +
+      'build 1.60.1.70009 says. The extra target is not modelled.',
   ),
 };
 
@@ -177,6 +193,7 @@ export const ROGUE_FLAGS = {
   relentlessChance: 'relentlessChance',
   hackAndSlashRank: 'hackAndSlashRank',
   backstabCrit: 'backstabCrit',
+  backstabComboChance: 'backstabComboChance',
 };
 
 /* --------------------------------------------------------------- talents */
@@ -190,9 +207,12 @@ export const ROGUE_TALENT_HOOKS: Record<string, TalentHook> = {
   },
 
   // 'Increases the critical strike damage bonus of your Sinister Strike,
-  // Gouge, Backstab, Mutilate, Ghostly Strike, and Hemorrhage abilities by 6%.'
+  // Gouge, Backstab, Mutilate, Ghostly Strike, and Hemorrhage abilities by 4%.'
+  // Twenty per cent at rank 5. Applied to every strike, auto attacks included,
+  // which overstates it.
+
   Lethality: (rank, mods) => {
-    mods.meleeCritBonus += 0.06 * rank;
+    mods.meleeCritBonus += 0.04 * rank;
   },
 
   // 'Increases the duration of your Slice and Dice ability by 15%.'
@@ -234,7 +254,7 @@ export const ROGUE_TALENT_HOOKS: Record<string, TalentHook> = {
     mods.damage[EVISCERATE.id] = (mods.damage[EVISCERATE.id] ?? 1) * (1 + 0.07 * rank);
   },
 
-  // 'Increases your chance to hit with all attacks and Poisons by 1%.'
+  // 'Improves your chance to hit by 1%.'
   Precision: (rank, mods) => {
     mods.meleeHit += rank;
   },
@@ -259,10 +279,14 @@ export const ROGUE_TALENT_HOOKS: Record<string, TalentHook> = {
     mods.meleeHit += rank;
   },
 
-  // 'Increases the critical strike chance of your Backstab by 10%.'
+  // 'Increases the critical strike chance of your Backstab by 10% and your
+  // Mutilate by 5%, and gives Backstab a 15% chance to add an additional Combo
+  // Point.' Mutilate is not simulated, so only the Backstab half is read.
   'Puncturing Wounds': (rank, mods) => {
     mods.flags[ROGUE_FLAGS.backstabCrit] = 10 * rank;
+    mods.flags[ROGUE_FLAGS.backstabComboChance] = 0.15 * rank;
   },
+
 
   /**
    * 'Axe/Sword: 1% chance to trigger an extra attack. Dagger/Fist: critical

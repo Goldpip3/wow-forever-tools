@@ -5,7 +5,9 @@
  * export ran would be counted twice. The importer lists what was active and the
  * page warns about it; the honest way to use this panel is to export unbuffed.
  *
- * Classic values, unverified for Forever. The raid planner's catalog in
+ * Values come from the beta client's own spell text where upstream carries it
+ * (build 1.60.1.70009); anything still marked unverified is a Classic value. The
+ * raid planner's catalog in
  * src/raid/effects is the fuller list; this one carries only what changes a
  * number the simulator reads.
  */
@@ -57,7 +59,7 @@ export const BUFFS: BuffDef[] = [
     from: 'Mage',
     stats: { intellect: 31 },
     roles: ['caster'],
-    forever: unverified(),
+    forever: { status: 'same', note: 'Rank 5, 31 Intellect, as the beta client gives it.' },
   },
   {
     id: 'mark-of-the-wild',
@@ -65,8 +67,11 @@ export const BUFFS: BuffDef[] = [
     kind: 'raid',
     icon: 'spell_nature_regeneration',
     from: 'Druid',
-    stats: { strength: 12, agility: 12, stamina: 12, intellect: 12, spirit: 12, armor: 285 },
-    forever: unverified(),
+    stats: { strength: 16, agility: 16, stamina: 16, intellect: 16, spirit: 16, armor: 385 },
+    forever: {
+      status: 'changed',
+      note: 'Rank 7 gives 385 armor and 16 to every attribute in the beta client, up from 285 and 12.',
+    },
   },
   {
     id: 'power-word-fortitude',
@@ -74,8 +79,8 @@ export const BUFFS: BuffDef[] = [
     kind: 'raid',
     icon: 'spell_holy_wordfortitude',
     from: 'Priest',
-    stats: { stamina: 54 },
-    forever: unverified(),
+    stats: { stamina: 70 },
+    forever: { status: 'changed', note: 'Rank 6 gives 70 Stamina in the beta client, up from 54.' },
   },
   {
     id: 'divine-spirit',
@@ -85,7 +90,7 @@ export const BUFFS: BuffDef[] = [
     from: 'Discipline Priest',
     stats: { spirit: 40 },
     roles: ['caster'],
-    forever: unverified(),
+    forever: { status: 'same', note: 'Rank 4, 40 Spirit, as the beta client gives it.' },
   },
   {
     id: 'blessing-of-kings',
@@ -105,9 +110,12 @@ export const BUFFS: BuffDef[] = [
     kind: 'raid',
     icon: 'spell_nature_manaregentotem',
     from: 'Shaman, in your group',
-    stats: { mp5: 10 },
+    stats: { mp5: 25 },
     roles: ['caster'],
-    forever: unverified(),
+    forever: {
+      status: 'same',
+      note: 'Rank 4 restores 10 mana every 2 seconds, which is 25 every five. This used to read 10.',
+    },
   },
   {
     id: 'moonkin-aura',
@@ -117,7 +125,10 @@ export const BUFFS: BuffDef[] = [
     from: 'Balance Druid, in your group',
     stats: { spellCrit: 3 },
     roles: ['caster'],
-    forever: unverified(),
+    forever: {
+      status: 'changed',
+      note: 'Moonkin Form gives the party 3% critical strike chance, exclusive with Leader of the Pack.',
+    },
   },
 
   {
@@ -129,11 +140,10 @@ export const BUFFS: BuffDef[] = [
     stats: {},
     roles: ['caster'],
     forever: {
-      status: 'unverified',
+      status: 'changed',
       note:
-        'Mage Armor is in the spellbook the demo showed, but not what Forever’s version does. ' +
-        'Modelled as the Classic three tenths of spirit regeneration continuing while you cast, ' +
-        'which is why it changes the mana stats so much.',
+        'Rank 3 keeps half your mana regeneration going while you cast, up from Classic’s ' +
+        'three tenths, which is why it changes the mana stats so much.',
     },
   },
 
@@ -187,17 +197,9 @@ export const BUFFS: BuffDef[] = [
   },
 
   /* ---------------------------------------------------------- boss debuffs */
-  {
-    id: 'curse-of-shadow',
-    name: 'Curse of Shadow',
-    kind: 'debuff',
-    icon: 'spell_shadow_curseofachimonde',
-    from: 'Warlock',
-    stats: {},
-    damageTaken: { shadow: 1.1, arcane: 1.1 },
-    roles: ['caster'],
-    forever: unverified('Raises shadow and arcane damage taken by a tenth.'),
-  },
+  /* Curse of Shadow is not in the beta client's level 60 spellbook at build 1.60.1.70009,
+     and Curse of the Elements covers shadow and arcane now. Listing both would count
+     shadow damage twice. */
   {
     id: 'curse-of-the-elements',
     name: 'Curse of the Elements',
@@ -205,12 +207,15 @@ export const BUFFS: BuffDef[] = [
     icon: 'spell_shadow_chilltouch',
     from: 'Warlock',
     stats: {},
-    damageTaken: { fire: 1.1, frost: 1.1 },
+    damageTaken: { holy: 1.1, fire: 1.1, nature: 1.1, frost: 1.1, shadow: 1.1, arcane: 1.1 },
     roles: ['caster'],
-    forever: unverified(
-      'Raises fire and frost damage taken by a tenth. It lowers those resistances too, which ' +
-        'only shows up here when you have given the boss some.',
-    ),
+    forever: {
+      status: 'changed',
+      note:
+        'Raises Magic damage taken by a tenth, every school but Physical. It was Fire and Frost ' +
+        'only. It lowers resistances by 75 too, which only shows up here when you have given ' +
+        'the boss some.',
+    },
   },
 
   /* ----------------------------------------------------------- melee buffs */
@@ -221,8 +226,8 @@ export const BUFFS: BuffDef[] = [
     icon: 'ability_warrior_battleshout',
     from: 'Warrior',
     roles: ['melee'],
-    stats: { attackPower: 232 },
-    forever: unverified('Rank 7 at the Classic value.'),
+    stats: { attackPower: 139 },
+    forever: { status: 'changed', note: 'Rank 7 gives 139 attack power in the beta client. Classic gave 232.' },
   },
   {
     id: 'blessing-of-might',
@@ -231,8 +236,8 @@ export const BUFFS: BuffDef[] = [
     icon: 'spell_holy_fistofjustice',
     from: 'Paladin',
     roles: ['melee'],
-    stats: { attackPower: 222 },
-    forever: unverified('Rank 7 at the Classic value.'),
+    stats: { attackPower: 133 },
+    forever: { status: 'changed', note: 'Rank 7 gives 133 attack power in the beta client. Classic gave 222.' },
   },
   {
     id: 'strength-of-earth',
@@ -241,8 +246,8 @@ export const BUFFS: BuffDef[] = [
     icon: 'spell_nature_earthbindtotem',
     from: 'Shaman, in your group',
     roles: ['melee'],
-    stats: { strength: 77 },
-    forever: unverified(),
+    stats: { strength: 53 },
+    forever: { status: 'changed', note: 'Rank 5 gives 53 Strength in the beta client. Classic gave 77.' },
   },
   {
     id: 'grace-of-air',
@@ -251,8 +256,8 @@ export const BUFFS: BuffDef[] = [
     icon: 'spell_nature_invisibilitytotem',
     from: 'Shaman, in your group',
     roles: ['melee'],
-    stats: { agility: 77 },
-    forever: unverified(),
+    stats: { agility: 89 },
+    forever: { status: 'changed', note: 'Rank 3 gives 89 Agility in the beta client. Classic gave 77.' },
   },
   {
     id: 'trueshot-aura',
@@ -261,10 +266,12 @@ export const BUFFS: BuffDef[] = [
     icon: 'ability_trueshot',
     from: 'Marksmanship Hunter',
     roles: ['melee'],
-    stats: { rangedAttackPower: 30 },
+    stats: { rangedAttackPower: 50 },
     forever: {
       status: 'changed',
-      note: 'Thirty ranged attack power and nothing for melee, which is what the Marksmanship tree says.',
+      note:
+        'Ranged attack power only, nothing for melee. The talent teaches rank 1 at 30; rank 5, ' +
+        'trained at 60, gives 50.',
     },
   },
   {
@@ -353,7 +360,7 @@ export const BUFFS: BuffDef[] = [
     roles: ['melee'],
     stats: {},
     targetArmor: 2250,
-    forever: unverified('Five stacks, assumed up from the pull.'),
+    forever: { status: 'same', note: 'Five stacks of 450, assumed up from the pull.' },
   },
   {
     id: 'faerie-fire',
@@ -364,7 +371,7 @@ export const BUFFS: BuffDef[] = [
     roles: ['melee'],
     stats: {},
     targetArmor: 505,
-    forever: unverified(),
+    forever: { status: 'same', note: 'Rank 4 takes 505 armor off the target.' },
   },
   {
     id: 'curse-of-recklessness',
@@ -374,8 +381,11 @@ export const BUFFS: BuffDef[] = [
     from: 'Warlock',
     roles: ['melee'],
     stats: {},
-    targetArmor: 640,
-    forever: unverified(),
+    targetArmor: 505,
+    forever: {
+      status: 'changed',
+      note: 'Rank 4 takes 505 armor off the target and no longer raises its attack power. Classic took 640.',
+    },
   },
 ];
 

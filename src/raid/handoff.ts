@@ -33,8 +33,8 @@ export const SIM_BUFF_FOR: Readonly<Record<string, string>> = {
   'grace-of-air-totem': 'grace-of-air',
   'windfury-totem': 'windfury-totem',
   'trueshot-aura': 'trueshot-aura',
-  'curse-of-shadow': 'curse-of-shadow',
   'curse-of-the-elements': 'curse-of-the-elements',
+  'curse-of-recklessness': 'curse-of-recklessness',
   'sunder-armor': 'sunder-armor',
   'faerie-fire': 'faerie-fire',
 };

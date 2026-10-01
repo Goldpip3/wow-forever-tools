@@ -15,7 +15,6 @@ import {
   DRUID_TALENT_HOOKS,
   FERAL_ABILITIES,
   GENERATORS,
-  MANGLE,
   RAKE,
   RIP,
   TIGERS_FURY,
@@ -30,10 +29,13 @@ export const DRUID_AURAS = {
   rake: 'rake',
 };
 
-/** Where the bleeds and Tiger's Fury's extra damage are billed. */
+/** Where the bleeds are billed. */
 export const RIP_BLEED_ID = 'rip-bleed';
 export const RAKE_BLEED_ID = 'rake-bleed';
-export const TIGERS_FURY_HIT_ID = 'tigers-fury-hit';
+
+/** The most energy Tiger's Fury is pressed at, so King of the Jungle's is not wasted. */
+const furyEnergy = (talents: Record<string, number>): number =>
+  K.ENERGY_MAX.value - 20 * (talents['King of the Jungle'] ?? 0);
 
 /** Combo points at the moment a finisher was pressed, read back when it lands. */
 let pointsSpent = 0;
@@ -59,16 +61,16 @@ export const druidFeral: SpecModule = {
   extraNames: {
     [RIP_BLEED_ID]: 'Rip, over time',
     [RAKE_BLEED_ID]: 'Rake, over time',
-    [TIGERS_FURY_HIT_ID]: "Tiger's Fury, on each hit",
   },
 
   rotations: {
     standard: (talents): PriorityEntry[] => [
+      // Tiger's Fury costs nothing now, so it goes on cooldown. With King of the
+      // Jungle it waits until the energy it hands back would not be wasted.
       {
         spellId: 'tigers-fury',
-        when: (ctx) => (talents['King of the Jungle'] ?? 0) > 0 && ctx.energy < 40
-          && !ctx.has(DRUID_AURAS.tigersFury),
-        text: 'talent.king-of-the-jungle and energy < 40 and not buff.tigers-fury.up',
+        when: (ctx) => !ctx.has(DRUID_AURAS.tigersFury) && ctx.energy <= furyEnergy(talents),
+        text: 'not buff.tigers-fury.up and energy <= ' + furyEnergy(talents),
       },
       {
         spellId: 'berserk',
@@ -90,10 +92,8 @@ export const druidFeral: SpecModule = {
         when: (ctx) => !ctx.onTarget(DRUID_AURAS.rake) && ctx.timeLeft > 9,
         text: 'not debuff.rake.up and time_left > 9',
       },
-      // Mangle is left out: as the tree gives it, twenty-six on top of the paws,
-      // it hits for less than Claw at the same cost. Shred waits for energy
-      // rather than letting Claw spend it, and Claw is for when you cannot get
-      // behind.
+      // Shred waits for energy rather than letting Claw spend it, and Claw is
+      // for when you cannot get behind.
       { spellId: 'shred' },
       {
         spellId: 'claw',
@@ -135,12 +135,17 @@ export const druidFeral: SpecModule = {
   critBonusFor: ({ spellId, actor, now }) =>
     (GENERATORS.has(spellId) && actor.auras.has(DRUID_AURAS.berserk, now) ? 100 : 0),
 
-  /** Rend and Tear, for strikes that are pressed, while something bleeds. */
-  damageBonusFor: ({ spellId, actor, now, mods }) => {
+  /**
+   * Tiger's Fury on every physical hit, and Rend and Tear for strikes that are
+   * pressed while something bleeds.
+   */
+  damageBonusFor: ({ spellId, school, actor, now, mods }) => {
+    let multiplier = 1;
+    if (school === 'physical' && actor.auras.has(DRUID_AURAS.tigersFury, now)) multiplier *= 1 + TIGERS_FURY.damage;
     const bonus = mods.flags.rendAndTear ?? 0;
-    if (bonus <= 0 || !FERAL_ABILITIES.some((a) => a.id === spellId)) return 1;
+    if (bonus <= 0 || !FERAL_ABILITIES.some((a) => a.id === spellId)) return multiplier;
     const bleeding = actor.targetAuras.has(DRUID_AURAS.rip, now) || actor.targetAuras.has(DRUID_AURAS.rake, now);
-    return bleeding ? 1 + bonus : 1;
+    return bleeding ? multiplier * (1 + bonus) : multiplier;
   },
 
   onCastStart: ({ spellId, actor, now, mods }) => {
@@ -153,23 +158,21 @@ export const druidFeral: SpecModule = {
     if (spellId === 'berserk') {
       actor.auras.apply(DRUID_AURAS.berserk, now, { duration: BERSERK.duration });
     }
-    // Berserk takes Mangle's cooldown away while it lasts.
-    if (spellId === 'mangle' && !actor.auras.has(DRUID_AURAS.berserk, now)) {
-      actor.startCooldown(spellId, now, MANGLE.cooldown);
-    }
   },
 
   /**
-   * The bleeds start from the strike that landed them, Primal Fury hands a
-   * point back on a critical one, and Tiger's Fury rides on every hit.
+   * The bleeds start from the strike that landed them, and take Tiger's Fury
+   * with them if it was up then. Blood Frenzy hands a point back on a critical
+   * strike.
    */
-  onSwing: ({ spellId, outcome, actor, now, rng, mods, bleed, procDamage }) => {
+  onSwing: ({ spellId, outcome, actor, now, rng, mods, bleed }) => {
     const connected = outcome !== 'miss' && outcome !== 'dodge' && outcome !== 'parry';
     if (!connected) return;
 
-    const periodic = mods.physicalDamage * (1 + (mods.flags.periodicDamage ?? 0));
+    const fury = actor.auras.has(DRUID_AURAS.tigersFury, now) ? 1 + TIGERS_FURY.damage : 1;
+    const periodic = mods.physicalDamage * (1 + (mods.flags.periodicDamage ?? 0)) * fury;
     if (spellId === 'rip' && pointsSpent > 0) {
-      bleed(RIP_BLEED_ID, RIP.perPoint * pointsSpent * periodic, RIP.ticks, RIP.interval);
+      bleed(RIP_BLEED_ID, (RIP.base + RIP.perPoint * pointsSpent) * periodic, RIP.ticks, RIP.interval);
       actor.targetAuras.apply(DRUID_AURAS.rip, now, { duration: RIP.ticks * RIP.interval });
       pointsSpent = 0;
     }
@@ -179,21 +182,18 @@ export const druidFeral: SpecModule = {
       actor.targetAuras.apply(DRUID_AURAS.rake, now, { duration: RAKE.ticks * RAKE.interval });
     }
 
-    const primal = mods.flags.primalFury ?? 0;
-    if (outcome === 'crit' && primal > 0 && GENERATORS.has(spellId) && rng.chance(Math.min(1, primal))) {
+    const frenzy = mods.flags.bloodFrenzy ?? 0;
+    if (outcome === 'crit' && frenzy > 0 && GENERATORS.has(spellId) && rng.chance(Math.min(1, frenzy))) {
       actor.addCombo(1, K.COMBO_POINT_MAX.value);
-    }
-
-    if (actor.auras.has(DRUID_AURAS.tigersFury, now)) {
-      procDamage(TIGERS_FURY_HIT_ID, TIGERS_FURY.bonus * mods.physicalDamage, 'physical');
     }
   },
 
   forever: {
     status: 'unverified',
     note:
-      'Forever rebuilt the Feral tree, so the talents here are read from its own text. The ' +
-      'strikes and finishers the tree says nothing about are Classic values.',
+      'Forever rebuilt the Feral tree, so the talents here are read from its own text, and the ' +
+      'strikes and finishers from the beta client at build 1.60.1.70009. The paws and the ' +
+      'attack power shares are still Classic figures.',
   },
 
   unmodelledTalents: {
@@ -202,6 +202,7 @@ export const druidFeral: SpecModule = {
     'Brutal Impact': 'Bash and Pounce are not in any rotation.',
     'Thick Hide': 'armor does nothing to damage.',
     'Feral Charge': 'the boss stands still, so there is nothing to charge at.',
+    'Primal Bite': 'it needs Bear Form, and the druid here is in Cat Form.',
     'Natural Reaction': 'a dodge chance, which does nothing to damage.',
     Furor: 'the druid is in Cat Form from the pull and never leaves it.',
     'Improved Wrath': 'a cat does not cast Wrath.',
@@ -239,9 +240,8 @@ export const druidFeral: SpecModule = {
       'would have it counted twice.',
     'A cat\'s paws hit for 40 to 60 once a second before attack power. That is not given anywhere ' +
       'and is close to what a Classic cat did.',
-    'Mangle, as the tree gives it, is the paws plus twenty-six, which is less than Claw at the ' +
-      'same cost, so the rotation does not press it. The number is probably the rank the talent ' +
-      'teaches rather than a level sixty one. Berserk giving it three targets is not modelled.',
+    'Rip grows with attack power in Forever, but the client does not say by how much, so here ' +
+      'it does not.',
     'The simulated druid never powershifts, which a skilled Classic druid did for energy.',
   ],
 };

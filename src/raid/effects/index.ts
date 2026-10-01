@@ -71,6 +71,7 @@ export const CHOICE_LABELS: Record<string, string> = {
   "warlock-bane": "Bane",
   "warlock-pet": "Pet",
   "hunter-sting": "Sting",
+  "hunter-aspect": "Aspect",
   "rogue-poison": "Poisons",
   "hunter-pet": "Pet",
   "druid-form": "Form and stance",

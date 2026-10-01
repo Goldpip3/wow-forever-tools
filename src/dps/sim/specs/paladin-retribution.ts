@@ -10,15 +10,19 @@
 import { spiritRegenPer2s } from '../../data/conversions';
 import {
   HOLY_STRIKE,
+  HOLY_STRIKE_SPELL,
   JUDGEMENT,
   PALADIN_ABILITIES,
   PALADIN_TALENT_HOOKS,
   SEAL_OF_COMMAND,
+  SEAL_OF_COMMAND_SPELL,
   VENGEANCE,
 } from '../../data/paladin';
 import { weaponRoll } from '../melee';
 import type { SpecModule } from '../spec';
 import type { PriorityEntry } from '../rotation';
+
+const HOLY_STRIKE_SPELL_ID = HOLY_STRIKE_SPELL.id;
 
 export const PALADIN_AURAS = {
   seal: 'seal-of-command',
@@ -27,6 +31,9 @@ export const PALADIN_AURAS = {
 
 /** Where Seal of Command's own damage is billed. */
 export const SEAL_HIT_ID = 'seal-of-command-hit';
+
+/** Where the Holy part of Holy Strike is billed. */
+export const HOLY_STRIKE_HOLY_ID = 'holy-strike-holy';
 
 export const paladinRetribution: SpecModule = {
   specId: 381,
@@ -47,7 +54,10 @@ export const paladinRetribution: SpecModule = {
     { stat: 'intellect', step: 50 },
   ],
 
-  extraNames: { [SEAL_HIT_ID]: 'Seal of Command, from swings' },
+  extraNames: {
+    [SEAL_HIT_ID]: 'Seal of Command, from swings',
+    [HOLY_STRIKE_HOLY_ID]: 'Holy Strike, Holy part',
+  },
 
   rotations: {
     // Seal of Command is a talent, and Judgement of Command comes with it.
@@ -95,6 +105,10 @@ export const paladinRetribution: SpecModule = {
 
   hasteFor: (actor) => 1 + (actor.stats.haste ?? 0) / 100,
 
+  /** Holy Power adds critical strike chance to both parts of Holy Strike. */
+  critBonusFor: ({ spellId, mods }) =>
+    (spellId === HOLY_STRIKE_SPELL_ID || spellId === HOLY_STRIKE_HOLY_ID ? mods.flags.holyStrikeCrit ?? 0 : 0),
+
   /** Vengeance raises Physical and Holy damage for each critical strike stacked. */
   damageBonusFor: ({ school, actor, now, mods }) => {
     const per = mods.flags.vengeance ?? 0;
@@ -102,17 +116,21 @@ export const paladinRetribution: SpecModule = {
     return 1 + per * actor.auras.stacks(PALADIN_AURAS.vengeance, now);
   },
 
-  onCastStart: ({ spellId, actor, now, mods }) => {
+  onCastStart: ({ spellId, actor, now, rng, mods }) => {
     if (spellId === 'seal-of-command') {
       actor.auras.apply(PALADIN_AURAS.seal, now, { duration: SEAL_OF_COMMAND.duration });
     }
-    // Both cooldowns are shortened by a talent, so they are started here.
+    // Improved Judgement shortens this one, so it is started here.
     if (spellId === 'judgement') {
       actor.startCooldown(spellId, now, JUDGEMENT.cooldown - (mods.flags.judgementCooldownOff ?? 0));
+      // Sanctified Judgement hands back a share of what the seal cost.
+      const share = mods.flags.sanctifiedShare ?? 0;
+      if (share > 0 && rng.chance(mods.flags.sanctifiedChance ?? 0)) {
+        const sealCost = SEAL_OF_COMMAND_SPELL.cost * (mods.cost[SEAL_OF_COMMAND_SPELL.id] ?? 1);
+        actor.gain('mana', sealCost * share);
+      }
     }
-    if (spellId === 'holy-strike') {
-      actor.startCooldown(spellId, now, HOLY_STRIKE.cooldown - (mods.flags.holyStrikeCooldownOff ?? 0));
-    }
+    if (spellId === HOLY_STRIKE_SPELL_ID) actor.startCooldown(spellId, now, HOLY_STRIKE.cooldown);
   },
 
   onLand: ({ outcome, actor, now, mods }) => {
@@ -127,8 +145,9 @@ export const paladinRetribution: SpecModule = {
    * Seal of Command on anything that lands, and Vengeance on anything that
    * crits. The seal's damage is seventy per cent of a normal swing of the
    * weapon, attack power included, dealt as Holy so armor does not touch it.
+   * Holy Strike's Holy part rides on the strike the same way.
    */
-  onSwing: ({ outcome, weapon, actor, now, rng, mods, procDamage }) => {
+  onSwing: ({ spellId, outcome, weapon, actor, now, rng, mods, procDamage }) => {
     if (outcome === 'crit' && (mods.flags.vengeance ?? 0) > 0) {
       actor.auras.apply(PALADIN_AURAS.vengeance, now, {
         duration: VENGEANCE.duration, maxStacks: VENGEANCE.stacks,
@@ -136,6 +155,10 @@ export const paladinRetribution: SpecModule = {
     }
 
     const connected = outcome !== 'miss' && outcome !== 'dodge' && outcome !== 'parry';
+    if (connected && spellId === HOLY_STRIKE_SPELL_ID) {
+      const holy = rng.between(HOLY_STRIKE.holyMin, HOLY_STRIKE.holyMax);
+      procDamage(HOLY_STRIKE_HOLY_ID, holy * (mods.damage[HOLY_STRIKE_SPELL_ID] ?? 1), 'holy');
+    }
     if (!connected || !actor.auras.has(PALADIN_AURAS.seal, now)) return;
 
     const chance = (SEAL_OF_COMMAND.ppm * weapon.speed) / 60;
@@ -149,7 +172,8 @@ export const paladinRetribution: SpecModule = {
     status: 'unverified',
     note:
       'Forever rebuilt the paladin, so the talents here are read from its own text and the ' +
-      'abilities from the class notes where they speak. The rest are Classic values.',
+      'abilities from the beta client at build 1.60.1.70009. How often Seal of Command fires ' +
+      'is still the Classic rate.',
   },
 
   unmodelledTalents: {
@@ -160,9 +184,7 @@ export const paladinRetribution: SpecModule = {
     'Champion of the Light':
       'the spell damage it gives is already on your sheet, but new intellect from a gear change is not turned into more of it.',
     Vindication: 'the tree says "a chance" without saying what the chance is.',
-    'Sanctified Judgement': 'it returns mana to a seal whose Forever cost is not known.',
     'Consecrated Ground': 'it depends on where enemies walk, and the boss stands still.',
-    'Twist of Light': 'it rewards swapping seals, and the rotation keeps one seal up.',
     'Swift Judgement': 'it is a button that finishes a cooldown, and no rotation here holds it.',
     Deflection: 'a parry chance, which does nothing to damage.',
     'Pursuit of Justice': 'movement speed does nothing standing still.',
@@ -191,12 +213,14 @@ export const paladinRetribution: SpecModule = {
     Reckoning: 'it needs you to block or be critically struck.',
   },
 
+  partlyModelledTalents: {
+    'Twist of Light': 'the cheaper seal is counted; the Echo is not, because the rotation keeps one seal up.',
+  },
+
   notes: [
     'Seal of Command fires seven times a minute, which is the Classic rate: the tree does not say ' +
       'how often it fires in Forever.',
-    'Holy Strike counts only its weapon damage. How much Holy it adds at level sixty is not given.',
-    'Judgement of Command uses the damage the tree shows, which is the rank the talent teaches, ' +
-      'so it understates a level sixty paladin.',
+    "Holy Strike's Holy part rolls its own critical strike, apart from the weapon part.",
     'The simulated paladin never hesitates between globals, which is worth a few per cent more ' +
       'than anyone actually manages.',
   ],

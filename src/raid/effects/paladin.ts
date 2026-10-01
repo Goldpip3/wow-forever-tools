@@ -34,7 +34,7 @@ export const PALADIN_EFFECTS: Effect[] = [
     providers: [{ classId: "paladin", specs: ANY, choice: AURA }],
     forever: {
       status: "changed",
-      note: "Improved Retribution Aura was cut from the Retribution tree.",
+      note: "30 Holy damage to each attacker at rank 5, up from 20 in Classic. Improved Retribution Aura was cut from the Retribution tree.",
     },
   },
   {
@@ -50,6 +50,9 @@ export const PALADIN_EFFECTS: Effect[] = [
       note: "Improved Concentration Aura was cut from the Protection tree.",
     },
   },
+  /* The resistance auras reach the raid at build 1.60.1.70009, but they stay "party"
+     here: as raid scope, spreadChoices would move a second Paladin off Devotion Aura
+     onto one of them. That needs spreadChoices to leave a party-scope pick alone first. */
   {
     id: "fire-resistance-aura",
     name: "Fire Resistance Aura",
@@ -58,7 +61,10 @@ export const PALADIN_EFFECTS: Effect[] = [
     scope: "party",
     categories: ["fire-resist"],
     providers: [{ classId: "paladin", specs: ANY, choice: AURA }],
-    forever: { status: "same" },
+    forever: {
+      status: "changed",
+      note: "Same 60 Fire resistance, but it now reaches party and raid members within 30 yards, not just the party.",
+    },
   },
   {
     id: "frost-resistance-aura",
@@ -68,7 +74,10 @@ export const PALADIN_EFFECTS: Effect[] = [
     scope: "party",
     categories: ["frost-resist"],
     providers: [{ classId: "paladin", specs: ANY, choice: AURA }],
-    forever: { status: "same" },
+    forever: {
+      status: "changed",
+      note: "Same 60 Frost resistance, but it now reaches party and raid members within 30 yards, not just the party.",
+    },
   },
   {
     id: "shadow-resistance-aura",
@@ -78,7 +87,10 @@ export const PALADIN_EFFECTS: Effect[] = [
     scope: "party",
     categories: ["shadow-resist"],
     providers: [{ classId: "paladin", specs: ANY, choice: AURA }],
-    forever: { status: "same" },
+    forever: {
+      status: "changed",
+      note: "Same 60 Shadow resistance, but it now reaches party and raid members within 30 yards, not just the party.",
+    },
   },
   {
     id: "sanctity-aura",
@@ -90,7 +102,7 @@ export const PALADIN_EFFECTS: Effect[] = [
     providers: [{ classId: "paladin", specs: [RET], choice: AURA }],
     forever: {
       status: "removed",
-      note: "The talent is gone from the Retribution tree and it was not in the demo spellbook. Treat it as cut until the beta confirms otherwise.",
+      note: "The talent is gone from the Retribution tree, and it is not in the level 60 spellbook at build 1.60.1.70009.",
     },
   },
 
@@ -118,7 +130,7 @@ export const PALADIN_EFFECTS: Effect[] = [
     providers: [{ classId: "paladin", specs: ANY, choice: BLESSING }],
     forever: {
       status: "changed",
-      note: "Improved Blessing of Might was cut from the Retribution tree.",
+      note: "133 melee attack power for 1 hour at rank 7, down from 185 for 5 min in Classic. Improved Blessing of Might was cut from the Retribution tree.",
     },
   },
   {
@@ -131,7 +143,7 @@ export const PALADIN_EFFECTS: Effect[] = [
     providers: [{ classId: "paladin", specs: ANY, choice: BLESSING }],
     forever: {
       status: "changed",
-      note: "Improved Blessing of Wisdom was cut from the Holy tree.",
+      note: "40 mana every 5 sec for 1 hour at rank 6, up from 33 for 5 min in Classic. Improved Blessing of Wisdom was cut from the Holy tree.",
     },
   },
   {
@@ -143,8 +155,8 @@ export const PALADIN_EFFECTS: Effect[] = [
     categories: ["reduced-threat"],
     providers: [{ classId: "paladin", specs: ANY, choice: BLESSING }],
     forever: {
-      status: "unverified",
-      note: "Confirmed in the beta client: 30% less threat for 1 hour. There is no Classic tooltip in this repo to compare it against, so whether it differs is still open.",
+      status: "changed",
+      note: "Same 30% less threat, but it lasts 1 hour rather than 5 min.",
     },
   },
   {
@@ -156,8 +168,8 @@ export const PALADIN_EFFECTS: Effect[] = [
     categories: ["reduced-damage-taken", "holy-damage"],
     providers: [{ classId: "paladin", specs: ANY, choice: BLESSING }],
     forever: {
-      status: "unverified",
-      note: "Not in the beta client spellbook at build 1.60.1.69876, and the Protection talent is gone. Trainable later or cut; still open.",
+      status: "removed",
+      note: "The Protection talent is gone, and it is not in the level 60 spellbook at build 1.60.1.70009.",
     },
   },
   {
@@ -286,8 +298,8 @@ export const PALADIN_EFFECTS: Effect[] = [
     categories: ["mana-regen"],
     providers: [{ classId: "paladin", specs: ANY }],
     forever: {
-      status: "unverified",
-      note: "Not in the beta client spellbook at build 1.60.1.69876. Judgement itself changed a lot, so whether the Wisdom debuff survived is still open.",
+      status: "changed",
+      note: "Judging Seal of Wisdom still gives attacks and spells on the target a chance to restore 59 mana, but it lasts 40 sec rather than 10.",
     },
   },
   {
@@ -299,8 +311,21 @@ export const PALADIN_EFFECTS: Effect[] = [
     categories: ["misc-utility"],
     providers: [{ classId: "paladin", specs: ANY }],
     forever: {
-      status: "unverified",
-      note: "Not in the beta client spellbook at build 1.60.1.69876. Same caveat as Judgement of Wisdom.",
+      status: "changed",
+      note: "Judging Seal of Light still gives melee attacks on the target a chance to heal the attacker for 61, but it lasts 40 sec rather than 10.",
+    },
+  },
+  {
+    id: "judgement-of-the-crusader",
+    name: "Judgement of the Crusader",
+    icon: "spell_holy_holysmite",
+    kind: "debuff",
+    scope: "target",
+    categories: ["holy-damage"],
+    providers: [{ classId: "paladin", specs: ANY }],
+    forever: {
+      status: "changed",
+      note: "Judging Seal of the Crusader raises Holy damage taken by up to 161 for 40 sec. Classic gave 140 for 10 sec.",
     },
   },
   {

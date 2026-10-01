@@ -2,18 +2,17 @@
  * Warrior abilities and the talents that change them.
  *
  * Forever's warrior trees are not Classic's. Bloodthirst deals thirty-five per
- * cent of attack power plus thirty where Classic's dealt forty-five per cent,
- * Unbridled Wrath pays out at twelve per cent a rank rather than eight, Flurry
- * gives five per cent a rank rather than ten, and there are talents Classic
- * never had at all. Every hook below is keyed by the name in
+ * cent of attack power plus forty-eight at rank 4 where Classic's dealt
+ * forty-five per cent, Unbridled Wrath pays out at twelve per cent a rank rather
+ * than eight, Flurry gives five per cent a rank rather than ten, and there are
+ * talents Classic never had at all. Every hook below is keyed by the name in
  * public/data/talents.generated.json and cites the description it was read
  * from, because a Classic name would silently never fire.
  *
- * Where a talent's own text is the whole story the status is 'changed', because
- * the tree confirmed it. Where the data showed only the first rank and the rest
- * had to be scaled from it, the status says 'unverified' and the note names the
- * rank that was actually seen. The abilities the tree says nothing about are
- * their Classic level-sixty values, carried over the same way Frostbolt was.
+ * Damage, cost, cast time and cooldown are the highest rank in the level-sixty
+ * spellbook of the beta client, build 1.60.1.70009. 'same' means the game's
+ * text matches Classic and 'changed' means it does not. No tooltip gives a
+ * coefficient, so none here comes from the game.
  */
 
 import type { AbilityDef, SpellMods, TalentHook } from '../sim/spells';
@@ -31,8 +30,6 @@ export const ENRAGE = { duration: 12, perRank: 0.02, chance: 0.3 };
 export const DEEP_WOUNDS = { ticks: 4, interval: 3, sharePerRank: 0.2 };
 
 const changed = (note: string) => ({ status: 'changed' as const, note });
-const classic = (note?: string) =>
-  (note ? { status: 'unverified' as const, note } : { status: 'unverified' as const });
 
 /* -------------------------------------------------------------- abilities */
 
@@ -56,7 +53,10 @@ export const HEROIC_STRIKE: AbilityDef = {
   coefficient: 0,
   onNextSwing: true,
   weapon: { hand: 'main', multiplier: 1, flat: 157, normalised: false },
-  forever: classic('Rank 9 at the Classic 157 damage. The tree only speaks about its rage cost.'),
+  forever: {
+    status: 'same',
+    note: 'Rank 9, learned at level 60 in build 1.60.1.70009: melee damage plus 157 for 15 Rage, as in Classic.',
+  },
 };
 
 export const CLEAVE: AbilityDef = {
@@ -75,13 +75,19 @@ export const CLEAVE: AbilityDef = {
   onNextSwing: true,
   aoe: { maxTargets: 2 },
   weapon: { hand: 'main', multiplier: 1, flat: 50, normalised: false },
-  forever: classic('Rank 5 at the Classic 50 damage. The tree only speaks about its rage cost.'),
+  forever: {
+    status: 'same',
+    note:
+      'Rank 5, learned at level 60 in build 1.60.1.70009: weapon damage plus 50 to the target ' +
+      'and a second nearby enemy, for 20 Rage, as in Classic.',
+  },
 };
 
 /**
- * Bloodthirst is one of the places Forever moved: the tree says thirty-five per
- * cent of attack power plus thirty, where Classic read forty-five per cent and
- * healed you. It is a single-rank talent, so this is the whole of it.
+ * Bloodthirst is one of the places Forever moved: thirty-five per cent of
+ * attack power plus a flat amount, where Classic read forty-five per cent and
+ * healed you. The talent grants rank 1 (plus thirty); the level-sixty
+ * spellbook has rank 4 (plus forty-eight).
  */
 export const BLOODTHIRST: AbilityDef = {
   id: 'bloodthirst',
@@ -97,17 +103,17 @@ export const BLOODTHIRST: AbilityDef = {
   maxDamage: 0,
   coefficient: 0,
   apCoefficient: 0.35,
-  weapon: { hand: 'main', multiplier: 0, flat: 30, normalised: true },
+  weapon: { hand: 'main', multiplier: 0, flat: 48, normalised: true },
   forever: changed(
-    'Thirty-five per cent of attack power plus thirty, which is what the Fury tree says. ' +
-      'Classic dealt forty-five per cent and restored health.',
+    'Rank 4, learned at level 60 in build 1.60.1.70009: thirty-five per cent of attack power ' +
+      'plus forty-eight. Classic dealt forty-five per cent and restored health. The ten per ' +
+      'cent movement speed it gives now does nothing here.',
   ),
 };
 
 /**
- * Mortal Strike's tooltip in the tree reads weapon damage plus eighty-five,
- * which is the rank the talent itself grants. Higher ranks come from a trainer
- * and Forever has published none of them, so this is the low end of it.
+ * The talent grants rank 1 (weapon damage plus eighty-five). The level-sixty
+ * spellbook has rank 4 (plus one hundred and sixty).
  */
 export const MORTAL_STRIKE: AbilityDef = {
   id: 'mortal-strike',
@@ -122,11 +128,11 @@ export const MORTAL_STRIKE: AbilityDef = {
   minDamage: 0,
   maxDamage: 0,
   coefficient: 0,
-  weapon: { hand: 'main', multiplier: 1, flat: 85, normalised: true },
-  forever: changed(
-    'Weapon damage plus eighty-five, which is the rank the talent grants. Forever has ' +
-      'published no higher rank, so this understates a level sixty warrior.',
-  ),
+  weapon: { hand: 'main', multiplier: 1, flat: 160, normalised: true },
+  forever: {
+    status: 'same',
+    note: 'Rank 4, learned at level 60 in build 1.60.1.70009: weapon damage plus 160, as in Classic.',
+  },
 };
 
 export const WHIRLWIND: AbilityDef = {
@@ -144,7 +150,10 @@ export const WHIRLWIND: AbilityDef = {
   coefficient: 0,
   aoe: { maxTargets: 4 },
   weapon: { hand: 'main', multiplier: 1, flat: 0, normalised: true },
-  forever: classic('A full normalised swing at up to four things, the Classic behaviour.'),
+  forever: {
+    status: 'same',
+    note: 'Weapon damage to up to 4 enemies within 8 yards, on a 10 sec cooldown, as in Classic.',
+  },
 };
 
 export const EXECUTE: AbilityDef = {
@@ -161,10 +170,12 @@ export const EXECUTE: AbilityDef = {
   coefficient: 0,
   execute: { belowPct: 0.2 },
   weapon: { hand: 'main', multiplier: 0, flat: 600, normalised: false },
-  forever: classic(
-    'Rank 7 at the Classic six hundred damage. Classic also turned every point of rage above ' +
-      'fifteen into more damage, which is not modelled, so this understates it.',
-  ),
+  forever: {
+    status: 'same',
+    note:
+      'Rank 5, learned at level 56 in build 1.60.1.70009: six hundred damage, and fifteen more ' +
+      'for each extra point of rage. The extra rage is not modelled, so this understates it.',
+  },
 };
 
 export const SLAM: AbilityDef = {
@@ -176,11 +187,15 @@ export const SLAM: AbilityDef = {
   resource: 'rage',
   castTime: 1.5,
   cost: 15,
+  cooldown: 18,
   minDamage: 0,
   maxDamage: 0,
   coefficient: 0,
   weapon: { hand: 'main', multiplier: 1, flat: 87, normalised: false },
-  forever: classic('Rank 6 at the Classic eighty-seven damage.'),
+  forever: changed(
+    'Rank 5, learned at level 54 in build 1.60.1.70009: weapon damage plus eighty-seven, a ' +
+      '1.5 sec cast, and an 18 sec cooldown Classic did not have. No rotation here presses it.',
+  ),
 };
 
 export const OVERPOWER: AbilityDef = {
@@ -197,10 +212,13 @@ export const OVERPOWER: AbilityDef = {
   maxDamage: 0,
   coefficient: 0,
   weapon: { hand: 'main', multiplier: 1, flat: 35, normalised: false },
-  forever: classic(
-    'Rank 4 at the Classic thirty-five damage. It can only be used after the target dodged, ' +
-      'which no rotation here waits for.',
-  ),
+  forever: {
+    status: 'same',
+    note:
+      'Rank 4, learned at level 60 in build 1.60.1.70009: weapon damage plus thirty-five. It ' +
+      'can only be used after the target dodges or Bloodthrill procs, and no rotation here ' +
+      'waits for either.',
+  },
 };
 
 /**
@@ -222,8 +240,8 @@ export const BERSERKER_RAGE_SPELL: AbilityDef = {
   maxDamage: 0,
   coefficient: 0,
   forever: changed(
-    'Five rage a rank from Improved Berserker Rage, which is what the Fury tree says. ' +
-      'Without that talent it earns nothing and the rotation skips it.',
+    'Five rage a rank from Improved Berserker Rage, which is what the Fury tree says. Its own ' +
+      'extra rage from taking damage is not modelled, so without the talent the rotation skips it.',
   ),
 };
 
@@ -242,10 +260,12 @@ export const BLOODRAGE_SPELL: AbilityDef = {
   maxDamage: 0,
   coefficient: 0,
   restoresResource: BLOODRAGE.instant,
-  forever: classic(
-    'Ten rage at once and ten more over ten seconds. The trickle is handed over in full at ' +
-      'the press, which is worth a little more than waiting for it.',
-  ),
+  forever: {
+    status: 'same',
+    note:
+      'Ten rage at once and ten more over ten seconds, on a 1 min cooldown. The trickle is ' +
+      'handed over in full at the press, which is worth a little more than waiting for it.',
+  },
 };
 
 export const DEATH_WISH_SPELL: AbilityDef = {
@@ -262,8 +282,8 @@ export const DEATH_WISH_SPELL: AbilityDef = {
   maxDamage: 0,
   coefficient: 0,
   forever: changed(
-    'A fifth more physical damage for thirty seconds, and five per cent more damage taken. ' +
-      'The cooldown is the Classic three minutes; the tree does not give one.',
+    'A fifth more physical damage for thirty seconds, and five per cent more damage taken, ' +
+      'on a 3 min cooldown. Classic lowered your armor and resistances instead.',
   ),
 };
 
@@ -280,9 +300,9 @@ export const RECKLESSNESS_SPELL: AbilityDef = {
   minDamage: 0,
   maxDamage: 0,
   coefficient: 0,
-  forever: classic(
-    'Every strike a critical one for fifteen seconds, on a thirty minute cooldown, which is ' +
-      'the Classic version. That means once a fight and never again.',
+  forever: changed(
+    'One hundred per cent more critical strike chance for fifteen seconds, on a 30 min ' +
+      'cooldown, which is what build 1.60.1.70009 says. That means once a fight and never again.',
   ),
 };
 
@@ -357,6 +377,9 @@ export const WARRIOR_TALENT_HOOKS: Record<string, TalentHook> = {
   },
 
   // 'Reduces the global cooldown and cast time of your Slam ability by 0.25 sec.'
+  // The rest of it (no swing delay, a shorter cooldown) is not modelled; no
+  // rotation here presses Slam.
+
   'Improved Slam': (rank, mods) => {
     mods.castTime[SLAM.id] = (mods.castTime[SLAM.id] ?? 0) - 0.25 * rank;
   },
@@ -380,7 +403,7 @@ export const WARRIOR_TALENT_HOOKS: Record<string, TalentHook> = {
     mods.meleeCrit += rank;
   },
 
-  // 'Increases your chance to hit with all abilities and attacks by 1%.'
+  // 'Improves your chance to hit by 1%.'
   Precision: (rank, mods) => {
     mods.meleeHit += rank;
   },
@@ -388,7 +411,7 @@ export const WARRIOR_TALENT_HOOKS: Record<string, TalentHook> = {
   /**
    * 'Gives you a 12% chance to generate 1 additional Rage when you deal melee
    * damage with a weapon. This effect is increased to 2 Rage for two-handed
-   * weapons.' Twelve per cent at the first rank was all the data showed.
+   * weapons.' Sixty per cent at rank 5.
    */
   'Unbridled Wrath': (rank, mods) => {
     mods.flags[WARRIOR_FLAGS.unbridledChance] = 0.12 * rank;
@@ -403,7 +426,7 @@ export const WARRIOR_TALENT_HOOKS: Record<string, TalentHook> = {
   },
 
   // 'Increases your melee attack speed by 5% for your next 3 swings after
-  // dealing a melee critical strike.' Five per cent a rank was the first rank.
+  // dealing a melee critical strike.' Twenty-five per cent at rank 5.
   Flurry: (rank, mods) => {
     mods.flags[WARRIOR_FLAGS.flurryRank] = rank;
   },

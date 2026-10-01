@@ -133,7 +133,7 @@ export const rogueCombat: SpecModule = {
     return factor;
   },
 
-  /** Puncturing Wounds only speaks about Backstab. */
+  /** Puncturing Wounds on Backstab. Its Mutilate half has nothing to act on here. */
   critBonusFor: ({ spellId, mods }) =>
     (spellId === 'backstab' ? mods.flags[ROGUE_FLAGS.backstabCrit] ?? 0 : 0),
 
@@ -170,13 +170,19 @@ export const rogueCombat: SpecModule = {
   },
 
   /**
-   * Hack and Slash with a sword or an axe swings again on a chance, and Seal
-   * Fate hands a point back for a critical strike that earned one.
+   * Hack and Slash with a sword or an axe swings again on a chance, Puncturing
+   * Wounds gives a Backstab a chance at a second point, and Seal Fate hands a
+   * point back for a critical strike that earned one.
    */
   onSwing: ({ spellId, outcome, actor, rng, mods, extraAttack }): void => {
     const connected = outcome !== 'miss' && outcome !== 'dodge' && outcome !== 'parry';
     const sword = mods.flags.hackAndSlashSword ?? 0;
     if (connected && sword > 0 && rng.chance(sword)) extraAttack();
+
+    const punctured = mods.flags[ROGUE_FLAGS.backstabComboChance] ?? 0;
+    if (connected && spellId === 'backstab' && punctured > 0 && rng.chance(Math.min(1, punctured))) {
+      actor.addCombo(1, K.COMBO_POINT_MAX.value);
+    }
 
     if (outcome !== 'crit') return;
     if (spellId !== 'sinister-strike' && spellId !== 'backstab') return;
@@ -197,8 +203,9 @@ export const rogueCombat: SpecModule = {
   forever: {
     status: 'unverified',
     note:
-      'Forever moved the rogue trees, so the talents here are read from its own text. The ' +
-      'abilities the trees say nothing about are still Classic values.',
+      'Forever moved the rogue trees, so the talents here are read from its own text. Ability ' +
+      'damage, costs and cooldowns are the level 60 spellbook of build 1.60.1.70009.',
+
   },
 
   unmodelledTalents: {

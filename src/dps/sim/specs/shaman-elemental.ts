@@ -57,15 +57,14 @@ export const shamanElemental: SpecModule = {
     status: 'unverified',
     note:
       'Forever rebuilt the Elemental tree, so the talents here are read from its own text. The ' +
-      'spells it says nothing about are still Classic values, apart from the faster casts the ' +
-      'class notes give.',
+      'spells are the beta client\'s level sixty ranks at build 1.60.1.70009.',
   },
 
   unmodelledTalents: SHAMAN_UNMODELLED,
 
   notes: [
-    'Lava Burst\'s damage is what the tree shows, which is its first rank. Its cast time, cooldown ' +
-      'and cost are not given anywhere and are assumed.',
+    'Lava Burst is Rank 3, the one learned at 60, with the cast time, cooldown and cost its ' +
+      'tooltip gives.',
     'Chain Lightning is cast on cooldown against a single target. Against more than one, each ' +
       'jump keeps seventy per cent of the last, which is what the class notes say.',
     'The simulated shaman never hesitates between casts, which is worth a few per cent more than ' +

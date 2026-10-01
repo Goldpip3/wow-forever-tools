@@ -140,7 +140,8 @@ describe('the demon choice', () => {
       return t.damage / t.hits;
     };
     expect(per(gone)).toBeCloseTo(per(base), 6);
-    expect(per(out) - per(base)).toBeCloseTo(60 * 0.99 * SHADOW_BOLT.coefficient, 6);
+    // Three ranks is 100% of level 60 in spell damage; the tree rounds the ranks to 33, 67, 100.
+    expect(per(out) - per(base)).toBeCloseTo(60 * SHADOW_BOLT.coefficient, 6);
   });
 });
 

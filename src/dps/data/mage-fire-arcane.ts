@@ -10,9 +10,9 @@
  * Forever's Fire and Arcane trees are new in most places. Hot Streak shortens
  * Pyroblast rather than making it free, Arcane Blast raises every other spell
  * rather than itself, and Missile Barrage is a talent of its own. Every hook
- * cites the description it was read from. Spells the trees give a number for
- * give the rank the talent teaches, which is not what a level sixty mage casts,
- * so the Classic level-sixty rank is used and the note says so.
+ * cites the description it was read from. Spell numbers are the highest rank
+ * a level sixty mage learns, as the beta client gives it at build 1.60.1.70009,
+ * not the rank a talent teaches.
  */
 
 import type { School } from '../export-format';
@@ -24,7 +24,7 @@ import { EVOCATION_SPELL, MANA_GEM, MANA_POTION } from './mage';
 
 export const FIRE_BLAST_COOLDOWN = 8;
 export const IMPROVED_SCORCH = { perStack: 0.03, stacks: 5, duration: 30 };
-export const HOT_STREAK = { perStack: 0.25, stacks: 3, duration: 15 };
+export const HOT_STREAK = { perStack: 0.25, stacks: 3, duration: 20 };
 export const COMBUSTION = { perHit: 10, crits: 4, cooldown: 180 };
 export const IGNITE = { ticks: 2, interval: 2 };
 export const ARCANE_BLAST = { perStack: 0.1, costPerStack: 1.75, stacks: 4, duration: 8 };
@@ -32,7 +32,8 @@ export const MISSILE_BARRAGE = { fromBlast: 0.4, fromBolts: 0.2, duration: 15, s
 export const ARCANE_POWER = { damage: 0.3, cost: 0.3, duration: 15, cooldown: 180 };
 export const PRESENCE_OF_MIND = { cooldown: 180 };
 
-const classic = (note: string) => ({ status: 'unverified' as const, note });
+const same = (note: string) => ({ status: 'same' as const, note });
+const changed = (note: string) => ({ status: 'changed' as const, note });
 
 /* ------------------------------------------------------------------ Fire */
 
@@ -43,11 +44,14 @@ export const FIREBALL: SpellDef = {
   school: 'fire',
   castTime: 3.5,
   cost: 410,
-  minDamage: 596,
-  maxDamage: 760,
+  minDamage: 425,
+  maxDamage: 541,
   coefficient: 1,
-  dot: { ticks: 4, interval: 2, damage: 76, coefficient: 0 },
-  forever: classic('Rank 12 at the Classic values, burning a little more over eight seconds.'),
+  dot: { ticks: 4, interval: 2, damage: 60, coefficient: 0 },
+  forever: changed(
+    'Rank 12 in the beta client at build 1.60.1.70009: 425 to 541 and 60 more over 8 sec, with ' +
+      'all of spell power on the hit. Classic was 596 to 760 and 76.',
+  ),
 };
 
 export const SCORCH: SpellDef = {
@@ -57,10 +61,13 @@ export const SCORCH: SpellDef = {
   school: 'fire',
   castTime: 1.5,
   cost: 150,
-  minDamage: 237,
-  maxDamage: 280,
-  coefficient: 0.4286,
-  forever: classic('Rank 7 at the Classic values.'),
+  minDamage: 166,
+  maxDamage: 196,
+  coefficient: 0.429,
+  forever: changed(
+    'Rank 7 in the beta client at build 1.60.1.70009: 166 to 196, with 42.9% of spell power. ' +
+      'Classic was 237 to 279.',
+  ),
 };
 
 export const FIRE_BLAST: SpellDef = {
@@ -70,10 +77,13 @@ export const FIRE_BLAST: SpellDef = {
   school: 'fire',
   castTime: 0,
   cost: 340,
-  minDamage: 446,
-  maxDamage: 524,
-  coefficient: 0.4286,
-  forever: classic('Rank 7 at the Classic values, on an eight second cooldown.'),
+  minDamage: 417,
+  maxDamage: 489,
+  coefficient: 0.429,
+  forever: changed(
+    'Rank 7 in the beta client at build 1.60.1.70009: 417 to 489 on an 8 sec cooldown, with ' +
+      '42.9% of spell power. Classic was 446 to 524.',
+  ),
 };
 
 export const PYROBLAST: SpellDef = {
@@ -83,13 +93,13 @@ export const PYROBLAST: SpellDef = {
   school: 'fire',
   castTime: 6,
   cost: 440,
-  minDamage: 716,
-  maxDamage: 890,
+  minDamage: 520,
+  maxDamage: 646,
   coefficient: 1,
-  dot: { ticks: 4, interval: 3, damage: 268, coefficient: 0 },
-  forever: classic(
-    'The Fire tree gives 155 to 185, which is the rank the talent teaches. A level sixty mage ' +
-      'casts Rank 8, which is taken at the Classic values.',
+  dot: { ticks: 4, interval: 3, damage: 212, coefficient: 0.6 },
+  forever: changed(
+    'Rank 8 in the beta client at build 1.60.1.70009: 520 to 646 and 212 more over 12 sec, with ' +
+      'all of spell power on the hit and 15% a tick. Classic was 716 to 890 and 268.',
   ),
 };
 
@@ -101,13 +111,13 @@ export const BLAST_WAVE: SpellDef = {
   castTime: 0,
   cost: 545,
   cooldown: 45,
-  minDamage: 462,
-  maxDamage: 545,
-  coefficient: 0.1357,
+  minDamage: 453,
+  maxDamage: 533,
+  coefficient: 0.129,
   aoe: { maxTargets: 10 },
-  forever: classic(
-    'The Fire tree gives 160 to 191, which is the rank the talent teaches. Rank 5 is taken at ' +
-      'the Classic values.',
+  forever: changed(
+    'Rank 5 in the beta client at build 1.60.1.70009: 453 to 533 on a 45 sec cooldown, with ' +
+      '12.9% of spell power.',
   ),
 };
 
@@ -127,8 +137,8 @@ export const COMBUSTION_SPELL: SpellDef = {
   forever: {
     status: 'changed',
     note:
-      'Ten per cent more critical strike chance for each Fire hit until four critical strikes, ' +
-      'from the Fire tree. Classic stopped at three. The three minute cooldown is Classic.',
+      'Ten per cent more critical strike chance for each Fire hit until four critical strikes, on ' +
+      'a 3 min cooldown, in the beta client at build 1.60.1.70009. Classic stopped at three.',
   },
 };
 
@@ -141,11 +151,14 @@ export const ARCANE_MISSILES: SpellDef = {
   school: 'arcane',
   castTime: 5,
   cost: 655,
-  minDamage: 1150,
-  maxDamage: 1150,
-  coefficient: 1.4286,
+  minDamage: 1045,
+  maxDamage: 1045,
+  coefficient: 1.43,
   channel: { ticks: 5, interval: 1 },
-  forever: classic('Rank 8 at the Classic values: five missiles of 230 over five seconds.'),
+  forever: changed(
+    'Rank 8 in the beta client at build 1.60.1.70009: five missiles of 209 over 5 sec, each with ' +
+      '28.6% of spell power. Classic was 230 a missile at 24%.',
+  ),
 };
 
 export const ARCANE_BLAST_SPELL: SpellDef = {
@@ -154,16 +167,16 @@ export const ARCANE_BLAST_SPELL: SpellDef = {
   icon: 'spell_arcane_blast',
   school: 'arcane',
   castTime: 2.5,
-  cost: 195,
-  minDamage: 95,
-  maxDamage: 104,
-  coefficient: 0.7143,
+  cost: 182,
+  minDamage: 364,
+  maxDamage: 424,
+  coefficient: 0.714,
   forever: {
     status: 'new',
     note:
-      '95 to 104, and ten per cent more on every other spell for each stack, from the Arcane ' +
-      'tree. That is the rank the talent teaches, and no higher rank is known. The cast time ' +
-      'and cost are not given; two and a half seconds and 195 mana are assumed.',
+      'Rank 5 in the beta client at build 1.60.1.70009: 364 to 424 in 2.5 sec, with 71.4% of ' +
+      'spell power, and ten per cent more on every other spell for each stack. It costs 15% of ' +
+      'base mana, taken as 182 from the 1,213 base mana this site assumes for a level 60 mage.',
   },
 };
 
@@ -180,7 +193,10 @@ export const ARCANE_POWER_SPELL: SpellDef = {
   minDamage: 0,
   maxDamage: 0,
   coefficient: 0,
-  forever: classic('Thirty per cent more damage and thirty per cent more mana for fifteen seconds, from the tree. The three minute cooldown is Classic.'),
+  forever: same(
+    'Thirty per cent more damage and thirty per cent more mana for 15 sec on a 3 min cooldown, ' +
+      'as the beta client gives it at build 1.60.1.70009.',
+  ),
 };
 
 export const PRESENCE_OF_MIND_SPELL: SpellDef = {
@@ -196,7 +212,10 @@ export const PRESENCE_OF_MIND_SPELL: SpellDef = {
   minDamage: 0,
   maxDamage: 0,
   coefficient: 0,
-  forever: classic('The next spell with a cast time is instant. The three minute cooldown is Classic.'),
+  forever: same(
+    'The next Mage spell with a cast time under 10 sec is instant, on a 3 min cooldown, as the ' +
+      'beta client gives it at build 1.60.1.70009.',
+  ),
 };
 
 export const FIRE_SPELLS: SpellDef[] = [
@@ -282,7 +301,8 @@ const SHARED_HOOKS: Record<string, TalentHook> = {
 export const FIRE_TALENT_HOOKS: Record<string, TalentHook> = {
   ...SHARED_HOOKS,
 
-  // 'Reduces the cooldown of your Fire Blast spell by 1 sec.'
+  // 'Reduces the cooldown of your Fire Blast spell by 1 sec.' The crit after a
+  // kill does nothing against one boss.
   'Wake of Fire': (rank, mods) => {
     mods.flags.fireBlastCooldownOff = rank;
   },

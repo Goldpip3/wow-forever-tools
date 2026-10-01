@@ -283,11 +283,10 @@ function mageSpec(parts: MageParts): SpecModule {
     extraNames: { [IGNITE_ID]: 'Ignite' },
 
     forever: {
-      status: 'unverified',
+      status: 'changed',
       note:
         'Forever rebuilt the Fire and Arcane trees, so the talents here are read from their own ' +
-        'text. The spells are Classic level-sixty ranks, because the trees only show the rank a ' +
-        'talent teaches.',
+        'text. The spells are the level sixty ranks the beta client gives at build 1.60.1.70009.',
     },
 
     unmodelledTalents: parts.unmodelled,
@@ -320,7 +319,7 @@ const NEITHER: Record<string, string> = {
   Frostbite: 'a boss cannot be frozen.',
   'Piercing Ice': 'no Frost spell is in this rotation.',
   'Frost Channeling': 'no Frost spell is in this rotation.',
-  'Ice Lance': 'only its first rank is known, so no rotation casts it.',
+  'Ice Lance': 'no rotation here casts it.',
   'Improved Blizzard': 'Blizzard is not in any rotation.',
   'Arctic Reach': 'range does nothing to damage.',
   'Ice Block': 'it stops you casting.',
@@ -445,10 +444,9 @@ export const mageArcane: SpecModule = mageSpec({
     'Arcane Mind': 'its Arcane critical bonus is modelled; the intellect is on your sheet already, and new intellect is not scaled by it.',
   },
   notes: [
-    'Arcane Blast is not in the rotation. At the one rank known it hits for about a hundred, ' +
-      'and with what it adds to Arcane Missiles and the Missile Barrage it sets off, it comes out ' +
-      'about even with casting Missiles alone. It can be added in the rotation editor, where its ' +
-      'stacks, rising cost and Missile Barrage chance all count.',
+    'Arcane Blast is not in the rotation. Rank 5 hits for 364 to 424 at build 1.60.1.70009, and ' +
+      'whether its stacks pay for their rising cost has not been worked out here. It can be added ' +
+      'in the rotation editor, where its stacks, rising cost and Missile Barrage chance all count.',
     'Arcane Missiles lands all five missiles when the channel ends rather than one a second.',
     ...COMMON_NOTES,
   ],

@@ -2,16 +2,19 @@
  * Druid abilities and the talents that change them, for Feral in Cat Form and,
  * further down, for Balance.
  *
- * Forever's Feral tree is its own. Mangle is a Cat Form strike for the whole
- * weapon plus twenty-six, Berserk takes its cooldown away, Rend and Tear rewards
- * a bleeding target, and King of the Jungle hands energy back through Tiger's
- * Fury. Every hook below is keyed by the name in
+ * Forever's Feral tree is its own. Berserk makes every combo point strike a
+ * critical one, Blood Frenzy hands a point back on a critical strike, Rend and
+ * Tear rewards a bleeding target, and King of the Jungle hands energy back
+ * through Tiger's Fury. Primal Bite, the talent that took Mangle's place, needs
+ * Bear Form, so a cat never presses it. Every hook below is keyed by the name in
  * public/data/talents.generated.json and cites the description it was read
  * from.
  *
- * The trees say nothing about Claw, Shred, Rake, Rip or Ferocious Bite
- * themselves, so those are their Classic level-sixty values and say so. So are
- * the paws: what a cat hits for before attack power is not given anywhere.
+ * Claw, Shred, Rake, Rip, Ferocious Bite, Tiger's Fury and the Balance spells
+ * are the highest rank a level sixty druid learns, as the beta client gives it
+ * at build 1.60.1.70009. Where the client gives no attack power or spell power
+ * share, the Classic one is kept and the note says so. The paws are not given
+ * anywhere: what a cat hits for before attack power is a Classic figure.
  */
 
 import type { AbilityDef, TalentHook } from '../sim/spells';
@@ -38,15 +41,18 @@ export const CAT_FORM = {
   flat: 120,
 };
 
-export const TIGERS_FURY = { duration: 6, bonus: 40, cooldown: 0 };
+/** 'Increases Physical damage done by 15% for 6 sec.' on a 30 sec cooldown. */
+export const TIGERS_FURY = { duration: 6, damage: 0.15, cooldown: 30 };
 export const BERSERK = { duration: 15, cooldown: 180 };
-export const MANGLE = { cooldown: 6 };
-export const RIP = { perPoint: 222, ticks: 6, interval: 2 };
-export const RAKE = { bleed: 90, ticks: 3, interval: 3 };
+/**
+ * Rank 6: 243 over twelve seconds at one point and 153 more for each point
+ * after, so 855 at five.
+ */
+export const RIP = { base: 90, perPoint: 153, ticks: 6, interval: 2 };
+export const RAKE = { bleed: 102, ticks: 3, interval: 3 };
 
+const same = (note: string) => ({ status: 'same' as const, note });
 const changed = (note: string) => ({ status: 'changed' as const, note });
-const classic = (note?: string) =>
-  (note ? { status: 'unverified' as const, note } : { status: 'unverified' as const });
 
 /* -------------------------------------------------------------- abilities */
 
@@ -63,8 +69,11 @@ export const CLAW: AbilityDef = {
   maxDamage: 0,
   coefficient: 0,
   combo: { generates: 1 },
-  weapon: { hand: 'main', multiplier: 1, flat: 115, normalised: false },
-  forever: classic('Rank 6 at the Classic values: the paws plus a hundred and fifteen.'),
+  weapon: { hand: 'main', multiplier: 1.1, flat: 126, normalised: false },
+  forever: changed(
+    'Rank 5 in the beta client at build 1.60.1.70009: 110% of normal damage plus 126. Classic ' +
+      'added a flat 115.',
+  ),
 };
 
 export const SHRED: AbilityDef = {
@@ -81,30 +90,11 @@ export const SHRED: AbilityDef = {
   coefficient: 0,
   combo: { generates: 1 },
   fromBehind: true,
-  weapon: { hand: 'main', multiplier: 2.25, flat: 180, normalised: false },
-  forever: classic('Rank 5 at the Classic values: the paws two and a quarter times over, plus 180. Only from behind.'),
-};
-
-export const MANGLE_SPELL: AbilityDef = {
-  id: 'mangle',
-  name: 'Mangle',
-  icon: 'ability_druid_mangle2',
-  school: 'physical',
-  kind: 'melee',
-  resource: 'energy',
-  castTime: 0,
-  cost: 45,
-  minDamage: 0,
-  maxDamage: 0,
-  coefficient: 0,
-  combo: { generates: 1 },
-  weapon: { hand: 'main', multiplier: 1, flat: 26, normalised: false },
-  forever: {
-    status: 'new',
-    note:
-      'The normal damage plus twenty-six is what the Feral tree says. Its cost and cooldown are ' +
-      'not given; forty-five energy and six seconds are assumed, because Berserk says it has one.',
-  },
+  weapon: { hand: 'main', multiplier: 1.55, flat: 180, normalised: false },
+  forever: changed(
+    'Rank 5 in the beta client at build 1.60.1.70009: 155% damage plus 180, from behind only. ' +
+      'Classic was 225%.',
+  ),
 };
 
 export const RAKE_SPELL: AbilityDef = {
@@ -120,8 +110,11 @@ export const RAKE_SPELL: AbilityDef = {
   maxDamage: 0,
   coefficient: 0,
   combo: { generates: 1 },
-  weapon: { hand: 'main', multiplier: 0, flat: 66, normalised: false },
-  forever: classic('Rank 4 at the Classic values: sixty-six up front and ninety more over nine seconds.'),
+  weapon: { hand: 'main', multiplier: 0, flat: 61, normalised: false },
+  forever: changed(
+    'Rank 4 in the beta client at build 1.60.1.70009: 61 damage and 102 more over 9 sec. Classic ' +
+      'was 66 and 90.',
+  ),
 };
 
 /** The bleed finisher. Its damage is worked out from the points it spent. */
@@ -139,9 +132,9 @@ export const RIP_SPELL: AbilityDef = {
   coefficient: 0,
   combo: { spends: true },
   weapon: { hand: 'main', multiplier: 0, flat: 0, normalised: false },
-  forever: classic(
-    'Rank 6 at the Classic values, 222 over twelve seconds for each combo point. It does not ' +
-      'grow with attack power, which in Classic it did not.',
+  forever: changed(
+    'Rank 6 in the beta client at build 1.60.1.70009: 855 over 12 sec at five combo points. The ' +
+      'client says it grows with attack power but not by how much, so here it does not.',
   ),
 };
 
@@ -158,11 +151,13 @@ export const FEROCIOUS_BITE: AbilityDef = {
   maxDamage: 0,
   coefficient: 0,
   combo: { spends: true },
-  comboDamage: { min: 157, max: 175, apCoefficient: 0.03 },
+  // A fifth of the five point figure, which is exact at five points, the only
+  // number of points the rotation bites at.
+  comboDamage: { min: 157.4, max: 169.4, apCoefficient: 0.03 },
   weapon: { hand: 'main', multiplier: 0, flat: 0, normalised: false },
-  forever: classic(
-    'Rank 5 at the Classic values, about 785 to 875 at five combo points. Energy left over after ' +
-      'it is not turned into more damage here.',
+  forever: same(
+    'Rank 5 in the beta client at build 1.60.1.70009: 787 to 847 at five combo points. The ' +
+      'attack power share is Classic’s, and energy left over is not turned into more damage here.',
   ),
 };
 
@@ -175,11 +170,15 @@ export const TIGERS_FURY_SPELL: AbilityDef = {
   resource: 'energy',
   castTime: 0,
   gcd: 0,
-  cost: 30,
+  cost: 0,
+  cooldown: TIGERS_FURY.cooldown,
   minDamage: 0,
   maxDamage: 0,
   coefficient: 0,
-  forever: classic('Rank 4 at the Classic values: forty more damage on every hit for six seconds.'),
+  forever: changed(
+    'Physical damage up 15% for 6 sec on a 30 sec cooldown, at no energy cost, in the beta client ' +
+      'at build 1.60.1.70009. Classic cost 30 energy for a flat bonus on each hit.',
+  ),
 };
 
 export const BERSERK_SPELL: AbilityDef = {
@@ -196,16 +195,17 @@ export const BERSERK_SPELL: AbilityDef = {
   minDamage: 0,
   maxDamage: 0,
   coefficient: 0,
-  forever: changed(
-    'Fifteen seconds of Mangle with no cooldown and every combo point strike a critical one, from ' +
-      'the Feral tree. The tree gives no cooldown; three minutes is assumed.',
-  ),
+  forever: {
+    status: 'new',
+    note:
+      'Fifteen seconds of every combo point strike a critical one, on a 3 min cooldown, in the ' +
+      'beta client at build 1.60.1.70009. What it does to Primal Bite needs Bear Form.',
+  },
 };
 
 export const FERAL_ABILITIES: AbilityDef[] = [
   CLAW,
   SHRED,
-  MANGLE_SPELL,
   RAKE_SPELL,
   RIP_SPELL,
   FEROCIOUS_BITE,
@@ -213,8 +213,8 @@ export const FERAL_ABILITIES: AbilityDef[] = [
   BERSERK_SPELL,
 ];
 
-/** Strikes that earn a combo point, which Primal Fury and Berserk both read. */
-export const GENERATORS = new Set(['claw', 'shred', 'mangle', 'rake']);
+/** Strikes that earn a combo point, which Blood Frenzy and Berserk both read. */
+export const GENERATORS = new Set(['claw', 'shred', 'rake']);
 
 /* --------------------------------------------------------------- talents */
 
@@ -243,10 +243,10 @@ export const DRUID_TALENT_HOOKS: Record<string, TalentHook> = {
 
   /* ---------------------------------------------------------- Feral Combat */
 
-  // 'Reduces the cost of your Maul, Mangle, Swipe, Claw, and Rake abilities by
-  // 1 Rage or Energy.'
+  // 'Reduces the cost of your Maul, Primal Bite, Swipe, Claw, and Rake abilities
+  // by 1 Rage or Energy.' Maul, Primal Bite and Swipe are Bear Form's.
   Ferocity: (rank, mods) => {
-    for (const id of [MANGLE_SPELL.id, CLAW.id, RAKE_SPELL.id]) reduceCost(mods, id, rank);
+    for (const id of [CLAW.id, RAKE_SPELL.id]) reduceCost(mods, id, rank);
   },
 
   // '... while in Cat Form your Strength is increased by 2%.' The intellect and
@@ -280,8 +280,8 @@ export const DRUID_TALENT_HOOKS: Record<string, TalentHook> = {
 
   // '... your non-periodic critical strikes from Cat Form abilities that
   // generate Combo Points have a 50% chance to add an additional Combo Point.'
-  'Primal Fury': (rank, mods) => {
-    mods.flags.primalFury = 0.5 * rank;
+  'Blood Frenzy': (rank, mods) => {
+    mods.flags.bloodFrenzy = 0.5 * rank;
   },
 
   // 'Increases the critical strike damage bonus of your melee abilities by 10%.'
@@ -307,10 +307,10 @@ export const DRUID_TALENT_HOOKS: Record<string, TalentHook> = {
     mods.flags.rendAndTear = 0.02 * rank;
   },
 
-  // 'Causes your Mangle ability to strike up to 3 targets, removes its
+  // 'Causes your Primal Bite ability to strike up to 3 targets, removes its
   // cooldown, and increases the critical strike chance of your Combo
-  // Point-generating abilities by 100%.' It is a button; the hook only says
-  // the druid has it.
+  // Point-generating abilities by 100%.' Primal Bite needs Bear Form, so a cat
+  // only gets the crit. It is a button; the hook only says the druid has it.
   Berserk: (_rank, mods) => {
     mods.flags.berserk = 1;
   },
@@ -334,12 +334,14 @@ export const DRUID_TALENT_HOOKS: Record<string, TalentHook> = {
  * map would say every talent does something for both.
  *
  * The Balance tree gives Insect Swarm at the rank the talent teaches. The
- * Classic level sixty rank is used, and the note says so.
+ * level sixty rank from the spellbook is used instead.
  */
 
 export const NATURES_GRACE = { speed: 1.1, duration: 3 };
 export const ECLIPSE = { perRank: 0.17, charges: 2, maxCharges: 4, duration: 15 };
 export const BALANCE_OF_NATURE = { perRank: 0.01, duration: 10 };
+/** Moonglow's mana cost cut at each rank: 8%, 17% and 25%. */
+export const MOONGLOW = [0.08, 0.17, 0.25];
 
 export const WRATH: AbilityDef = {
   id: 'wrath',
@@ -347,11 +349,14 @@ export const WRATH: AbilityDef = {
   icon: 'spell_nature_abolishmagic',
   school: 'nature',
   castTime: 2,
-  cost: 180,
-  minDamage: 236,
-  maxDamage: 266,
+  cost: 120,
+  minDamage: 92,
+  maxDamage: 102,
   coefficient: 0.571,
-  forever: classic('Rank 8 at the Classic values.'),
+  forever: changed(
+    'Rank 8 in the beta client at build 1.60.1.70009: 92 to 102 for 120 mana, with 57.1% of ' +
+      'spell power. Classic was 248 to 276 for 180.',
+  ),
 };
 
 export const STARFIRE: AbilityDef = {
@@ -361,10 +366,13 @@ export const STARFIRE: AbilityDef = {
   school: 'arcane',
   castTime: 3.5,
   cost: 340,
-  minDamage: 463,
-  maxDamage: 543,
+  minDamage: 350,
+  maxDamage: 412,
   coefficient: 1,
-  forever: classic('Rank 6 at the Classic values.'),
+  forever: changed(
+    'Rank 7 in the beta client at build 1.60.1.70009: 350 to 412, with all of spell power. ' +
+      'Classic was 496 to 584.',
+  ),
 };
 
 export const MOONFIRE: AbilityDef = {
@@ -374,11 +382,14 @@ export const MOONFIRE: AbilityDef = {
   school: 'arcane',
   castTime: 0,
   cost: 375,
-  minDamage: 195,
-  maxDamage: 228,
+  minDamage: 128,
+  maxDamage: 150,
   coefficient: 0.15,
-  dot: { ticks: 4, interval: 3, damage: 384, coefficient: 0.52 },
-  forever: classic('Rank 10 at the Classic values: 195 to 228 at once and 384 over twelve seconds.'),
+  dot: { ticks: 4, interval: 3, damage: 240, coefficient: 0.52 },
+  forever: changed(
+    'Rank 10 in the beta client at build 1.60.1.70009: 128 to 150 at once and 240 over 12 sec, ' +
+      'with 15% of spell power and 13% a tick.',
+  ),
 };
 
 export const INSECT_SWARM: AbilityDef = {
@@ -387,14 +398,14 @@ export const INSECT_SWARM: AbilityDef = {
   icon: 'spell_nature_insectswarm',
   school: 'nature',
   castTime: 0,
-  cost: 110,
+  cost: 160,
   minDamage: 0,
   maxDamage: 0,
   coefficient: 0,
-  dot: { ticks: 6, interval: 2, damage: 324, coefficient: 0.76 },
-  forever: classic(
-    'The Balance tree gives 55 over twelve seconds, which is the rank the talent teaches. Rank 5 ' +
-      'is taken at the Classic values.',
+  dot: { ticks: 6, interval: 2, damage: 186, coefficient: 0.948 },
+  forever: changed(
+    'Rank 5 in the beta client at build 1.60.1.70009: 186 over 12 sec for 160 mana, with 15.8% ' +
+      'of spell power a tick.',
   ),
 };
 
@@ -437,9 +448,11 @@ export const BALANCE_TALENT_HOOKS: Record<string, TalentHook> = {
     mods.cost[WRATH.id] = (mods.cost[WRATH.id] ?? 1) * (1 - 0.1 * rank);
   },
 
-  // 'Reduces the Mana cost of your spells by 3%.'
+  // 'Reduces the Mana cost of your damaging spells by 8%.' That is the first
+  // rank; the third is 25%.
   Moonglow: (rank, mods) => {
-    for (const spell of BALANCE_SPELLS) mods.cost[spell.id] = (mods.cost[spell.id] ?? 1) * (1 - 0.03 * rank);
+    const off = MOONGLOW[Math.min(rank, MOONGLOW.length) - 1] ?? 0;
+    for (const spell of BALANCE_SPELLS) mods.cost[spell.id] = (mods.cost[spell.id] ?? 1) * (1 - off);
   },
 
   // 'Increases the damage and critical strike chance of your Moonfire spell by 5%.'
@@ -455,7 +468,7 @@ export const BALANCE_TALENT_HOOKS: Record<string, TalentHook> = {
     mods.dotTicks[INSECT_SWARM.id] = (mods.dotTicks[INSECT_SWARM.id] ?? 0) + 1;
   },
 
-  /* Balance of Nature is not in the Balance tree as of build 1.60.1.69876. The
+  /* Balance of Nature is not in the Balance tree as of build 1.60.1.70009. The
      simulator still knows how to run it, so if a later build brings it back this
      hook is the only thing that needs to come with it:
 
@@ -486,10 +499,11 @@ export const BALANCE_TALENT_HOOKS: Record<string, TalentHook> = {
     mods.flags.eclipse = ECLIPSE.perRank * rank;
   },
 
-  // 'Increases the damage done by your Arcane and Nature spells by 1%.'
+  // 'Increases the damage done by your Arcane and Nature spells by 2%.' Ten at
+  // five ranks.
   Moonfury: (rank, mods) => {
     for (const school of ['arcane', 'nature'] as const) {
-      mods.schoolDamage[school] = (mods.schoolDamage[school] ?? 1) * (1 + 0.01 * rank);
+      mods.schoolDamage[school] = (mods.schoolDamage[school] ?? 1) * (1 + 0.02 * rank);
     }
   },
 

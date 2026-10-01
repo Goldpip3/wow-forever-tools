@@ -114,9 +114,9 @@ describe('combo points', () => {
     // Eviscerate reads no weapon damage at all: its whole damage is the points.
     const scale = EVISCERATE.comboDamage!;
     expect(scale.min).toBeGreaterThan(0);
-    // The Classic rank nine total at five points, which is what the note says.
-    expect(scale.min * 5).toBeCloseTo(225, 0);
-    expect(scale.max * 5).toBeCloseTo(675, 0);
+    // The game's rank nine at five points, build 1.60.1.70009.
+    expect(scale.min * 5).toBeCloseTo(904, 6);
+    expect(scale.max * 5).toBeCloseTo(1012, 6);
   });
 
   it('are given back by Seal Fate on a critical strike', () => {

@@ -120,12 +120,13 @@ describe('measured totals and gear-only stats, kept apart', () => {
     });
     const ticked = { ...fight, buffs: ['mana-spring-totem', 'arcane-intellect'] };
     const sheet = deriveStatSheet(exported, ticked);
-    expect(sheet.mp5).toBe(20);
+    // 10 from gear plus the totem's 25 (10 mana every 2 seconds).
+    expect(sheet.mp5).toBe(35);
     // Arcane Intellect is intellect, which the sheet measured with the buff up: not again.
     expect(sheet.intellect).toBe(exported.source.stats.intellect);
     // Ticked without having been up, the totem counts exactly once too.
     const notUp = character((raw) => withMp5(raw, 10));
-    expect(deriveStatSheet(notUp, ticked).mp5).toBe(20);
+    expect(deriveStatSheet(notUp, ticked).mp5).toBe(35);
   });
 
   it('applies a swap\'s primary stat conversions once', () => {

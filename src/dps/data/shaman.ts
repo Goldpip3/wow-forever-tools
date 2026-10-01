@@ -6,12 +6,12 @@
  * Enhancement has Maelstrom Weapon, Mental Dexterity and Rage of the Farseer,
  * none of which Classic had, and Elemental ends in Lava Burst. Every hook below
  * is keyed by the name in public/data/talents.generated.json and cites the
- * description it was read from; the cast times come from the class notes in
- * the same file.
+ * description it was read from.
  *
- * What the data does not say is said out loud rather than filled in quietly.
- * Lava Burst's damage is the talent's own text; its cast time and cooldown are
- * not given anywhere, so they are guesses and the note says so.
+ * Each spell is the highest rank a level sixty can learn, read from the beta
+ * client's own tooltip at build 1.60.1.70009: damage, cost, cast time,
+ * cooldown and share of spell power. Where a tooltip leaves something out, the
+ * note says what stands in for it.
  */
 
 import type { AbilityDef, SpellMods, TalentHook } from '../sim/spells';
@@ -22,11 +22,19 @@ import { addCastTime, addCritBonus, multiplyCost, multiplyDamage } from '../sim/
 export const WINDFURY_WEAPON = {
   /** A fifth of the swings that land. */
   chance: 0.2,
-  /** Rank 4 at the Classic value. */
-  attackPower: 315,
+  /** Rank 4, learned at 60: "2 extra attacks with 333 extra melee attack power". */
+  attackPower: 333,
+  attacks: 2,
 };
 
-export const STORMSTRIKE = { duration: 12, natureTaken: 0.2, cooldown: 20 };
+/**
+ * "Increase the damage you deal to the target with your next Lightning Bolt,
+ * Chain Lightning, or Earth Shock spell by 20% for 12 sec." The next one only,
+ * and only the Shaman's own.
+ */
+export const STORMSTRIKE = { duration: 12, bonus: 0.2, cooldown: 8 };
+export const STORMSTRIKE_SPELLS = ['lightning-bolt', 'chain-lightning', 'earth-shock'];
+/** "Increases your attack speed by 30% for 25 sec", 3 min cooldown. Casting is not sped up. */
 export const RAGE_OF_THE_FARSEER = { duration: 25, speed: 0.3, cooldown: 180 };
 export const SHOCK_COOLDOWN = 6;
 export const FLAME_SHOCK = { duration: 12 };
@@ -37,8 +45,6 @@ export const CLEARCASTING = { chance: 0.1, duration: 15 };
 const WINDFURY_BONUS = [0, 0.13, 0.27, 0.4];
 
 const changed = (note: string) => ({ status: 'changed' as const, note });
-const classic = (note?: string) =>
-  (note ? { status: 'unverified' as const, note } : { status: 'unverified' as const });
 
 /* -------------------------------------------------------------- abilities */
 
@@ -49,14 +55,14 @@ export const LIGHTNING_BOLT: AbilityDef = {
   school: 'nature',
   kind: 'spell',
   castTime: 2.5,
-  cost: 265,
-  minDamage: 428,
-  maxDamage: 477,
-  coefficient: 0.857,
+  cost: 220,
+  minDamage: 189,
+  maxDamage: 211,
+  coefficient: 0.714,
   forever: changed(
-    'Half a second faster than Classic, which the class notes read off the demo. The damage ' +
-      'and the share of spell power are Classic Rank 10; whether the share moved with the cast ' +
-      'time is not known.',
+    'Rank 10, learned at 56, in the beta client at build 1.60.1.70009: 189 to 211 Nature damage, ' +
+      '220 mana, two and a half seconds, 71.4% of spell power. Classic Rank 10 was 428 to 476 over ' +
+      'three seconds at 85.7%.',
   ),
 };
 
@@ -67,15 +73,16 @@ export const CHAIN_LIGHTNING: AbilityDef = {
   school: 'nature',
   kind: 'spell',
   castTime: 2,
-  cost: 490,
+  cost: 485,
   cooldown: 6,
-  minDamage: 505,
-  maxDamage: 564,
-  coefficient: 0.714,
+  minDamage: 119,
+  maxDamage: 133,
+  coefficient: 0.571,
   aoe: { maxTargets: 3, falloff: 0.7 },
   forever: changed(
-    'Two seconds and a six second cooldown, three targets, each jump thirty per cent weaker, ' +
-      'which is what the class notes say. The damage is Classic Rank 4.',
+    'Rank 4, learned at 56, in the beta client at build 1.60.1.70009: 119 to 133 Nature damage, ' +
+      '485 mana, two seconds, a six second cooldown, 57.1% of spell power, three targets with each ' +
+      'jump thirty per cent weaker. Classic Rank 4 was 505 to 563.',
   ),
 };
 
@@ -87,11 +94,14 @@ export const EARTH_SHOCK: AbilityDef = {
   school: 'nature',
   kind: 'spell',
   castTime: 0,
-  cost: 345,
-  minDamage: 517,
-  maxDamage: 545,
+  cost: 450,
+  minDamage: 293,
+  maxDamage: 309,
   coefficient: 0.386,
-  forever: classic('Rank 7 at the Classic values.'),
+  forever: changed(
+    'Rank 7 in the beta client at build 1.60.1.70009: 293 to 309 Nature damage for 450 mana, ' +
+      '38.6% of spell power. Classic Rank 7 was 517 to 545.',
+  ),
 };
 
 export const FLAME_SHOCK_SPELL: AbilityDef = {
@@ -102,34 +112,36 @@ export const FLAME_SHOCK_SPELL: AbilityDef = {
   kind: 'spell',
   castTime: 0,
   cost: 410,
-  minDamage: 292,
-  maxDamage: 292,
+  minDamage: 166,
+  maxDamage: 166,
   coefficient: 0.214,
-  dot: { ticks: 4, interval: 3, damage: 320, coefficient: 0.5 },
-  forever: classic('Rank 6 at the Classic values: a hit and then twelve seconds of burning.'),
+  // 10% of spell power a tick, four ticks.
+  dot: { ticks: 4, interval: 3, damage: 176, coefficient: 0.4 },
+  forever: changed(
+    'Rank 6 in the beta client at build 1.60.1.70009: 166 Fire damage at once and 176 over 12 sec ' +
+      'for 410 mana, with 21.4% of spell power on the hit and 10% on each tick. Classic Rank 6 was ' +
+      '292 and 320.',
+  ),
 };
 
-/**
- * Lava Burst is new, and the tree only shows its first rank's damage. Nothing
- * anywhere gives its cast time or its cooldown, so both are assumptions.
- */
 export const LAVA_BURST: AbilityDef = {
   id: 'lava-burst',
   name: 'Lava Burst',
   icon: 'spell_shaman_lavaburst',
   school: 'fire',
   kind: 'spell',
-  castTime: 2,
-  cost: 300,
-  cooldown: 8,
-  minDamage: 158,
-  maxDamage: 187,
-  coefficient: 0.571,
+  castTime: 2.5,
+  cost: 265,
+  cooldown: 10,
+  minDamage: 192,
+  maxDamage: 248,
+  coefficient: 0.714,
   forever: {
     status: 'new',
     note:
-      'New in Forever. 158 to 187 is what the tree shows, which is its first rank. The two ' +
-      'second cast, eight second cooldown and mana cost are assumed; nothing says what they are.',
+      'Rank 3, learned at 60, in the beta client at build 1.60.1.70009: 192 to 248 Fire damage, 265 ' +
+      'mana, two and a half seconds, a ten second cooldown, 71.4% of spell power, and 20% more ' +
+      'while your Flame Shock is on the target.',
   },
 };
 
@@ -141,15 +153,16 @@ export const STORMSTRIKE_SPELL: AbilityDef = {
   kind: 'melee',
   resource: 'mana',
   castTime: 0,
-  cost: 260,
+  cost: 125,
   cooldown: STORMSTRIKE.cooldown,
   minDamage: 0,
   maxDamage: 0,
   coefficient: 0,
   weapon: { hand: 'main', multiplier: 1, flat: 0, normalised: false },
   forever: changed(
-    'Normal weapon damage and a fifth more Nature damage on the target for twelve seconds, ' +
-      'which is what the Enhancement tree says. The cooldown and cost are Classic.',
+    'At build 1.60.1.70009: normal weapon damage, and your next Lightning Bolt, Chain Lightning ' +
+      'or Earth Shock on the target within 12 sec deals 20% more. 125 mana, eight second cooldown. ' +
+      'Classic was an extra attack and the next two Nature hits from anyone, every 20 sec.',
   ),
 };
 
@@ -170,8 +183,9 @@ export const RAGE_OF_THE_FARSEER_SPELL: AbilityDef = {
   forever: {
     status: 'new',
     note:
-      'New in Forever: thirty per cent faster swings and casts for twenty-five seconds, from the ' +
-      'tree. The tree does not give a cooldown, so three minutes is assumed.',
+      'At build 1.60.1.70009: thirty per cent attack speed for 25 sec, three minute cooldown. ' +
+      'Build 69876 also sped up casting; this build does not. The tooltip gives no mana cost, so none ' +
+      'is charged.',
   },
 };
 

@@ -21,9 +21,10 @@ export const SHAMAN_EFFECTS: Effect[] = [
     scope: "party",
     categories: ["strength"],
     providers: [{ classId: "shaman", specs: ANY, choice: EARTH }],
+    values: { forever: "+53 Strength to the party within 30 yards" },
     forever: {
       status: "changed",
-      note: "Enhancing Totems was cut from the Enhancement tree, so this is the base value now.",
+      note: "Rank 5, learned at 60, gives 53 Strength at build 1.60.1.70009, against Classic's 77. Enhancing Totems was cut from Enhancement, so nothing raises it.",
     },
   },
   {
@@ -36,7 +37,7 @@ export const SHAMAN_EFFECTS: Effect[] = [
     providers: [{ classId: "shaman", specs: ANY, choice: EARTH }],
     forever: {
       status: "changed",
-      note: "Guardian Totems in Enhancement still adds 20% to its effect.",
+      note: "Rank 6 reduces Physical damage taken by 30 within 30 yards, where Classic reduced melee damage only. Guardian Totems in Enhancement adds 20% to it.",
     },
   },
   {
@@ -47,7 +48,10 @@ export const SHAMAN_EFFECTS: Effect[] = [
     scope: "party",
     categories: ["misc-utility"],
     providers: [{ classId: "shaman", specs: ANY, choice: EARTH }],
-    forever: { status: "same" },
+    forever: {
+      status: "changed",
+      note: "Lasts 5 min instead of 2. It still removes Fear, Charm and Sleep within 30 yards.",
+    },
   },
   {
     id: "earthbind-totem",
@@ -82,9 +86,10 @@ export const SHAMAN_EFFECTS: Effect[] = [
     scope: "party",
     categories: ["extra-melee-attack"],
     providers: [{ classId: "shaman", specs: ANY, choice: AIR }],
+    values: { forever: "20% chance on main hand hits of 1 extra attack with 246 attack power" },
     forever: {
       status: "changed",
-      note: "Improved Weapon Totems was cut from Enhancement, so this is the base value.",
+      note: "Rank 3 gives 246 extra attack power on main hand hits only, within 30 yards, for 5 min. Classic Rank 3 gave 315 within 20 yards. Improved Weapon Totems was cut from Enhancement.",
     },
   },
   {
@@ -95,9 +100,10 @@ export const SHAMAN_EFFECTS: Effect[] = [
     scope: "party",
     categories: ["agility"],
     providers: [{ classId: "shaman", specs: ANY, choice: AIR }],
+    values: { forever: "+89 Agility to the party within 30 yards" },
     forever: {
       status: "changed",
-      note: "Enhancing Totems was cut, so this is the base value.",
+      note: "Rank 3, learned at 60, gives 89 Agility at build 1.60.1.70009, against Classic's 77. Enhancing Totems was cut, so nothing raises it.",
     },
   },
   {
@@ -123,7 +129,7 @@ export const SHAMAN_EFFECTS: Effect[] = [
     providers: [{ classId: "shaman", specs: ANY, choice: AIR }],
     forever: {
       status: "unverified",
-      note: "Not in the beta client spellbook at build 1.60.1.69876. A trainable totem missing from a level 60 spellbook is a fair sign it was cut, but not proof.",
+      note: "Not in the beta client's level 60 spellbook at build 1.60.1.70009, which lists every other air totem. A trainable totem missing from a full level 60 spellbook is a fair sign it was cut, but not proof.",
     },
   },
   {
@@ -144,10 +150,13 @@ export const SHAMAN_EFFECTS: Effect[] = [
     name: "Nature Resistance Totem",
     icon: "spell_nature_natureresistancetotem",
     kind: "buff",
-    scope: "party",
+    scope: "raid",
     categories: ["nature-resist"],
     providers: [{ classId: "shaman", specs: ANY, choice: AIR }],
-    forever: { status: "same" },
+    forever: {
+      status: "changed",
+      note: "Reaches party and raid members within 30 yards, where Classic reached only the party within 20. Rank 3 gives 60 Nature resistance for 5 min.",
+    },
   },
 
   /* ------------------------------------------------------------------ water */
@@ -192,10 +201,10 @@ export const SHAMAN_EFFECTS: Effect[] = [
         choice: WATER,
       },
     ],
-    values: { forever: "88 mana every 3 sec for 12 sec to the group" },
+    values: { forever: "290 mana every 3 sec for 12 sec to the group" },
     forever: {
       status: "changed",
-      note: "Forever restores 88 mana every 3 sec for 12 sec to group members within 30 yards.",
+      note: "Rank 3, learned at 58, restores 290 mana every 3 sec for 12 sec to group members within 30 yards. The talent teaches Rank 1, which restores 88.",
     },
   },
   {
@@ -206,7 +215,10 @@ export const SHAMAN_EFFECTS: Effect[] = [
     scope: "party",
     categories: ["friendly-poison-dispels"],
     providers: [{ classId: "shaman", specs: ANY, choice: WATER }],
-    forever: { status: "same" },
+    forever: {
+      status: "changed",
+      note: "Reaches party members within 30 yards instead of 20, and lasts 5 min.",
+    },
   },
   {
     id: "disease-cleansing-totem",
@@ -216,17 +228,23 @@ export const SHAMAN_EFFECTS: Effect[] = [
     scope: "party",
     categories: ["friendly-disease-dispels"],
     providers: [{ classId: "shaman", specs: ANY, choice: WATER }],
-    forever: { status: "same" },
+    forever: {
+      status: "changed",
+      note: "Reaches party members within 30 yards instead of 20.",
+    },
   },
   {
     id: "frost-resistance-totem",
     name: "Frost Resistance Totem",
     icon: "spell_frost_frostward",
     kind: "buff",
-    scope: "party",
+    scope: "raid",
     categories: ["frost-resist"],
     providers: [{ classId: "shaman", specs: ANY, choice: WATER }],
-    forever: { status: "same" },
+    forever: {
+      status: "changed",
+      note: "Reaches party and raid members within 30 yards, where Classic reached only the party within 20. Rank 3 gives 60 Frost resistance for 5 min.",
+    },
   },
 
   /* ------------------------------------------------------------------- fire */
@@ -235,10 +253,13 @@ export const SHAMAN_EFFECTS: Effect[] = [
     name: "Fire Resistance Totem",
     icon: "spell_fire_sealoffire",
     kind: "buff",
-    scope: "party",
+    scope: "raid",
     categories: ["fire-resist"],
     providers: [{ classId: "shaman", specs: ANY, choice: FIRE }],
-    forever: { status: "same" },
+    forever: {
+      status: "changed",
+      note: "Reaches party and raid members within 30 yards, where Classic reached only the party within 20. Rank 3 gives 60 Fire resistance for 5 min.",
+    },
   },
   {
     id: "flametongue-totem",
@@ -249,8 +270,8 @@ export const SHAMAN_EFFECTS: Effect[] = [
     categories: ["fire-damage"],
     providers: [{ classId: "shaman", specs: ANY, choice: FIRE }],
     forever: {
-      status: "unverified",
-      note: "Confirmed in the beta client: 17 to 55 fire damage a hit, scaled by weapon speed, within 30 yards. No Classic tooltip here to compare against.",
+      status: "changed",
+      note: "Rank 4 adds 17 to 55 Fire damage to main hand hits, scaled by weapon speed, within 30 yards for 5 min. Classic Rank 4 was 15.8 to 48.7 within 20 yards for 2 min.",
     },
   },
   {
@@ -261,7 +282,10 @@ export const SHAMAN_EFFECTS: Effect[] = [
     scope: "party",
     categories: ["misc-utility"],
     providers: [{ classId: "shaman", specs: ANY, choice: FIRE }],
-    forever: { status: "same" },
+    forever: {
+      status: "changed",
+      note: "Rank 4 deals 73 Fire damage every 2 sec, against Classic's 75.",
+    },
   },
   {
     id: "searing-totem",
@@ -271,7 +295,10 @@ export const SHAMAN_EFFECTS: Effect[] = [
     scope: "party",
     categories: ["misc-utility"],
     providers: [{ classId: "shaman", specs: ANY, choice: FIRE }],
-    forever: { status: "same" },
+    forever: {
+      status: "changed",
+      note: "Rank 6 deals 40 to 54 Fire damage, as in Classic, but scales with 1.7% of spell power instead of 8.3%.",
+    },
   },
 
   /* ------------------------------------------------------- spells and utility */
@@ -303,7 +330,7 @@ export const SHAMAN_EFFECTS: Effect[] = [
     name: "Stormstrike",
     icon: "ability_shaman_stormstrike",
     kind: "debuff",
-    scope: "target",
+    scope: "self",
     categories: ["increased-nature-damage-taken"],
     providers: [
       {
@@ -314,7 +341,7 @@ export const SHAMAN_EFFECTS: Effect[] = [
     ],
     forever: {
       status: "changed",
-      note: "Improved Stormstrike is new in Forever: a 50% chance at mana regeneration while casting, and a 50% chance to reset the cooldown when you dodge or parry.",
+      note: "Forever's Stormstrike only adds 20% to the Shaman's own next Lightning Bolt, Chain Lightning or Earth Shock on the target. Classic raised the next 2 Nature hits from anyone, so it is no longer a raid debuff. Improved Stormstrike is new: a chance at mana regeneration while casting, and a chance to reset the cooldown when you dodge or parry.",
     },
   },
   {
@@ -402,7 +429,7 @@ export const SHAMAN_EFFECTS: Effect[] = [
     ],
     forever: {
       status: "new",
-      note: "New Enhancement talent: 30% melee and casting speed for 25 sec, on the Shaman only. This is not a raid-wide Bloodlust.",
+      note: "New Enhancement talent: 30% attack speed for 25 sec, on the Shaman only, every 3 min. Build 1.60.1.69876 also sped up casting; build 1.60.1.70009 does not. This is not a raid-wide Bloodlust.",
     },
   },
 ];
