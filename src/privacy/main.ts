@@ -55,6 +55,15 @@ if (app) {
       <p>A private roster link can grant access to a real event. Do not post it in a public bug report.
         The site sends its access token to the roster API when you use that link.</p>
     </div></section>
+    <section class="panel"><div class="panel__head">Downloads</div><div class="panel__body">
+      <p>Opening the Downloads page while signed in records your Discord id, name and avatar
+        with the API, with a status the owner sets: pending, approved, rejected or revoked.
+        Asking for access records when you asked. Each download is logged with your Discord id,
+        the release and the time, and the owner can read that log. Nothing is kept on this device.</p>
+      <p>Archives you download come from the API, which checks your sign-in and your status on
+        every request. The site never opens an archive; check the SHA-256 shown on the card if
+        you want to be sure of what you saved.</p>
+    </div></section>
     <section class="panel"><div class="panel__head">Advertising and outside services</div><div class="panel__body">
       <p>The bug-report form opens GitHub with the text you entered when you choose Continue to GitHub.
         You review and submit it there. Submitted issues are public; remove private information before continuing.</p>

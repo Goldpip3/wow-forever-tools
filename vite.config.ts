@@ -69,6 +69,7 @@ export default defineConfig({
         raid: resolve(__dirname, 'raid.html'),
         dps: resolve(__dirname, 'dps.html'),
         guild: resolve(__dirname, 'guild.html'),
+        downloads: resolve(__dirname, 'downloads.html'),
         privacy: resolve(__dirname, 'privacy.html'),
       },
     },

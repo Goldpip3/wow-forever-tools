@@ -1,0 +1,127 @@
+/* The downloads page. Cards for packages, a notice for whoever cannot download
+   yet, and the owner's tools under them. Everything shared with another page is
+   in base.css. */
+
+.dl-wrap { max-width: 960px; }
+
+.dl-lead { color: var(--ink2); max-width: 64ch; margin: 0 0 16px; }
+
+/* ---------- the notice: pending, refused, error, empty ---------- */
+.dl-notice {
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--gold2);
+  border-radius: var(--radius);
+  background: var(--panel);
+  padding: 14px 16px;
+  margin: 12px 0 18px;
+  max-width: 640px;
+}
+.dl-notice--bad { border-left-color: var(--red); }
+.dl-notice--ok { border-left-color: var(--green2); }
+.dl-notice--quiet { border-left-color: var(--line); }
+.dl-notice__title { margin: 0 0 6px; font-family: var(--font-display); font-size: 17px; color: var(--gold); }
+.dl-notice--bad .dl-notice__title { color: var(--red); }
+.dl-notice p { margin: 0 0 8px; color: var(--ink2); }
+.dl-notice p:last-child { margin-bottom: 0; }
+.dl-notice .btn { margin-top: 6px; }
+
+.dl-signin { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 14px 0 20px; }
+.dl-signin__hint { color: var(--muted); font-size: 12.5px; margin: 0; }
+
+/* ---------- cards ---------- */
+.dl-cards { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+.dl-card { display: flex; flex-direction: column; }
+.dl-card .panel__head { flex-wrap: wrap; }
+.dl-card__title { font-family: var(--font-display); font-size: 16px; color: var(--gold); margin: 0; }
+.dl-card__version { font-family: var(--font-narrow); color: var(--ink2); letter-spacing: .3px; }
+.dl-card .panel__body { display: flex; flex-direction: column; gap: 10px; flex: 1; }
+.dl-card__desc { margin: 0; color: var(--ink2); }
+.dl-card__desc:empty { display: none; }
+
+.dl-facts { display: grid; grid-template-columns: max-content 1fr; gap: 3px 12px; margin: 0; font-size: 12.5px; }
+.dl-facts dt { color: var(--muted); }
+.dl-facts dd { margin: 0; color: var(--ink); word-break: break-all; }
+.dl-facts code { font-family: var(--mono, monospace); font-size: 12px; }
+
+.dl-text {
+  white-space: pre-wrap;
+  font-family: inherit;
+  margin: 0;
+  color: var(--ink2);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.dl-fold summary { cursor: pointer; color: var(--gold); font-size: 13px; }
+.dl-fold summary:hover { text-decoration: underline; }
+.dl-fold > :not(summary) { margin-top: 8px; }
+
+.dl-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: auto; }
+.dl-actions .btn--gold { padding: 8px 16px; }
+.dl-actions__hint { color: var(--muted); font-size: 12px; flex-basis: 100%; margin: 0; }
+
+.pill--latest { color: var(--green2); }
+.pill--draft { color: var(--st-moved); }
+.pill--pending { color: var(--st-moved); }
+.pill--approved { color: var(--green2); }
+.pill--rejected { color: var(--st-same); }
+.pill--revoked { color: var(--red); }
+
+.dl-older { border-top: 1px solid var(--line); padding-top: 8px; }
+.dl-older__row {
+  display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center;
+  padding: 6px 0; border-bottom: 1px dashed var(--line); font-size: 12.5px;
+}
+.dl-older__row:last-child { border-bottom: 0; }
+.dl-older__row .dl-card__version { font-weight: 700; color: var(--ink); }
+.dl-older__row .muted { color: var(--muted); }
+.dl-older__row .btn { margin-left: auto; }
+
+/* ---------- owner tools ---------- */
+.dl-owner { margin-top: 28px; }
+.dl-owner__bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 10px; }
+.dl-owner__bar .section-label { margin: 0 8px 0 0; }
+.dl-owner__count { font-family: var(--font-narrow); color: var(--muted); font-size: 12px; margin-left: 4px; }
+
+.dl-people { display: grid; gap: 6px; }
+.dl-person {
+  display: grid; grid-template-columns: 30px 1fr auto; gap: 10px; align-items: center;
+  padding: 8px 10px; background: var(--panel2); border: 1px solid var(--line); border-radius: var(--radius-sm);
+}
+.dl-person__avatar { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--line); background: var(--bar); }
+.dl-person__name { font-weight: 700; }
+.dl-person__meta { color: var(--muted); font-size: 12px; }
+.dl-person__meta code { font-size: 11px; }
+.dl-person__acts { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.dl-person--asked { border-color: var(--gold2); }
+
+.dl-form { display: grid; gap: 8px; }
+.dl-form label { display: grid; gap: 3px; font-size: 12.5px; color: var(--muted); }
+.dl-form input[type='text'], .dl-form textarea { width: 100%; }
+.dl-form textarea { min-height: 72px; }
+.dl-form__row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.dl-form__row .dl-form__grow { flex: 1 1 160px; }
+.dl-form__hint { color: var(--muted); font-size: 12px; margin: 0; }
+.dl-form__error { color: var(--red); font-size: 12.5px; margin: 0; }
+
+.dl-release-admin {
+  border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--panel2);
+  padding: 10px; margin-top: 8px;
+}
+.dl-release-admin__head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
+.dl-release-admin__head .dl-card__version { font-weight: 700; color: var(--ink); }
+.dl-release-admin__file { color: var(--muted); font-size: 12px; }
+
+.dl-progress { height: 6px; background: var(--bar); border-radius: 3px; overflow: hidden; margin-top: 6px; }
+.dl-progress__bar { height: 100%; background: var(--grad-gold); width: 0; transition: width .15s; }
+
+.dl-log { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.dl-log td { padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.dl-log td:first-child { white-space: nowrap; color: var(--muted); font-family: var(--font-narrow); }
+
+@media (max-width: 640px) {
+  .dl-cards { grid-template-columns: 1fr; }
+  .dl-person { grid-template-columns: 30px 1fr; }
+  .dl-person__acts { grid-column: 1 / -1; justify-content: flex-start; }
+  .dl-facts { grid-template-columns: 1fr; gap: 0; }
+  .dl-facts dt { margin-top: 6px; }
+}

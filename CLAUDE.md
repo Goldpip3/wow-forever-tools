@@ -1,9 +1,9 @@
 # WoW Forever Tools
 
-A fan site for World of Warcraft: Forever. Five pages, no framework, no backend of its
+A fan site for World of Warcraft: Forever. Six pages, no framework, no backend of its
 own: a talent calculator, a raid composition planner, a gear and DPS analyser, a guild
-page holding character profiles, and roster mode, which edits a real Discord event
-through the Group Builder bot.
+page holding character profiles, a downloads page for approved people, and roster mode,
+which edits a real Discord event through the Group Builder bot.
 
 ## Read these before writing
 
@@ -18,6 +18,10 @@ through the Group Builder bot.
   Builder bot. Where it disagrees with the deployed API, the API wins.
 - [GUILD-SPEC.md](GUILD-SPEC.md) — character profiles: the contract for `guild.html`,
   why nothing on it can be fetched, and which three files hold the profession list.
+- [PORTAL-SPEC.md](PORTAL-SPEC.md) — the download portal on `downloads.html`: who may
+  download is decided by the bot against `PORTAL_OWNER_ID` and a status row, every
+  archive is streamed after that check, and the page only asks. The owner guide and the
+  deploy order are in there too.
 - [INTEGRATION.md](INTEGRATION.md) — the older copy-paste handoff, still supported.
 - [RELEASE-BASELINE.md](RELEASE-BASELINE.md) — which build is live and how to tell. Pages
   deploys `master`, the bot is deployed by hand, and they are often different ages. Read it

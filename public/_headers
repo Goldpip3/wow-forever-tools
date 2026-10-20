@@ -64,3 +64,15 @@
 /dps.html
   Referrer-Policy: no-referrer
   Content-Security-Policy: default-src 'none'; script-src 'self' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https://cdn.discordapp.com; connect-src 'self' https://api.wowforever.us https://cloudflareinsights.com; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'
+
+# The downloads page. Who may download is decided by the bot; the page only
+# asks, and a copied link is a link to the API that checks the cookie. Same
+# policy as the other private pages, and no advertising.
+
+/downloads
+  Referrer-Policy: no-referrer
+  Content-Security-Policy: default-src 'none'; script-src 'self' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https://cdn.discordapp.com; connect-src 'self' https://api.wowforever.us https://cloudflareinsights.com; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'
+
+/downloads.html
+  Referrer-Policy: no-referrer
+  Content-Security-Policy: default-src 'none'; script-src 'self' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https://cdn.discordapp.com; connect-src 'self' https://api.wowforever.us https://cloudflareinsights.com; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'

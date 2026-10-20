@@ -21,7 +21,7 @@ export interface HeaderOptions {
   /** Rendered on the right of the header, after the tool links. */
   nav?: HTMLElement[];
   /** Which page is current, so its nav link can be marked. */
-  page: 'home' | 'talents' | 'raid' | 'dps' | 'roster' | 'guild' | 'privacy';
+  page: 'home' | 'talents' | 'raid' | 'dps' | 'roster' | 'guild' | 'downloads' | 'privacy';
   /** Who is signed in, when the page knows. Omitted entirely on pages that never ask. */
   account?: AccountView;
 }
@@ -91,6 +91,7 @@ export function renderHeader(opts: HeaderOptions): HTMLElement {
     ['dps', 'Gear & DPS', href('dps.html')],
     ['roster', 'Roster', href('raid.html') + '#roster'],
     ['guild', 'Guild', href('guild.html')],
+    ['downloads', 'Downloads', href('downloads.html')],
   ];
   for (const [page, label, url] of links) {
     const a = document.createElement('a');

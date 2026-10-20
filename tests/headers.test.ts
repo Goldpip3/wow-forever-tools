@@ -35,7 +35,7 @@ function rules(): Map<string, Record<string, string>> {
 }
 
 /** The pages that hold characters, a roster token or a gear report. */
-const PRIVATE_PAGES = ['guild', 'raid', 'dps'];
+const PRIVATE_PAGES = ['guild', 'raid', 'dps', 'downloads'];
 
 /** The pages that carry advertising, and deliberately have no policy. */
 const PUBLIC_PAGES = ['index', 'talents', 'privacy'];
