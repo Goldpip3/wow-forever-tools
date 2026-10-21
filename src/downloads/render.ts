@@ -112,7 +112,7 @@ function downloadLink(release: Release, label = 'Download'): HTMLAnchorElement {
   const a = document.createElement('a');
   a.className = 'btn btn--gold';
   a.href = downloadHref(release.id);
-  a.textContent = `${label} ${release.file?.name ?? ''}`.trim();
+  a.textContent = label;
   a.rel = 'noopener';
   return a;
 }
@@ -124,7 +124,7 @@ export function renderCard(pkg: Package): HTMLElement {
   head.appendChild(el('h3', 'dl-card__title', pkg.title));
   const lead = leadRelease(pkg);
   if (lead) {
-    head.appendChild(el('span', 'dl-card__version', lead.version));
+    head.appendChild(el('span', 'dl-card__version', 'Version ' + lead.version));
     if (lead.latest) head.appendChild(el('span', 'pill pill--latest', 'Latest'));
   }
   card.appendChild(head);
