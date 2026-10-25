@@ -22,6 +22,7 @@ import { createPlayer, spreadChoices } from './loadout';
 import { decodeRoster, encodeRoster, isEmptyRoster } from './codec';
 import {
   renderAlertBar,
+  renderRaidBuffBar,
   renderBuffsPanel,
   renderDebuffsPanel,
   renderUtilityPanel,
@@ -653,6 +654,8 @@ function drawNow(): void {
   app.appendChild(renderToolbar(roster, coverage, handlers));
   const alerts = renderAlertBar(coverage);
   if (alerts) app.appendChild(alerts);
+  const raidBuffs = renderRaidBuffBar(roster, coverage);
+  if (raidBuffs) app.appendChild(raidBuffs);
 
   const main = el('div', 'rmain');
 
@@ -1350,6 +1353,8 @@ function drawRoster(): void {
 
   const alerts = renderAlertBar(coverage);
   if (alerts) app.appendChild(alerts);
+  const raidBuffs = renderRaidBuffBar(roster, coverage);
+  if (raidBuffs) app.appendChild(raidBuffs);
 
   const main = el('div', 'rmain rmain--roster');
 

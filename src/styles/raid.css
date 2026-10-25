@@ -232,6 +232,34 @@
 .alertbar__label { color: var(--ink2); }
 .alertbar__hint { color: var(--muted); font-size: 11.5px; margin-left: auto; }
 
+/* The raid-wide buffs nobody here brings. Blue when a player here can switch to it,
+   grey when nobody can, matching the rows in the buff panel. */
+.raidbar {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  margin-bottom: 8px;
+}
+.raidbar__head { display: inline-flex; align-items: center; margin-right: 4px; }
+.raidbar__title { font-family: var(--font-display); font-weight: 700; color: var(--gold); }
+.raidbar__done { color: var(--green); font-size: 12.5px; }
+.raidbar__chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 2px 9px 2px 2px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #0b0b0b;
+  color: var(--ink2);
+  font-size: 12px;
+}
+.raidbar__chip:hover { border-color: var(--gold2); color: var(--ink); }
+.raidbar__icon { width: 20px; height: 20px; border-radius: 50%; border: 1px solid #000; }
+.raidbar__chip--available { border-color: rgba(88, 166, 255, .45); background: rgba(88, 166, 255, .08); }
+.raidbar__chip--missing .raidbar__icon { filter: grayscale(1) brightness(.6); }
+.raidbar__chip--missing { color: var(--muted); }
+
 .tally { display: inline-flex; gap: 4px; margin-left: 6px; }
 .tally { font-family: var(--font-narrow); font-size: 11px; padding: 0 6px; border-radius: 3px; border: 1px solid currentColor; }
 .tally--error { color: var(--red); }
@@ -328,6 +356,7 @@
 .buff__top { display: flex; align-items: baseline; gap: 6px; }
 .buff__name { flex: 1; min-width: 0; font-size: 12.5px; font-weight: 600; line-height: 1.3; }
 .buff__meta { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; margin-top: 3px; }
+.buff__meta:empty { display: none; }
 .buff__status {
   font-family: var(--font-narrow);
   font-size: 9.5px; text-transform: uppercase; letter-spacing: .5px;
@@ -384,11 +413,17 @@
   font-size: 12.5px;
 }
 .cat__head:hover { background: rgba(255, 255, 255, .04); }
+/* A fixed box with the digit centred in it. The narrow face sat its figures high in the
+   box, so the count uses the body face's even-width figures instead. */
 .cat__count {
-  font-family: var(--font-narrow);
-  min-width: 20px; text-align: center;
-  font-weight: 700; font-size: 11.5px;
-  padding: 0 4px; border-radius: 3px;
+  display: inline-flex; align-items: center; justify-content: center;
+  flex: 0 0 auto;
+  min-width: 22px; height: 18px;
+  padding: 0 5px; box-sizing: border-box;
+  font-family: var(--font-body);
+  font-weight: 700; font-size: 11.5px; line-height: 1;
+  font-variant-numeric: tabular-nums lining-nums;
+  border-radius: 3px;
   background: #0b0b0b; border: 1px solid var(--line);
   color: var(--muted);
 }

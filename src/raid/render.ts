@@ -510,6 +510,72 @@ export function renderAlertBar(coverage: Coverage): HTMLElement | null {
   return bar;
 }
 
+/**
+ * The raid-wide buffs this roster is not bringing, at the top of the page.
+ *
+ * Most of the big buffs reach the whole raid now, so where somebody sits does not
+ * matter for them, only whether anyone brings them. That is a one-line answer, so it
+ * goes above everything rather than in a group's warnings. Resistance buffs are left
+ * out: they are wanted for a fight, not every night. Party buffs keep their per-group
+ * warnings under "What to fix".
+ */
+export function renderRaidBuffBar(roster: Roster, coverage: Coverage): HTMLElement | null {
+  if (!coverage.playerCount) return null;
+  const rows = [...coverage.byEffect.values()].filter(
+    (c) =>
+      c.effect.kind === 'buff' &&
+      c.effect.scope === 'raid' &&
+      !c.effect.categories.every((cat) => cat.endsWith('-resist')),
+  );
+  if (!rows.length) return null;
+  const gaps = rows
+    .filter((c) => !c.covered)
+    .sort((a, b) => {
+      // Ones a player here could switch to first: those are a click away.
+      const rank = STATE_ORDER[coverState(a)] - STATE_ORDER[coverState(b)];
+      return rank !== 0 ? rank : a.effect.name.localeCompare(b.effect.name);
+    });
+
+  const bar = el('div', 'raidbar');
+  const head = el('span', 'raidbar__head');
+  head.appendChild(el('span', 'raidbar__title', 'Raid buffs'));
+  head.appendChild(
+    el('span', 'tally' + (gaps.length ? '' : ' tally--ok'), rows.length - gaps.length + '/' + rows.length),
+  );
+  bar.appendChild(head);
+
+  if (!gaps.length) {
+    bar.appendChild(el('span', 'raidbar__done', 'Every raid buff is covered.'));
+    return bar;
+  }
+
+  for (const cov of gaps) {
+    const state = coverState(cov);
+    const chip = el('button', 'raidbar__chip raidbar__chip--' + state);
+    chip.dataset.effect = cov.effect.id;
+    chip.appendChild(iconImg(cov.effect.icon, '', 'raidbar__icon'));
+    chip.appendChild(el('span', 'raidbar__name', cov.effect.name));
+    chip.setAttribute('aria-label', cov.effect.name + ', ' + STATE_LABEL[state].toLowerCase());
+    chip.addEventListener('click', () => {
+      document
+        .querySelector('.buff[data-effect="' + cov.effect.id + '"]')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    bar.appendChild(chip);
+  }
+
+  const active = activeGroupCount(roster.size);
+  attachTooltips(
+    bar,
+    (target) => target.closest('.raidbar__chip') as HTMLElement | null,
+    (chip) => {
+      const cov = chip.dataset.effect ? coverage.byEffect.get(chip.dataset.effect) : undefined;
+      return cov ? buildEffectTip(cov, active) : null;
+    },
+  );
+  return bar;
+}
+
 export function renderWarnings(coverage: Coverage): HTMLElement {
   const panel = el('section', 'panel');
   panel.id = 'problems';
@@ -761,8 +827,11 @@ export function buildEffectTip(cov: EffectCoverage, active: number): HTMLElement
 /**
  * Two lines rather than one. Cramming the name, the pills, the group strip and
  * the status onto a single row made all four of them unreadable in a narrow column.
+ *
+ * The scope tag only earns its place where the section around the row does not already
+ * say it: "raid" under Raid buffs, or "boss" under a debuff heading, says nothing new.
  */
-function effectRow(cov: EffectCoverage, active: number, expanded: boolean): HTMLElement {
+function effectRow(cov: EffectCoverage, active: number, expanded: boolean, showScope = false): HTMLElement {
   const state = coverState(cov);
   const row = el('div', 'buff buff--' + state);
   row.dataset.effect = cov.effect.id;
@@ -779,11 +848,14 @@ function effectRow(cov: EffectCoverage, active: number, expanded: boolean): HTML
   mid.appendChild(top);
 
   const meta = el('div', 'buff__meta');
-  meta.appendChild(
-    el('span', 'scope scope--' + cov.effect.scope, cov.effect.scope === 'target' ? 'boss' : cov.effect.scope),
-  );
+  if (showScope) {
+    meta.appendChild(
+      el('span', 'scope scope--' + cov.effect.scope, cov.effect.scope === 'target' ? 'boss' : cov.effect.scope),
+    );
+  }
+  // "Changed" sat on nearly every row, so it told nobody anything. New and unverified still show.
   const status = cov.effect.forever.status;
-  if (status !== 'same') {
+  if (status !== 'same' && status !== 'changed') {
     const pill = el('span', 'pill pill--' + status, status);
     pill.title = status === 'unverified' ? 'Not confirmed for Forever yet' : status + ' since Classic';
     meta.appendChild(pill);
@@ -1060,7 +1132,8 @@ export function renderUtilityPanel(roster: Roster, coverage: Coverage): HTMLElem
       if (!effects.length) {
         inner.appendChild(el('div', 'buff__blurb', 'Nobody in this raid covers it.'));
       } else {
-        for (const cov of effects) inner.appendChild(effectRow(cov, active, true));
+        // Utility mixes raid, party and boss effects in one list, so here the scope is news.
+        for (const cov of effects) inner.appendChild(effectRow(cov, active, true, true));
       }
       inner.hidden = !openCategories.has(cat.id);
       box.appendChild(inner);

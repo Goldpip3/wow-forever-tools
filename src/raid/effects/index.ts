@@ -9,6 +9,8 @@ import { MAGE_EFFECTS } from "./mage";
 import { WARLOCK_EFFECTS } from "./warlock";
 import { DRUID_EFFECTS } from "./druid";
 
+/* An effect Forever removed stays in its class file with the note saying why, but the
+   planner neither lists it nor offers it as a pick: nobody can bring it. */
 export const EFFECTS: Effect[] = [
   ...WARRIOR_EFFECTS,
   ...PALADIN_EFFECTS,
@@ -19,7 +21,7 @@ export const EFFECTS: Effect[] = [
   ...MAGE_EFFECTS,
   ...WARLOCK_EFFECTS,
   ...DRUID_EFFECTS,
-];
+].filter((e) => e.forever.status !== "removed");
 
 const BY_ID = new Map(EFFECTS.map((e) => [e.id, e]));
 
