@@ -50,15 +50,12 @@ export const PALADIN_EFFECTS: Effect[] = [
       note: "Improved Concentration Aura was cut from the Protection tree.",
     },
   },
-  /* The resistance auras reach the raid at build 1.60.1.70009, but they stay "party"
-     here: as raid scope, spreadChoices would move a second Paladin off Devotion Aura
-     onto one of them. That needs spreadChoices to leave a party-scope pick alone first. */
   {
     id: "fire-resistance-aura",
     name: "Fire Resistance Aura",
     icon: "spell_fire_sealoffire",
     kind: "buff",
-    scope: "party",
+    scope: "raid",
     categories: ["fire-resist"],
     providers: [{ classId: "paladin", specs: ANY, choice: AURA }],
     forever: {
@@ -71,7 +68,7 @@ export const PALADIN_EFFECTS: Effect[] = [
     name: "Frost Resistance Aura",
     icon: "spell_frost_wizardmark",
     kind: "buff",
-    scope: "party",
+    scope: "raid",
     categories: ["frost-resist"],
     providers: [{ classId: "paladin", specs: ANY, choice: AURA }],
     forever: {
@@ -84,7 +81,7 @@ export const PALADIN_EFFECTS: Effect[] = [
     name: "Shadow Resistance Aura",
     icon: "spell_shadow_sealofkings",
     kind: "buff",
-    scope: "party",
+    scope: "raid",
     categories: ["shadow-resist"],
     providers: [{ classId: "paladin", specs: ANY, choice: AURA }],
     forever: {

@@ -290,8 +290,8 @@ export const DRUID_TALENT_HOOKS: Record<string, TalentHook> = {
     mods.critBonus.physical = (mods.critBonus.physical ?? 0) + 0.1 * rank;
   },
 
-  // 'While in Cat Form ... increases the critical strike chance of all party
-  // members within 45 yards by 3%.' The druid is one of them.
+  // 'While in Cat Form ... increases the melee and ranged Critical Strike chance of
+  // all party or raid members within 45 yards by 3%.' The druid is one of them.
   'Leader of the Pack': (_rank, mods) => {
     mods.meleeCrit += 3;
   },
@@ -507,8 +507,8 @@ export const BALANCE_TALENT_HOOKS: Record<string, TalentHook> = {
     }
   },
 
-  // '... all party members within 45 yards have their critical chance increased
-  // by 3%.' The druid is one of them; the fight settings decide whether it is
+  // '... all party or raid members within 45 yards have their spell Critical Strike
+  // chance increased by 3%.' The druid is one of them; the fight settings decide whether it is
   // already counted as a raid buff.
   'Moonkin Form': (_rank, mods) => {
     mods.flags.moonkinForm = 1;

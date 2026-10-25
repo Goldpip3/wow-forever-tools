@@ -11,16 +11,16 @@ export const WARRIOR_EFFECTS: Effect[] = [
     name: "Battle Shout",
     icon: "ability_warrior_battleshout",
     kind: "buff",
-    scope: "party",
+    scope: "raid",
     categories: ["melee-attack-power"],
     providers: [{ classId: "warrior", specs: ANY }],
     values: {
       classic: "232 melee attack power to the party, 2 min",
-      forever: "139 melee attack power to the party, 3 min",
+      forever: "139 melee attack power to party or raid members within 20 yards, 3 min",
     },
     forever: {
       status: "changed",
-      note: "Rank 7 gives 139 melee attack power for 3 min, down from Classic's 232 for 2 min. Improved Battle Shout is gone from the Fury tree, so every Warrior brings the same value.",
+      note: "Rank 7 gives 139 melee attack power for 3 min, down from Classic's 232 for 2 min. It reaches party or raid members within 20 yards at build 1.60.1.70425, where Classic reached only the party. Improved Battle Shout is gone from the Fury tree, so every Warrior brings the same value.",
     },
   },
   {

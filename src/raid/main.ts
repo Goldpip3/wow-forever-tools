@@ -1549,7 +1549,7 @@ export function renderRosterIntro(): HTMLElement {
     list.appendChild(li);
   };
   point('Everyone who signed up appears in a pool beside the groups, with their class, spec and what they said when they signed up.');
-  point('Drag them into seats. The buff panel updates as you go, so you can see a group losing Windfury before you have finished moving people.');
+  point('Drag them into seats. The buff panel updates as you go, so you can see a group losing Mana Spring Totem before you have finished moving people.');
   point('Anyone still in the pool when you publish is told they are standby. Cutting someone is a separate, deliberate choice, and they hear nothing at all.');
   point('Publishing posts the roster in the event channel and sends direct messages. Anyone with direct messages closed is named afterwards, so you know who to chase.');
   point('Your work saves a second after you stop dragging. Closing the tab does not lose it.');

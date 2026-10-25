@@ -18,7 +18,7 @@ export const HUNTER_EFFECTS: Effect[] = [
     name: "Trueshot Aura",
     icon: "ability_trueshot",
     kind: "buff",
-    scope: "party",
+    scope: "raid",
     // Ranged attack power only. Classic's aura gave melee attack power too.
     categories: ["ranged-attack-power"],
     providers: [
@@ -29,11 +29,11 @@ export const HUNTER_EFFECTS: Effect[] = [
       },
     ],
     values: {
-      forever: "+50 ranged attack power to the party within 45 yards at Rank 5, 30 min",
+      forever: "+50 ranged attack power to party or raid members within 45 yards at Rank 5, 30 min",
     },
     forever: {
       status: "changed",
-      note: "Ranged attack power only, for party members within 45 yards, 30 min. The talent is Rank 1 at 30. Rank 5, learned at 60, reads 50 in the beta client at build 1.60.1.70009, below Rank 4's 75.",
+      note: "Ranged attack power only, for party or raid members within 45 yards, 30 min. Classic reached only the party. The talent is Rank 1 at 30. Rank 5, learned at 60, reads 50 in the beta client at build 1.60.1.70425, below Rank 4's 75.",
     },
   },
   {
@@ -92,14 +92,14 @@ export const HUNTER_EFFECTS: Effect[] = [
     name: "Furious Howl",
     icon: "ability_hunter_pet_wolf",
     kind: "buff",
-    scope: "party",
+    scope: "raid",
     // Beta client: melee attack power only. Classic gave melee and ranged, so a
     // wolf no longer covers a group's ranged attack power.
     categories: ["melee-attack-power"],
     providers: [{ classId: "hunter", specs: ANY, pet: "wolf", choice: PET }],
     forever: {
       status: "changed",
-      note: "Classic gave the wolf and its master 45 melee and ranged attack power for 20 sec. It is a party buff now: 138 melee attack power within 15 yards for 1 min, and it no longer gives ranged attack power at all.",
+      note: "Classic gave the wolf and its master 45 melee and ranged attack power for 20 sec. At build 1.60.1.70425 it reaches party or raid members within 15 yards: 83 melee attack power for 1 min at Rank 4, down from 138 at the last import, and no ranged attack power at all.",
     },
   },
   {

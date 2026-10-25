@@ -72,14 +72,15 @@ hypothetical.
   the raid-wide and boss-facing picks their classmates already hold, so a second Warlock
   takes the next curse instead of doubling the first one's. `createPlayer` cannot do it
   itself — it is also called where there is no roster to read. It keys off effect *scope*,
-  so it covers every class; party-scope groups like auras and totems are left alone on
-  purpose, because a second group needs its own.
+  so it covers every class. A party-scope pick like Devotion Aura or Mana Spring Totem is
+  left alone on purpose, because a second group needs its own, and so is a resistance
+  buff, because those are picked for a fight.
 
 ## Commands
 
 ```
 npm run dev      # vite on 5273
-npm test         # vitest, 1109 tests
+npm test         # vitest, 1121 tests
 npm run build    # typecheck, then dist/
 npm run e2e      # Playwright smoke tests against dist/; build first
 npm run import   # refetch talent data after the beta changes

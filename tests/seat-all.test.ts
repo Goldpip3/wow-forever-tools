@@ -142,17 +142,17 @@ describe('seating everyone at once', () => {
     expect(left).toHaveLength(3);
   });
 
-  it('puts the two Enhancement Shamans in different groups', () => {
+  it('puts the two Restoration Shamans in different groups', () => {
     const roster = emptyRoster(40);
     seatAll(roster, pool());
     const groups = [];
     for (let g = 0; g < 8; g += 1) {
       for (const player of roster.groups[g] ?? []) {
-        if (player?.specId === 263) groups.push(g);
+        if (player?.specId === 262) groups.push(g);
       }
     }
     expect(groups).toHaveLength(2);
-    // Windfury only reaches one group, so two in one group is one wasted totem.
+    // Mana Tide Totem only reaches one group, so two in one group is one wasted totem.
     expect(groups[0]).not.toBe(groups[1]);
   });
 });
@@ -166,16 +166,15 @@ describe('seating around the party buff that matters most', () => {
     return -1;
   }
 
-  it('packs the melee around the one Enhancement Shaman', () => {
-    /* Windfury Totem only reaches the Shaman's own group, so with six melee and one
-       Shaman the answer is five of them beside the totem and one left over, not three
-       and three. */
+  it('packs the healers around the one Restoration Shaman', () => {
+    /* Mana Tide Totem only reaches the Shaman's own group, so with six healers and one
+       Shaman the answer is the rest of them beside the totem, not three and three. */
     const roster = emptyRoster(20);
     const waiting: Player[] = [];
-    const shaman = spreadChoices(createPlayer('shaman', 263), waiting);
+    const shaman = spreadChoices(createPlayer('shaman', 262), waiting);
     waiting.push(shaman);
     for (const [c, s] of [
-      ['warrior', 161], ['warrior', 161], ['rogue', 181], ['rogue', 183], ['paladin', 383],
+      ['priest', 202], ['priest', 202], ['paladin', 382], ['druid', 282], ['priest', 201],
     ] as Array<[ClassId, number]>) {
       waiting.push(spreadChoices(createPlayer(c, s), waiting));
     }
@@ -186,13 +185,13 @@ describe('seating around the party buff that matters most', () => {
     expect(withHim.length).toBeGreaterThanOrEqual(4);
   });
 
-  it('gives two Enhancement Shamans a group each rather than one group both', () => {
+  it('gives two Restoration Shamans a group each rather than one group both', () => {
     const roster = emptyRoster(40);
     const waiting: Player[] = [];
-    const a = spreadChoices(createPlayer('shaman', 263), waiting); waiting.push(a);
-    const b = spreadChoices(createPlayer('shaman', 263), waiting); waiting.push(b);
+    const a = spreadChoices(createPlayer('shaman', 262), waiting); waiting.push(a);
+    const b = spreadChoices(createPlayer('shaman', 262), waiting); waiting.push(b);
     for (let i = 0; i < 8; i += 1) {
-      waiting.push(spreadChoices(createPlayer('warrior', 161), waiting));
+      waiting.push(spreadChoices(createPlayer('priest', 202), waiting));
     }
     seatAll(roster, waiting);
     expect(groupOf(roster, a)).not.toBe(groupOf(roster, b));

@@ -356,9 +356,9 @@ export function overview(roster: Roster): RosterOverview {
 /**
  * What a player's own party buffs are worth to each kind of player around them.
  *
- * Derived from the catalog rather than from a list of specs, so an Enhancement Shaman
- * counts as something melee want because Windfury and Strength of Earth are worth
- * something to melee, not because anybody wrote "shamans go with melee" down.
+ * Derived from the catalog rather than from a list of specs, so a Shaman on Mana Spring
+ * Totem counts as something healers want because mana regeneration is worth something
+ * to them, not because anybody wrote "shamans go with healers" down.
  */
 function givesTo(player: Player): Partial<Record<Archetype, number>> {
   const out: Partial<Record<Archetype, number>> = {};
@@ -396,8 +396,8 @@ function servesArchetype(player: Player): Archetype | null {
 /**
  * Seat everyone waiting, putting party buffs where they are worth something.
  *
- * Party buffs only reach the caster's own group, so the arrangement is the whole game: an
- * Enhancement Shaman among five casters is a Windfury Totem nobody swings with. This sorts
+ * Party buffs only reach the caster's own group, so the arrangement is the whole game: a
+ * Shaman on Mana Spring Totem among five warriors is mana nobody uses. This sorts
  * players into blocks of the same kind, gives each block a contiguous run of groups, and
  * deals the buff carriers out first so two Shamans land in two different melee groups
  * rather than both in the first.
@@ -513,9 +513,9 @@ export function seatAll(
     /*
      * One carrier per group, then fill each carrier's group up before opening the next.
      *
-     * Dealing the whole block round-robin was wrong with a single carrier: Windfury only
-     * reaches the Shaman's own group, so six melee and one Enhancement Shaman spread over
-     * two groups left three of them swinging without it. Anchoring a group on each carrier
+     * Dealing the whole block round-robin was wrong with a single carrier: a party buff only
+     * reaches the caster's own group, so six beneficiaries and one carrier spread over two
+     * groups left three of them without it. Anchoring a group on each carrier
      * and filling it to capacity puts as many beneficiaries as will fit next to the totem,
      * and only the overflow goes somewhere else.
      */

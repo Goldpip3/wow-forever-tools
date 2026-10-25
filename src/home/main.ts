@@ -116,7 +116,7 @@ function features(): HTMLElement {
       lead: 'Eight groups of five, by name and spec, with the buff maths done for you.',
       points: [
         'Every buff and debuff shown with its icon, marked covered or missing, and who brings it.',
-        'Knows what overlaps: Leader of the Pack against Moonkin Aura, Sunder against Expose Armor.',
+        'Knows what overlaps: Demoralizing Shout against Demoralizing Roar, two Hunters on one sting.',
         'Counts debuff slots on the boss so nothing silently falls off.',
         'Reads your signups straight out of a Discord signup bot.',
       ],
@@ -176,13 +176,13 @@ function smartSection(): HTMLElement {
     el(
       'p',
       '',
-      'The planner scores every seat. It knows Windfury Totem is worth a great deal to a melee player and nothing at all to a mage, so it can spot someone sitting in the wrong group and say so in plain words:',
+      'The planner scores every seat. It knows Mana Spring Totem is worth a great deal to a healer and nothing at all to a warrior, so it can spot someone sitting in the wrong group and say so in plain words:',
     ),
   );
 
   const quote = el('blockquote', 'quote');
   quote.textContent =
-    'Frost Mage moves to Group 6, where Moonkin Aura and Mana Spring Totem actually help them. Holy Priest takes the seat in Group 4.';
+    'Frost Mage moves to Group 6, where Mana Spring Totem actually helps them. Holy Priest takes the seat in Group 4.';
   body.appendChild(quote);
 
   body.appendChild(

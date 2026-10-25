@@ -39,7 +39,7 @@ export const DRUID_EFFECTS: Effect[] = [
     name: "Leader of the Pack",
     icon: "spell_nature_unyeildingstamina",
     kind: "buff",
-    scope: "party",
+    scope: "raid",
     categories: ["melee-and-ranged-crit"],
     providers: [
       {
@@ -49,11 +49,10 @@ export const DRUID_EFFECTS: Effect[] = [
         choice: FORM,
       },
     ],
-    exclusiveWith: ["moonkin-form"],
-    values: { forever: "+3% critical strike to the party within 45 yards" },
+    values: { forever: "+3% melee and ranged critical strike to party or raid members within 45 yards" },
     forever: {
       status: "changed",
-      note: "Forever gives +3% crit to all party members within 45 yards, and the tooltip says it is exclusive with Moonkin Aura.",
+      note: "Forever gives +3% melee and ranged crit to all party or raid members within 45 yards at build 1.60.1.70425. Classic reached only the party. The tooltip no longer says it is exclusive with Moonkin Aura, so the two stack.",
     },
   },
   {
@@ -61,8 +60,8 @@ export const DRUID_EFFECTS: Effect[] = [
     name: "Moonkin Aura",
     icon: "spell_nature_forceofnature",
     kind: "buff",
-    scope: "party",
-    categories: ["melee-and-ranged-crit", "spell-crit"],
+    scope: "raid",
+    categories: ["spell-crit"],
     providers: [
       {
         classId: "druid",
@@ -71,14 +70,13 @@ export const DRUID_EFFECTS: Effect[] = [
         choice: FORM,
       },
     ],
-    exclusiveWith: ["leader-of-the-pack"],
     values: {
       classic: "+3% spell crit to the party",
-      forever: "+3% critical strike to the party within 45 yards",
+      forever: "+3% spell critical strike to party or raid members within 45 yards",
     },
     forever: {
       status: "changed",
-      note: "Forever raises critical chance for the whole party within 45 yards, and the tooltip says it is exclusive with Leader of the Pack.",
+      note: "Forever raises spell critical chance for all party or raid members within 45 yards at build 1.60.1.70425, where Classic reached only the party. It no longer raises melee or ranged crit, and the tooltip no longer says it is exclusive with Leader of the Pack.",
     },
   },
   {

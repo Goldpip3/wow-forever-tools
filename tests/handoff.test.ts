@@ -53,8 +53,8 @@ describe('what a player takes over to the gear page', () => {
     expect(melee.simulated).toContain('windfury-totem');
     expect(melee.simulated).not.toContain('mana-spring-totem');
     expect(caster.simulated).toContain('mana-spring-totem');
-    expect(caster.simulated).not.toContain('windfury-totem');
-    // Raid-wide ones reach both groups.
+    // Raid-wide ones reach both groups, and Windfury Totem is one of them now.
+    expect(caster.simulated).toContain('windfury-totem');
     expect(melee.simulated).toContain('arcane-intellect');
     expect(caster.simulated).toContain('arcane-intellect');
   });

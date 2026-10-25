@@ -112,33 +112,32 @@ describe('scope resolution', () => {
 
   it('warns about the groups a party buff misses', () => {
     const roster = emptyRoster(40);
-    add(roster, 0, 0, 'warrior', 161);
+    add(roster, 0, 0, 'paladin', 382);
     add(roster, 0, 1, 'mage', 61);
     const warnings = computeCoverage(roster).warnings;
-    const gap = warnings.find((w) => w.title.includes('Battle Shout'));
+    const gap = warnings.find((w) => w.title.includes('Devotion Aura'));
     expect(gap).toBeDefined();
     expect(gap!.detail).toMatch(/Groups 2, 3, 4, 5, 6, 7, 8/);
+  });
+
+  it('counts Battle Shout in every group, now that it reaches the raid', () => {
+    const roster = emptyRoster(40);
+    add(roster, 0, 0, 'warrior', 161);
+    const cov = computeCoverage(roster);
+    expect(cov.byEffect.get('battle-shout')!.covered).toBe(true);
+    expect(cov.warnings.find((w) => w.title.includes('Battle Shout'))).toBeUndefined();
   });
 });
 
 describe('exclusivity', () => {
-  it('warns when both crit auras sit in one group', () => {
+  it('lets both crit auras run in one group', () => {
     const roster = emptyRoster(40);
     add(roster, 1, 0, 'druid', 281, 'Claws');
     add(roster, 1, 1, 'druid', 283, 'Boomie');
-    const warnings = computeCoverage(roster).warnings;
-    const clash = warnings.find((w) => w.title.includes('do not stack'));
-    expect(clash).toBeDefined();
-    expect(clash!.detail).toMatch(/Group 2/);
-  });
-
-  it('does not warn when the crit auras are split across groups', () => {
-    const roster = emptyRoster(40);
-    add(roster, 0, 0, 'druid', 281);
-    add(roster, 1, 0, 'druid', 283);
-    const warnings = computeCoverage(roster).warnings;
-    expect(warnings.find((w) => w.title.includes('do not stack'))).toBeUndefined();
-    expect(warnings.find((w) => w.title.includes('Both crit auras'))).toBeDefined();
+    const cov = computeCoverage(roster);
+    expect(cov.warnings.find((w) => w.title.includes('do not stack'))).toBeUndefined();
+    expect(cov.byEffect.get('leader-of-the-pack')!.overriddenBy).toBeUndefined();
+    expect(cov.byEffect.get('moonkin-form')!.overriddenBy).toBeUndefined();
   });
 
   it('covers reduced armor from the warrior alone, and adding a rogue costs no slot', () => {
@@ -577,13 +576,24 @@ describe('spreading choices across classmates', () => {
     expect(new Set(auras).size).toBe(1);
   });
 
-  it('leaves totems alone for the same reason', () => {
+  it('leaves party totems and resistance totems alone', () => {
     const roster = emptyRoster(40);
     const shamans = fill(roster, 'shaman', 263, 3);
-    for (const group of ['shaman-earth', 'shaman-air', 'shaman-water', 'shaman-fire']) {
+    // Strength of Earth is the only raid-wide earth totem, Mana Spring is party, and Fire
+    // Resistance is picked for a fight.
+    for (const group of ['shaman-earth', 'shaman-water', 'shaman-fire']) {
       const picks = shamans.map((p) => p.loadout[group]?.[0]);
       expect(new Set(picks).size, group).toBe(1);
     }
+  });
+
+  it('moves a second Shaman off Windfury Totem, now that one reaches the raid', () => {
+    const roster = emptyRoster(40);
+    const picks = fill(roster, 'shaman', 263, 3).map((p) => p.loadout['shaman-air']?.[0]);
+    expect(picks[0]).toBe('windfury-totem');
+    expect(picks[1]).toBe('grace-of-air-totem');
+    // Nothing raid-wide is left in the air group, and Nature Resistance is not assumed.
+    expect(picks[2]).toBe('windfury-totem');
   });
 
   it('does not touch a player who has no classmate yet', () => {

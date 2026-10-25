@@ -213,7 +213,7 @@ export function computeCoverage(roster: Roster): Coverage {
   }
 
   /* ---------------------------------------------------------- choice warnings */
-  warnings.push(...choiceWarnings(roster, players, byEffect, limit));
+  warnings.push(...choiceWarnings(roster, players));
 
   /* -------------------------------------------------- missing party coverage */
   warnings.push(...partyGapWarnings(byEffect, limit));
@@ -249,12 +249,7 @@ export function computeCoverage(roster: Roster): Coverage {
 
 /* ----------------------------------------------------------- choice checking */
 
-function choiceWarnings(
-  roster: Roster,
-  players: Player[],
-  byEffect: Map<string, EffectCoverage>,
-  limit: number,
-): Warning[] {
+function choiceWarnings(roster: Roster, players: Player[]): Warning[] {
   const out: Warning[] = [];
 
   /* Paladins: each one hands out one blessing per class, so distinct blessings matter. */
@@ -344,22 +339,6 @@ function choiceWarnings(
     }
   }
 
-  /* Druids: the two crit auras are mutually exclusive, and both are worth having somewhere. */
-  const lotp = byEffect.get('leader-of-the-pack');
-  const moonkin = byEffect.get('moonkin-form');
-  if (lotp?.covered && moonkin?.covered) {
-    const overlap = lotp.groups
-      .map((on, i) => (on && moonkin.groups[i] && i < limit ? i + 1 : 0))
-      .filter(Boolean);
-    if (!overlap.length) {
-      out.push({
-        level: 'info',
-        title: 'Both crit auras are running in different groups',
-        detail: 'Leader of the Pack and Moonkin Aura do not stack, so keeping them apart is right.',
-      });
-    }
-  }
-
   return out;
 }
 
@@ -367,11 +346,7 @@ function choiceWarnings(
 
 /** Party buffs worth flagging when a group is missing them. */
 const KEY_PARTY_BUFFS = [
-  'battle-shout',
   'devotion-aura',
-  'strength-of-earth-totem',
-  'windfury-totem',
-  'grace-of-air-totem',
   'mana-spring-totem',
   'blood-pact',
 ];

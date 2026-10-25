@@ -131,7 +131,10 @@ export function createPlayer(classId: ClassId, specId: number, name?: string): P
  * changes: a raid buff or a debuff on the boss lands once however many people cast it, so a
  * second Warlock on the curse the first already has adds nothing. Party-scope options are
  * deliberately left out — two Paladins running Devotion Aura in two different groups is two
- * groups covered, not a mistake, and every totem works the same way.
+ * groups covered, not a mistake, and Mana Spring Totem works the same way.
+ *
+ * Resistance buffs are left out too. Most reach the raid now, but they are picked for a
+ * fight, so moving a second Shaman onto Nature Resistance Totem by default is wrong.
  *
  * Filtered rather than all-or-nothing. Curse of Exhaustion sits in the curse group but is
  * utility rather than something the raid covers, and requiring every option to qualify let
@@ -139,8 +142,9 @@ export function createPlayer(classId: ClassId, specId: number, name?: string): P
  */
 function spreadableOptions<T extends { id: string }>(options: T[]): T[] {
   return options.filter((o) => {
-    const scope = effectById(o.id)?.scope;
-    return scope === 'raid' || scope === 'target';
+    const effect = effectById(o.id);
+    if (!effect || (effect.scope !== 'raid' && effect.scope !== 'target')) return false;
+    return !effect.categories.every((c) => c.endsWith('-resist'));
   });
 }
 
@@ -181,6 +185,8 @@ export function spreadChoices(player: Player, existing: Iterable<Player>): Playe
 
     const current = (player.loadout[choice.group] ?? [])[0];
     if (current && !taken.has(current)) continue;
+    // A party buff or a resistance is not a wasted duplicate, so it stays.
+    if (current && !spreadable.some((o) => o.id === current)) continue;
 
     /* Catalog order, so the second Warlock takes the next curse that actually matters
        rather than the next one alphabetically. Talent-gated options are skipped: handing

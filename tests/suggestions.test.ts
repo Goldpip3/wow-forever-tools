@@ -37,20 +37,21 @@ describe('archetypes', () => {
 });
 
 describe('group profiles', () => {
-  it('reads a Windfury group as a melee group', () => {
+  it('reads a Mana Spring group as a healer group', () => {
     const roster = emptyRoster(40);
-    add(roster, 0, 0, 'shaman', 263); // Enhancement brings Windfury Totem
+    add(roster, 0, 0, 'shaman', 261); // Elemental brings Mana Spring Totem
     const profiles = profileGroups(roster, computeCoverage(roster));
-    expect(profiles[0]!.suits).toBe('melee');
-    expect(profiles[0]!.buffs.map((b) => b.name)).toContain('Windfury Totem');
+    expect(profiles[0]!.suits).toBe('healer');
+    expect(profiles[0]!.buffs.map((b) => b.name)).toContain('Mana Spring Totem');
   });
 
-  it('reads a Moonkin group as a caster group', () => {
+  it('leaves raid-wide buffs out of what a group is for', () => {
     const roster = emptyRoster(40);
-    add(roster, 1, 0, 'druid', 283); // Balance brings Moonkin Aura
+    add(roster, 0, 0, 'shaman', 263); // Windfury Totem reaches the raid now
+    add(roster, 1, 0, 'druid', 283); // and so does Moonkin Aura
     const profiles = profileGroups(roster, computeCoverage(roster));
-    const g2 = profiles.find((p) => p.index === 1)!;
-    expect(g2.buffs.map((b) => b.name)).toContain('Moonkin Aura');
+    expect(profiles[0]!.buffs.map((b) => b.name)).not.toContain('Windfury Totem');
+    expect(profiles.find((p) => p.index === 1)!.buffs.map((b) => b.name)).not.toContain('Moonkin Aura');
   });
 
   it('counts who is in each group', () => {
@@ -65,58 +66,56 @@ describe('group profiles', () => {
 });
 
 describe('seat value', () => {
-  it('rates a melee player higher in a Windfury group than an empty one', () => {
+  it('rates a healer higher in a Mana Spring group than an empty one', () => {
     const roster = emptyRoster(40);
-    add(roster, 0, 0, 'shaman', 263);
-    const warrior = add(roster, 0, 1, 'warrior', 161);
+    add(roster, 0, 0, 'shaman', 261);
+    const priest = add(roster, 0, 1, 'priest', 202);
     const profiles = profileGroups(roster, computeCoverage(roster));
-    const melee = profiles[0]!;
-    const empty = profiles[3]!;
-    expect(seatValue(warrior, melee)).toBeGreaterThan(seatValue(warrior, empty));
+    expect(seatValue(priest, profiles[0]!)).toBeGreaterThan(seatValue(priest, profiles[3]!));
   });
 
-  it('gives a caster nothing from Windfury', () => {
+  it('gives a warrior less from Mana Spring than a healer', () => {
     const roster = emptyRoster(40);
-    add(roster, 0, 0, 'shaman', 263);
-    const mage = add(roster, 0, 1, 'mage', 61);
+    add(roster, 0, 0, 'shaman', 261);
+    const priest = add(roster, 0, 1, 'priest', 202);
     const warrior = add(roster, 0, 2, 'warrior', 161);
     const profiles = profileGroups(roster, computeCoverage(roster));
-    expect(seatValue(warrior, profiles[0])).toBeGreaterThan(seatValue(mage, profiles[0]));
+    expect(seatValue(priest, profiles[0])).toBeGreaterThan(seatValue(warrior, profiles[0]));
   });
 });
 
 describe('swap suggestions', () => {
-  /** A melee player stuck in the caster group, with a seat free next to Windfury. */
-  function misplacedMelee(): Roster {
+  /** A healer stuck in the melee group, with a seat free next to Mana Spring. */
+  function misplacedHealer(): Roster {
     const roster = emptyRoster(40);
-    // Group 1: melee support, one seat left over
-    add(roster, 0, 0, 'shaman', 263, 'Totems');
-    add(roster, 0, 1, 'warrior', 161, 'Arms One');
-    // Group 2: caster support, with a warrior sitting in it
-    add(roster, 1, 0, 'druid', 283, 'Boomie');
-    add(roster, 1, 1, 'warrior', 164, 'Lost Fury');
+    // Group 1: mana support, one seat left over
+    add(roster, 0, 0, 'shaman', 261, 'Totems');
+    add(roster, 0, 1, 'priest', 202, 'Holy One');
+    // Group 2: melee, with a healer sitting in it
+    add(roster, 1, 0, 'warrior', 161, 'Arms One');
+    add(roster, 1, 1, 'priest', 202, 'Lost Holy');
     return roster;
   }
 
-  it('spots a melee player sitting in the caster group', () => {
-    const roster = misplacedMelee();
+  it('spots a healer sitting away from the mana totem', () => {
+    const roster = misplacedHealer();
     const suggestions = suggestSwaps(roster, computeCoverage(roster));
     expect(suggestions.length).toBeGreaterThan(0);
-    const about = suggestions.find((s) => s.title.includes('Lost Fury'));
+    const about = suggestions.find((s) => s.title.includes('Lost Holy'));
     expect(about).toBeDefined();
     expect(about!.gain).toBeGreaterThan(0);
   });
 
   it('writes a reason a raid leader can read', () => {
-    const roster = misplacedMelee();
-    const s = suggestSwaps(roster, computeCoverage(roster)).find((x) => x.title.includes('Lost Fury'))!;
+    const roster = misplacedHealer();
+    const s = suggestSwaps(roster, computeCoverage(roster)).find((x) => x.title.includes('Lost Holy'))!;
     expect(s.detail).toMatch(/Group [12]/);
     expect(s.detail.length).toBeGreaterThan(30);
     expect(s.title).toMatch(/^(Move|Swap) /);
   });
 
   it('raises the raid score when applied', () => {
-    const roster = misplacedMelee();
+    const roster = misplacedHealer();
     const before = raidScore(roster, profileGroups(roster, computeCoverage(roster)));
     const s = suggestSwaps(roster, computeCoverage(roster))[0]!;
     applySuggestion(roster, s);
@@ -164,7 +163,7 @@ describe('swap suggestions', () => {
   });
 
   it('moves a player into an empty seat without losing anyone', () => {
-    const roster = misplacedMelee();
+    const roster = misplacedHealer();
     const before = roster.groups.flat().filter(Boolean).length;
     const s = suggestSwaps(roster, computeCoverage(roster))[0]!;
     applySuggestion(roster, s);

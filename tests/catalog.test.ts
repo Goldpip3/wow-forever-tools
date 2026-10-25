@@ -193,9 +193,24 @@ describe('effect catalog', () => {
     expect(CATEGORIES.find((c) => c.id === 'reduced-movement-speed')).toBeUndefined();
   });
 
-  it('makes the two crit auras mutually exclusive', () => {
-    expect(effectById('leader-of-the-pack')!.exclusiveWith).toContain('moonkin-form');
-    expect(effectById('moonkin-form')!.exclusiveWith).toContain('leader-of-the-pack');
+  it('lets the two crit auras stack, since the tooltips no longer say otherwise', () => {
+    expect(effectById('leader-of-the-pack')!.exclusiveWith ?? []).not.toContain('moonkin-form');
+    expect(effectById('moonkin-form')!.exclusiveWith ?? []).not.toContain('leader-of-the-pack');
+    expect(effectById('moonkin-form')!.categories).toEqual(['spell-crit']);
+  });
+
+  it('puts the buffs that read "party or raid members" in raid scope', () => {
+    for (const id of [
+      'battle-shout', 'trueshot-aura', 'furious-howl', 'leader-of-the-pack', 'moonkin-form',
+      'strength-of-earth-totem', 'grace-of-air-totem', 'windfury-totem', 'flametongue-totem',
+      'fire-resistance-aura', 'frost-resistance-aura', 'shadow-resistance-aura',
+    ]) {
+      expect(effectById(id)!.scope, id).toBe('raid');
+    }
+    // These still say "party members" or "group members".
+    for (const id of ['devotion-aura', 'stoneskin-totem', 'mana-spring-totem', 'blood-pact']) {
+      expect(effectById(id)!.scope, id).toBe('party');
+    }
   });
 
   it('uses every category at least once', () => {
