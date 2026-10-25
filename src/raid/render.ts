@@ -511,58 +511,52 @@ export function renderAlertBar(coverage: Coverage): HTMLElement | null {
 }
 
 /**
- * The raid-wide buffs this roster is not bringing, at the top of the page.
+ * Every raid-wide buff as one icon, lit when somebody brings it, at the top of the page.
  *
- * Most of the big buffs reach the whole raid now, so where somebody sits does not
- * matter for them, only whether anyone brings them. That is a one-line answer, so it
- * goes above everything rather than in a group's warnings. Resistance buffs are left
- * out: they are wanted for a fight, not every night. Party buffs keep their per-group
- * warnings under "What to fix".
+ * Most of the big buffs reach the whole raid now, so where somebody sits does not matter
+ * for them, only whether anyone brings them. All of them show, not only the gaps, so
+ * seating a Druid lights up Mark of the Wild where it can be seen. Icons only: the names
+ * did not fit on one line and made it hard to read. The tooltip names each one.
+ * Resistance buffs are left out, since they are wanted for a fight, not every night.
+ * Party buffs keep their per-group warnings under "What to fix".
  */
 export function renderRaidBuffBar(roster: Roster, coverage: Coverage): HTMLElement | null {
   if (!coverage.playerCount) return null;
-  const rows = [...coverage.byEffect.values()].filter(
-    (c) =>
-      c.effect.kind === 'buff' &&
-      c.effect.scope === 'raid' &&
-      !c.effect.categories.every((cat) => cat.endsWith('-resist')),
-  );
-  if (!rows.length) return null;
-  const gaps = rows
-    .filter((c) => !c.covered)
+  const rows = [...coverage.byEffect.values()]
+    .filter(
+      (c) =>
+        c.effect.kind === 'buff' &&
+        c.effect.scope === 'raid' &&
+        !c.effect.categories.every((cat) => cat.endsWith('-resist')),
+    )
     .sort((a, b) => {
-      // Ones a player here could switch to first: those are a click away.
       const rank = STATE_ORDER[coverState(a)] - STATE_ORDER[coverState(b)];
       return rank !== 0 ? rank : a.effect.name.localeCompare(b.effect.name);
     });
+  if (!rows.length) return null;
+  const covered = rows.filter((c) => c.covered).length;
 
   const bar = el('div', 'raidbar');
   const head = el('span', 'raidbar__head');
   head.appendChild(el('span', 'raidbar__title', 'Raid buffs'));
-  head.appendChild(
-    el('span', 'tally' + (gaps.length ? '' : ' tally--ok'), rows.length - gaps.length + '/' + rows.length),
-  );
+  head.appendChild(el('span', 'tally' + (covered === rows.length ? ' tally--ok' : ''), covered + '/' + rows.length));
   bar.appendChild(head);
 
-  if (!gaps.length) {
-    bar.appendChild(el('span', 'raidbar__done', 'Every raid buff is covered.'));
-    return bar;
-  }
-
-  for (const cov of gaps) {
+  const icons = el('div', 'raidbar__icons');
+  for (const cov of rows) {
     const state = coverState(cov);
     const chip = el('button', 'raidbar__chip raidbar__chip--' + state);
     chip.dataset.effect = cov.effect.id;
     chip.appendChild(iconImg(cov.effect.icon, '', 'raidbar__icon'));
-    chip.appendChild(el('span', 'raidbar__name', cov.effect.name));
     chip.setAttribute('aria-label', cov.effect.name + ', ' + STATE_LABEL[state].toLowerCase());
     chip.addEventListener('click', () => {
       document
         .querySelector('.buff[data-effect="' + cov.effect.id + '"]')
         ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
-    bar.appendChild(chip);
+    icons.appendChild(chip);
   }
+  bar.appendChild(icons);
 
   const active = activeGroupCount(roster.size);
   attachTooltips(
@@ -844,7 +838,10 @@ function effectRow(cov: EffectCoverage, active: number, expanded: boolean, showS
 
   const top = el('div', 'buff__top');
   top.appendChild(el('span', 'buff__name', cov.effect.name));
-  top.appendChild(el('span', 'buff__status buff__status--' + state, STATE_LABEL[state]));
+  // A missing row is already greyed out, so the word says nothing the row does not.
+  if (state !== 'missing') {
+    top.appendChild(el('span', 'buff__status buff__status--' + state, STATE_LABEL[state]));
+  }
   mid.appendChild(top);
 
   const meta = el('div', 'buff__meta');
@@ -1119,13 +1116,7 @@ export function renderUtilityPanel(roster: Roster, coverage: Coverage): HTMLElem
       const toggle = el('button', 'cat__head');
       toggle.appendChild(el('span', 'cat__count' + (count ? ' cat__count--on' : ''), String(count)));
       toggle.appendChild(el('span', 'cat__name', cat.name));
-      toggle.appendChild(
-        el(
-          'span',
-          'buff__status buff__status--' + (count ? 'covered' : 'missing'),
-          count ? 'Covered' : 'Missing',
-        ),
-      );
+      if (count) toggle.appendChild(el('span', 'buff__status buff__status--covered', 'Covered'));
       box.appendChild(toggle);
 
       const inner = el('div', 'cat__body');

@@ -232,33 +232,33 @@
 .alertbar__label { color: var(--ink2); }
 .alertbar__hint { color: var(--muted); font-size: 11.5px; margin-left: auto; }
 
-/* The raid-wide buffs nobody here brings. Blue when a player here can switch to it,
-   grey when nobody can, matching the rows in the buff panel. */
+/* Every raid-wide buff as an icon. Lit with a green ring when somebody brings it, a blue
+   ring when a player here could switch to it, dim when nobody can. */
 .raidbar {
-  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
-  padding: 7px 10px;
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 10px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--panel);
   margin-bottom: 8px;
 }
-.raidbar__head { display: inline-flex; align-items: center; margin-right: 4px; }
+.raidbar__head { display: inline-flex; align-items: center; flex: 0 0 auto; }
 .raidbar__title { font-family: var(--font-display); font-weight: 700; color: var(--gold); }
-.raidbar__done { color: var(--green); font-size: 12.5px; }
+.raidbar__icons { display: flex; gap: 5px; flex-wrap: wrap; }
 .raidbar__chip {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 2px 9px 2px 2px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: #0b0b0b;
-  color: var(--ink2);
-  font-size: 12px;
+  display: block; width: 30px; height: 30px; padding: 0;
+  border: 2px solid #3a3a3a; border-radius: 5px;
+  background: #000; overflow: hidden;
+  box-shadow: 0 0 0 1px #000;
 }
-.raidbar__chip:hover { border-color: var(--gold2); color: var(--ink); }
-.raidbar__icon { width: 20px; height: 20px; border-radius: 50%; border: 1px solid #000; }
-.raidbar__chip--available { border-color: rgba(88, 166, 255, .45); background: rgba(88, 166, 255, .08); }
-.raidbar__chip--missing .raidbar__icon { filter: grayscale(1) brightness(.6); }
-.raidbar__chip--missing { color: var(--muted); }
+.raidbar__icon { display: block; width: 100%; height: 100%; object-fit: cover; }
+.raidbar__chip--covered { border-color: var(--green2); box-shadow: 0 0 0 1px #000, 0 0 7px rgba(79, 191, 58, .45); }
+.raidbar__chip--overlaps { border-color: var(--gold); }
+.raidbar__chip--available { border-color: rgba(88, 166, 255, .7); }
+.raidbar__chip--available .raidbar__icon { filter: saturate(.5) brightness(.75); }
+.raidbar__chip--missing .raidbar__icon { filter: grayscale(1) brightness(.62); }
+.raidbar__chip:hover { border-color: var(--gold); }
+.raidbar__chip:hover .raidbar__icon { filter: none; }
 
 .tally { display: inline-flex; gap: 4px; margin-left: 6px; }
 .tally { font-family: var(--font-narrow); font-size: 11px; padding: 0 6px; border-radius: 3px; border: 1px solid currentColor; }
