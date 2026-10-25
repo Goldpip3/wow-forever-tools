@@ -159,7 +159,12 @@ function changeCell(target: HTMLElement | null, remove: boolean): void {
     : addPoint(cls, build, treeIdx, talentIdx);
 
   if (!result.ok && result.reason) toast(result.reason);
-  if (result.ok) update();
+  if (result.ok) {
+    update();
+    // The redraw makes new cells, so mark the one that changed for its short pulse.
+    const key = target.dataset.focusKey;
+    if (key) app?.querySelector('[data-focus-key="' + key + '"]')?.classList.add('cell--bump');
+  }
   refreshTip(() => tipFor(target));
 }
 

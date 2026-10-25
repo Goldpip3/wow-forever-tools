@@ -312,6 +312,10 @@ export function renderTree(
 
     const frame = el('span', 'cell__frame');
     const img = iconImg(talent.icon, '', 'cell__icon');
+    /* Every click redraws the tree, so a lazy, async icon blinks black for a frame on each
+       point. These are already cached by then; load and decode them in step with the redraw. */
+    img.loading = 'eager';
+    img.decoding = 'sync';
     frame.appendChild(img);
     cell.appendChild(frame);
     cell.appendChild(rankBadge(rank, talent.max, state));

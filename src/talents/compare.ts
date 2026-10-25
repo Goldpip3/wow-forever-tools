@@ -48,12 +48,15 @@ export function buildTalentTip(opts: TipOptions): HTMLElement {
   const { talent, rank, compare, blocked } = opts;
   const frag = document.createElement('div');
 
-  frag.appendChild(line('tip__name', talent.name));
-
+  // Name on the left and rank on the right, the way the game lays out a talent.
+  const head = document.createElement('div');
+  head.className = 'tip__head';
+  head.appendChild(line('tip__name', talent.name));
   const meta = document.createElement('div');
   meta.className = 'tip__rank';
   meta.textContent = 'Rank ' + Math.max(rank, 0) + '/' + talent.max;
-  frag.appendChild(meta);
+  head.appendChild(meta);
+  frag.appendChild(head);
 
   if (talent.cost) frag.appendChild(line('tip__meta', talent.cost));
   if (talent.passive) frag.appendChild(line('tip__meta', 'Passive'));
@@ -67,7 +70,13 @@ export function buildTalentTip(opts: TipOptions): HTMLElement {
 
   if (rank > 0 && rank < talent.max) {
     const next = rankText(talent, rank + 1);
-    frag.appendChild(line('tip__next', 'Next rank: ' + next.text));
+    const nextEl = document.createElement('div');
+    nextEl.className = 'tip__next';
+    const label = document.createElement('span');
+    label.className = 'tip__label';
+    label.textContent = 'Next rank:';
+    nextEl.append(label, ' ' + next.text);
+    frag.appendChild(nextEl);
   }
 
   /* Say which of the two it is. Calling an unscaled rank "estimated" implied a figure had
