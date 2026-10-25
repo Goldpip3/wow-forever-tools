@@ -1,5 +1,5 @@
 --[[
-  Forever XP 1.0
+  Forever XP 1.2.1
 
   Where your experience comes from (kills, quests, everything else), how fast
   it is coming in, and what the mob in front of you is worth before you kill it.
@@ -20,7 +20,7 @@
 ]]
 
 local ADDON = ...
-local VERSION = '1.0'
+local VERSION = '1.2.1'
 local PREFIX = '|cff33ff99Forever XP:|r '
 
 local DEFAULTS = {
@@ -33,6 +33,8 @@ local DEFAULTS = {
   scope = 1,                -- 1 this session, 2 this level
   tooltip = true,
   levelTable = true,
+  showTracker = true,
+  docked = true,              -- level table attached under the tracker
   minimap = true,
   minimapAngle = 215,
 }
@@ -54,6 +56,8 @@ local frame, header, titleButton, titleText, gear, mm
 local rows = {}
 local refresh
 local SETTINGS
+local tableFrame              -- the level table, its own window so it can be moved or hidden alone
+local settingsSync, openSettings, placeTable
 
 local function IsSecret(v)
   return issecretvalue ~= nil and issecretvalue(v) or false
@@ -159,6 +163,59 @@ local entered, resumed = false, false
 local rate, rateAt          -- the last XP per hour reading and when it was taken
 local shownRows = FIXED_ROWS
 
+-- Who this character is: name, realm, race and class. Read once the game
+-- answers plainly, and stamped on every level record and export row.
+local function whoAmI()
+  local c = cdb.character
+  if type(c) ~= 'table' then c = {} cdb.character = c end
+  pcall(function()
+    local name, realm = plain(UnitName('player')), plain(GetRealmName and GetRealmName() or nil)
+    local race = plain((UnitRace('player')))
+    local class = plain((UnitClass('player')))
+    if type(name) == 'string' and name ~= '' then c.name = name end
+    if type(realm) == 'string' and realm ~= '' then c.realm = realm end
+    if type(race) == 'string' and race ~= '' then c.race = race end
+    if type(class) == 'string' and class ~= '' then c.class = class end
+  end)
+  return c
+end
+
+-- When the character was made. The game keeps no creation date, so the first
+-- time Forever XP sees a character it asks for /played once: a character with
+-- only a few minutes played was made that many minutes ago. For an older
+-- character the best it can say is "on or before" now minus its played time.
+local NEW_CHAR_SECONDS = 15 * 60
+local askedPlayed = false
+
+local function createdText()
+  local c = cdb and cdb.created
+  if type(c) ~= 'table' or type(c.at) ~= 'number' or not date then return '' end
+  local stamp = date('%Y-%m-%d %H:%M', c.at)
+  return c.exact and stamp or ('on or before ' .. stamp)
+end
+
+local function noteCreated(totalPlayed)
+  if type(cdb.created) == 'table' and cdb.created.at then return end
+  totalPlayed = tonumber(plain(totalPlayed))
+  if not totalPlayed or not time then return end
+  local now = time()
+  cdb.created = {
+    at = now - totalPlayed, exact = totalPlayed <= NEW_CHAR_SECONDS,
+    played = totalPlayed, seen = now, level = plain(UnitLevel('player')),
+  }
+  cdb.createdText = createdText()
+end
+
+local function askCreated()
+  if askedPlayed or (type(cdb.created) == 'table' and cdb.created.at) then
+    cdb.createdText = createdText()
+    return
+  end
+  if not RequestTimePlayed then return end
+  askedPlayed = true
+  pcall(RequestTimePlayed)
+end
+
 local function levelStats()
   local level = plain(UnitLevel('player')) or 0
   -- Right after a cold login the game can report level 0 for a moment. That is
@@ -174,6 +231,8 @@ local function levelStats()
       and ((old.total or 0) > 0 or (old.mob or 0) > 0 or (old.quest or 0) > 0) then
       old.seconds = (old.seconds or 0) + (GetTime() - (cdb.levelClock or GetTime()))
       old.finished = date and date('%Y-%m-%d %H:%M') or nil
+      local who = whoAmI()
+      old.race, old.class = who.race, who.class
       old.mobs = nil
       if type(cdb.history) ~= 'table' then cdb.history = {} end
       cdb.history[old.level] = old
@@ -500,14 +559,40 @@ local function onXPUpdate()
   levelStats()
 end
 
+-- XP needed to finish each level (Classic values; Forever's level 10 bar reads
+-- 7,600, which matches). Only used for levels past the current one; the
+-- current level's figure always comes from the game.
+local XP_TO_LEVEL = {
+  400, 900, 1400, 2100, 2800, 3600, 4500, 5400, 6500, 7600,
+  8800, 10100, 11400, 12900, 14400, 16000, 17700, 19400, 21300, 23200,
+  25200, 27300, 29400, 31700, 34000, 36400, 38900, 41400, 44300, 47400,
+  50800, 54500, 58600, 62800, 67100, 71600, 76100, 80800, 85700, 90700,
+  95800, 101000, 106300, 111800, 117500, 123200, 129100, 135100, 141200, 147500,
+  153900, 160400, 167100, 173900, 180800, 187900, 195000, 202300, 209800,
+}
+
+-- Where adding `gain` XP would leave you: level, percent into it, and whether
+-- that is the level cap.
+local function projectXP(gain)
+  local level, xp, need = lastLevel, lastXP + gain, lastMax
+  local cap = plain(GetMaxPlayerLevel and GetMaxPlayerLevel() or nil) or 60
+  while need and need > 0 and xp >= need and level < cap do
+    xp = xp - need
+    level = level + 1
+    need = XP_TO_LEVEL[level]
+  end
+  if level >= cap then return level, 0, true end
+  return level, (need and need > 0) and (xp / need * 100) or 0, false
+end
+
 -- Quests waiting to be handed in ---------------------------------------------
 
 -- Walks the quest log with whichever API this client has. A quest counts when
 -- the game marks it complete, or when it has no objectives at all (a delivery
 -- or "speak with" quest is ready the moment you hold it).
 local function scanQuests()
-  local ready = { count = 0, xp = 0, unknown = 0 }
-  local function add(questID, index)
+  local ready = { count = 0, xp = 0, unknown = 0, list = {} }
+  local function add(questID, index, title)
     ready.count = ready.count + 1
     local xp
     if questID and GetQuestLogRewardXP then
@@ -515,6 +600,8 @@ local function scanQuests()
       xp = ok and tonumber(plain(v)) or nil
     end
     if xp and xp > 0 then ready.xp = ready.xp + xp else ready.unknown = ready.unknown + 1 end
+    title = plain(title)
+    ready.list[#ready.list + 1] = { title = type(title) == 'string' and title or ('Quest ' .. tostring(questID)), xp = xp }
   end
 
   if C_QuestLog and C_QuestLog.GetNumQuestLogEntries and C_QuestLog.GetInfo then
@@ -528,18 +615,18 @@ local function scanQuests()
           local objectives = C_QuestLog.GetQuestObjectives(id)
           done = type(objectives) == 'table' and #objectives == 0
         end
-        if done then add(id, i) end
+        if done then add(id, i, info.title) end
       end
     end
   elseif GetNumQuestLogEntries and GetQuestLogTitle then
     for i = 1, GetNumQuestLogEntries() do
-      local _, _, _, isHeader, _, isComplete, _, questID = GetQuestLogTitle(i)
+      local title, _, _, isHeader, _, isComplete, _, questID = GetQuestLogTitle(i)
       if not isHeader then
         local done = isComplete == 1 or isComplete == true
         if not done and isComplete == nil and GetNumQuestLeaderBoards and GetNumQuestLeaderBoards(i) == 0 then
           done = true
         end
-        if done then add(questID, i) end
+        if done then add(questID, i, title) end
       end
     end
   end
@@ -613,6 +700,22 @@ local function predict(unit)
   local pool = plain(GetXPExhaustion and GetXPExhaustion() or nil)
   if pool and pool > 0 then p.rested = math.min(p.xp, pool) end
   return p
+end
+
+-- How a party changes one kill: the formula is worked at the highest member's
+-- level, then your share is your level over the sum of levels, times the
+-- party bonus for three or more. Returns share, calcLevel, member count.
+local function partyFactor(playerLevel)
+  if not IsInGroup() or IsInRaid() then return 1, playerLevel, 1 end
+  local calcLevel, sum, n = playerLevel, playerLevel, 1
+  for i = 1, GetNumGroupMembers() - 1 do
+    local l = plain(UnitLevel('party' .. i))
+    if l and l > 0 then
+      sum, n = sum + l, n + 1
+      if l > calcLevel then calcLevel = l end
+    end
+  end
+  return playerLevel / sum * (PARTY_BONUS[n] or 1.4), calcLevel, n
 end
 
 local function predictionText(p, long)
@@ -812,7 +915,7 @@ local function difficultyColor(diff, grey)
 end
 
 local function drawLevelTable()
-  local panel = frame.levelPanel
+  local panel = tableFrame
   if not panel or not panel:IsShown() then return end
   local playerLevel = lastLevel or plain(UnitLevel('player'))
   if not playerLevel then return end
@@ -821,18 +924,27 @@ local function drawLevelTable()
   local calibrated = (db.calibN or 0) >= 3 and db.calib
   local capped = atMaxLevel()
 
-  if buffMult > 1 then
-    panel.title:SetText(string.format('XP per kill and kills to level (+%d%% buff on)', (buffMult - 1) * 100 + 0.5))
-  else
-    panel.title:SetText('XP per kill and kills to level, by mob level')
-  end
+  local partyShare, partyLevel, members = partyFactor(playerLevel)
+  local tags = {}
+  if members > 1 then tags[#tags + 1] = string.format('party of %d', members) end
+  if buffMult > 1 then tags[#tags + 1] = string.format('+%d%% buff', (buffMult - 1) * 100 + 0.5) end
+  if IsInGroup() and IsInRaid() then tags[#tags + 1] = 'raid, solo values' end
+  panel.title:SetText('XP per kill and kills to level' .. (#tags > 0 and ' (' .. table.concat(tags, ', ') .. ')' or ', by mob level'))
 
   local lines, best = {}, 1
   for diff = TABLE_SPAN, -TABLE_SPAN, -1 do
     local mobLevel = playerLevel + diff
     if mobLevel >= 1 then
       local seenXP = db.byLevel and db.byLevel[playerLevel .. ':' .. mobLevel]
-      local xp = (seenXP or formulaXP(playerLevel, mobLevel) * (calibrated or 1)) * buffMult
+      local xp
+      if partyShare < 1 then
+        -- In a party the mob's XP is worked at the highest level in the group,
+        -- so a value seen solo does not carry over.
+        xp = formulaXP(partyLevel, mobLevel) * (calibrated or 1) * partyShare * buffMult
+        seenXP = nil
+      else
+        xp = (seenXP or formulaXP(playerLevel, mobLevel) * (calibrated or 1)) * buffMult
+      end
       xp = math.floor(xp + 0.5)
       if xp > best then best = xp end
       lines[#lines + 1] = { level = mobLevel, diff = diff, xp = xp, approx = not seenXP }
@@ -871,7 +983,9 @@ local function targetUnit()
 end
 
 refresh = function()
-  if not frame or not frame:IsShown() or db.minimized then return end
+  if not db or not frame then return end
+  if tableFrame and tableFrame:IsShown() then drawLevelTable() end
+  if not frame:IsShown() or db.minimized then return end
   local s = db.scope == 2 and levelStats() or session
   local now = GetTime()
 
@@ -902,25 +1016,29 @@ refresh = function()
 
   -- 4. Quests finished but not handed in: how many, what they pay, and where
   -- on the level bar handing them all in would leave you.
-  local rdy = frame.ready or { count = 0, xp = 0, unknown = 0 }
+  local rdy = frame.ready or { count = 0, xp = 0, unknown = 0, list = {} }
   local rightText, after = '--', 0
   if rdy.count > 0 then
-    if rdy.xp > 0 and lastXP and lastMax and lastMax > 0 then
-      local sum = lastXP + rdy.xp
-      if sum >= lastMax then
+    if rdy.xp > 0 and lastXP and lastMax and lastMax > 0 and lastLevel then
+      local level, pct, capped = projectXP(rdy.xp)
+      local amount = commas(rdy.xp) .. ' XP'
+      if capped then
+        rightText = string.format('%s \194\187 level %d', amount, level)
         after = 100
-        rightText = string.format('%s  levels you, +%s', short(rdy.xp), short(sum - lastMax))
+      elseif level == lastLevel then
+        rightText = string.format('%s \194\187 %d%% of level %d', amount, pct, level)
+        after = pct
       else
-        after = sum / lastMax * 100
-        rightText = string.format('%s  takes you to %d%%', short(rdy.xp), after)
+        rightText = string.format('%s \194\187 level %d, %d%% in', amount, level, pct)
+        after = 100
       end
     elseif rdy.xp > 0 then
-      rightText = short(rdy.xp)
+      rightText = commas(rdy.xp) .. ' XP'
     else
       rightText = 'XP not given by the game'
     end
-    if rdy.xp > 0 and rdy.unknown > 0 then rightText = rightText .. '+' end
   end
+  frame.readyText = rdy
   setRow(4, string.format('Ready to turn in (%d)', rdy.count), rightText, after, 0.20, 0.45, 0.30)
 
   -- 5-6. Pace. The rate is a reading, retaken every five minutes or when the
@@ -965,8 +1083,6 @@ refresh = function()
     setRow(8, 'Target a mob', 'to see its XP')
     rows[8].left:SetTextColor(0.6, 0.6, 0.6)
   end
-
-  drawLevelTable()
 
   -- 9 on. The counter: each mob and level killed, what one gives, how many.
   local list = {}
@@ -1019,18 +1135,52 @@ local function fullHeight()
   return HEADER_H + 5 + shownRows * (ROW_H + ROW_GAP) + 4
 end
 
+-- The level table's own place, kept the same way as the tracker's: its
+-- top-left corner in screen units.
+local function saveTablePlace()
+  if not tableFrame then return end
+  local l, t, sc = tableFrame:GetLeft(), tableFrame:GetTop(), tableFrame:GetScale()
+  if not (num(l) and num(t)) then return end
+  if not num(sc) then sc = db.scale or 1 end
+  db.tableLeft, db.tableTop = l * sc, t * sc
+end
+
+placeTable = function()
+  if not tableFrame then return end
+  local sc = db.scale or 1
+  tableFrame:ClearAllPoints()
+  if db.docked and db.showTracker then
+    tableFrame:SetPoint('TOPLEFT', frame, 'BOTTOMLEFT', 0, -3)
+  elseif num(db.tableLeft) and num(db.tableTop) then
+    tableFrame:SetPoint('TOPLEFT', UIParent, 'BOTTOMLEFT', db.tableLeft / sc, db.tableTop / sc)
+  elseif num(db.left) and num(db.top) then
+    -- Never placed on its own yet: start where it sat under the tracker.
+    tableFrame:SetPoint('TOPLEFT', UIParent, 'BOTTOMLEFT', db.left / sc, db.top / sc - fullHeight() - 3)
+  else
+    tableFrame:SetPoint('CENTER', UIParent, 'CENTER', 0, -250)
+  end
+end
+
 local function applyLook()
   frame:SetScale(db.scale)
   frame:SetSize(db.width, db.minimized and HEADER_H or fullHeight())
   placeFrame()
   frame.bg:SetAlpha(db.alpha)
-  if frame.levelPanel then frame.levelPanel.bg:SetAlpha(db.alpha) end
   titleText:SetText('Experience: ' .. SCOPES[db.scope]:lower())
   titleButton:SetWidth(titleText:GetStringWidth() + 20)
   frame.body:SetShown(not db.minimized)
-  if frame.levelPanel then frame.levelPanel:SetShown(db.levelTable) end
   frame.setMinimizeArt()
-  frame:SetShown(db.shown)
+  frame:SetShown(db.shown and db.showTracker)
+  if tableFrame then
+    tableFrame:SetScale(db.scale)
+    tableFrame:SetWidth(db.width)
+    tableFrame.bg:SetAlpha(db.alpha)
+    placeTable()
+    -- Attached and the tracker collapsed: the pair collapses together.
+    local collapsed = db.docked and db.showTracker and db.minimized
+    tableFrame:SetShown(db.shown and db.levelTable and not collapsed)
+  end
+  if settingsSync then settingsSync() end
 end
 
 local function updateMinimap()
@@ -1059,6 +1209,51 @@ local function stopMove()
   if frame.SetUserPlaced then pcall(frame.SetUserPlaced, frame, true) end
   frame.moving = false
   savePlace()
+end
+
+-- Dragging the level table always moves it on its own. If it was attached it
+-- comes loose; dropped back under the tracker's bottom edge, it attaches again.
+local SNAP = 24
+local lockHintAt = 0
+
+local function startTableMove(_, button)
+  if button and button ~= 'LeftButton' then return end
+  if db.locked then
+    if GetTime() - lockHintAt > 10 then
+      lockHintAt = GetTime()
+      say('panels are locked. Unlock them in settings (/fxp config).')
+    end
+    return
+  end
+  tableFrame.wasDocked = db.docked and db.showTracker
+  -- Any drag makes it a separate panel; a drop under the tracker attaches it again.
+  saveTablePlace()
+  db.docked = false
+  placeTable()
+  tableFrame.moving = true
+  tableFrame:StartMoving()
+end
+
+local function stopTableMove()
+  if not tableFrame.moving then return end
+  tableFrame:StopMovingOrSizing()
+  if tableFrame.SetUserPlaced then pcall(tableFrame.SetUserPlaced, tableFrame, false) end
+  tableFrame.moving = false
+  saveTablePlace()
+  local was = tableFrame.wasDocked
+  tableFrame.wasDocked = nil
+  if db.showTracker and frame:IsShown() and not db.minimized then
+    local fl, fb = frame:GetLeft(), frame:GetBottom()
+    local tl, tt = tableFrame:GetLeft(), tableFrame:GetTop()
+    if num(fl) and num(fb) and num(tl) and num(tt) and math.abs(tl - fl) <= SNAP and math.abs(tt - (fb - 3)) <= SNAP then
+      db.docked = true
+      if not was then say('level table attached under the tracker.') end
+    elseif was then
+      say('level table separated. Drop it back under the tracker to attach it again.')
+    end
+  end
+  placeTable()
+  if settingsSync then settingsSync() end
 end
 
 -- The session lives in the per-character saved table, so a /reload picks it
@@ -1123,16 +1318,18 @@ end
 
 local function exportText()
   local lines = { table.concat({
-    'Level', 'To level', 'XP tracked', 'Kill XP', 'Kill %', 'Quest XP', 'Quest %', 'Other XP', 'Other %',
+    'Character', 'Realm', 'Race', 'Class', 'Created', 'Level', 'To level', 'XP tracked', 'Kill XP', 'Kill %', 'Quest XP', 'Quest %', 'Other XP', 'Other %',
     'Kills', 'Quests turned in', 'Rested bonus XP', 'Minutes played', 'XP per hour', 'Finished', 'Note',
   }, '\t') }
+  local who = whoAmI()
   for _, h in ipairs(historyRows()) do
     local total, mobPct, questPct, otherPct, other = shares(h)
     local minutes = (h.seconds or 0) / 60
     local note = h.inProgress and 'in progress' or ''
     if h.partial then note = note .. (note ~= '' and ', ' or '') .. 'tracking started partway through' end
     lines[#lines + 1] = table.concat({
-      h.level, h.level + 1, total, h.mob or 0, string.format('%.1f', mobPct), h.quest or 0, string.format('%.1f', questPct),
+      who.name or '', who.realm or '', h.race or who.race or '', h.class or who.class or '',
+      createdText(), h.level, h.level + 1, total, h.mob or 0, string.format('%.1f', mobPct), h.quest or 0, string.format('%.1f', questPct),
       other, string.format('%.1f', otherPct), h.kills or 0, h.quests or 0, h.rested or 0,
       string.format('%.0f', minutes), minutes > 0 and string.format('%.0f', total / minutes * 60) or 0,
       h.finished or '', note,
@@ -1149,12 +1346,6 @@ local function csvText()
   return text
 end
 
-local function exportToFile()
-  cdb.exportCSV = csvText()
-  cdb.exportAt = date and date('%Y-%m-%d %H:%M:%S') or nil
-  say('levels saved. Reloading so the game writes them to disk; then run "ForeverXP Export" on your PC.')
-  ReloadUI()
-end
 
 local exportFrame
 local function showExport()
@@ -1216,7 +1407,9 @@ end
 
 local function printLevels()
   local rowsOut = historyRows()
-  say('levels on record:')
+  local who = whoAmI()
+  say(string.format('levels on record for %s, %s %s:', who.name or '?', who.race or '?', who.class or '?'))
+  if createdText() ~= '' then say('  Created ' .. createdText() .. '.') end
   for _, h in ipairs(rowsOut) do
     local total, mobPct, questPct, otherPct = shares(h)
     local line = string.format('  Level %d to %d: %d%% mobs, %d%% quests', h.level, h.level + 1, mobPct + 0.5, questPct + 0.5)
@@ -1228,21 +1421,320 @@ local function printLevels()
   end
 end
 
-SETTINGS = {
-  { text = 'Forever XP ' .. VERSION, title = true },
-  { text = 'Lock window', checked = checked('locked'), click = toggle('locked') },
-  { text = 'Level table under the window', checked = checked('levelTable'), click = toggle('levelTable') },
-  { text = 'XP line on mob tooltips', checked = checked('tooltip'), click = toggle('tooltip') },
-  { text = 'Minimap button', checked = checked('minimap'), click = toggle('minimap') },
-  { text = function() return string.format('Scale: %d%%', db.scale * 100) end, click = cycle('scale', { 0.8, 0.9, 1, 1.1, 1.25, 1.5 }) },
-  { text = function() return string.format('Background: %d%%', db.alpha * 100) end, click = cycle('alpha', { 0, 0.2, 0.4, 0.6, 0.8, 1 }) },
-  { text = 'Export to Excel (reloads the UI)', click = function() exportToFile() end, close = true },
-  { text = 'Clear session numbers', click = function() resetSession() refresh() end, close = true },
-  { text = 'Forget learned mob values', click = function()
-      db.learned, db.calib, db.calibN = {}, nil, 0
-      say('learned mob values cleared.')
-    end, close = true },
-}
+-- Settings ---------------------------------------------------------------------
+-- One settings page, built twice: a window of its own (gear button, minimap
+-- right-click, /fxp config) and the same page under the game's Options >
+-- AddOns. Every change applies at once and both copies stay in step.
+
+local syncers = {}
+settingsSync = function()
+  for _, f in ipairs(syncers) do pcall(f) end
+end
+
+local function setShowTracker(v)
+  if not v and db.docked and tableFrame and tableFrame:IsShown() then
+    saveTablePlace()   -- the table stays where it is when the tracker goes away
+  end
+  db.showTracker = v
+  applyLook()
+  refresh()
+end
+
+local function setDocked(v)
+  if not v and db.docked then saveTablePlace() end
+  db.docked = v
+  applyLook()
+end
+
+local function resetPositions()
+  db.left, db.top, db.tableLeft, db.tableTop = nil, nil, nil, nil
+  db.docked, db.minimized = true, false
+  frame:ClearAllPoints()
+  frame:SetPoint('CENTER', UIParent, 'CENTER', 0, 120)
+  savePlace()
+  applyLook()
+  refresh()
+  say('panels moved back to the middle of the screen, table attached.')
+end
+
+local GOLD = { 1, 0.82, 0 }
+
+local function buildSettingsContent(parent, width)
+  local y = -6
+  local syncs = {}
+
+  local function heading(text)
+    y = y - 10
+    local fs = parent:CreateFontString(nil, 'OVERLAY', 'GameFontNormal')
+    fs:SetPoint('TOPLEFT', 16, y)
+    fs:SetText(text)
+    local line = parent:CreateTexture(nil, 'ARTWORK')
+    line:SetColorTexture(GOLD[1], GOLD[2], GOLD[3], 0.25)
+    line:SetHeight(1)
+    line:SetPoint('TOPLEFT', 16, y - 17)
+    line:SetPoint('TOPRIGHT', -16, y - 17)
+    y = y - 26
+  end
+
+  local function tip(owner, text)
+    if not text then return end
+    owner:HookScript('OnEnter', function(self)
+      GameTooltip:SetOwner(self, 'ANCHOR_RIGHT')
+      GameTooltip:AddLine(text, 1, 1, 1, true)
+      GameTooltip:Show()
+    end)
+    owner:HookScript('OnLeave', function() GameTooltip:Hide() end)
+  end
+
+  local function checkbox(label, help, get, set, enabled)
+    local cb = CreateFrame('CheckButton', nil, parent, 'UICheckButtonTemplate')
+    cb:SetSize(24, 24)
+    cb:SetPoint('TOPLEFT', 14, y)
+    local fs = cb:CreateFontString(nil, 'OVERLAY', 'GameFontHighlight')
+    fs:SetPoint('LEFT', cb, 'RIGHT', 4, 1)
+    fs:SetText(label)
+    cb:SetHitRectInsets(0, -(fs:GetStringWidth() + 10), 0, 0)
+    cb:SetScript('OnClick', function(self) set(self:GetChecked() and true or false) end)
+    tip(cb, help)
+    syncs[#syncs + 1] = function()
+      cb:SetChecked(get() and true or false)
+      local on = not enabled or enabled()
+      cb:SetEnabled(on)
+      if on then fs:SetTextColor(1, 1, 1) else fs:SetTextColor(0.5, 0.5, 0.5) end
+    end
+    y = y - 28
+  end
+
+  -- A row of buttons where exactly one is lit, like a segmented switch.
+  local function segmented(label, options, get, set, enabled, help)
+    local fs = parent:CreateFontString(nil, 'OVERLAY', 'GameFontHighlight')
+    fs:SetPoint('TOPLEFT', 20, y - 4)
+    fs:SetText(label)
+    local left, gap = 140, 4
+    local each = math.floor((width - left - 16 - gap * (#options - 1)) / #options)
+    local buttons = {}
+    for i, option in ipairs(options) do
+      local b = CreateFrame('Button', nil, parent)
+      b:SetSize(each, 22)
+      b:SetPoint('TOPLEFT', left + (i - 1) * (each + gap), y)
+      b.bg = b:CreateTexture(nil, 'BACKGROUND')
+      b.bg:SetAllPoints()
+      b.bg:SetTexture(FLAT)
+      b.text = b:CreateFontString(nil, 'OVERLAY', 'GameFontHighlightSmall')
+      b.text:SetPoint('CENTER')
+      b.text:SetText(option.text)
+      local hl = b:CreateTexture(nil, 'HIGHLIGHT')
+      hl:SetAllPoints()
+      hl:SetTexture(FLAT)
+      hl:SetVertexColor(1, 1, 1, 0.08)
+      b:SetScript('OnClick', function() set(option.value) end)
+      tip(b, option.help or help)
+      buttons[i] = b
+    end
+    syncs[#syncs + 1] = function()
+      local on = not enabled or enabled()
+      local current = get()
+      for i, b in ipairs(buttons) do
+        local lit = options[i].value == current
+        b:SetEnabled(on)
+        b:SetAlpha(on and 1 or 0.4)
+        if lit then
+          b.bg:SetVertexColor(0.85, 0.62, 0.08, 0.9)
+          b.text:SetTextColor(0.08, 0.06, 0.02)
+        else
+          b.bg:SetVertexColor(0.18, 0.18, 0.2, 0.9)
+          b.text:SetTextColor(0.85, 0.85, 0.85)
+        end
+      end
+      fs:SetTextColor(on and 1 or 0.5, on and 1 or 0.5, on and 1 or 0.5)
+    end
+    y = y - 30
+  end
+
+  local function slider(label, min, max, step, format, get, set)
+    local fs = parent:CreateFontString(nil, 'OVERLAY', 'GameFontHighlight')
+    fs:SetPoint('TOPLEFT', 20, y)
+    fs:SetText(label)
+    local value = parent:CreateFontString(nil, 'OVERLAY', 'GameFontNormal')
+    value:SetPoint('TOPRIGHT', -18, y)
+    y = y - 18
+    local s = CreateFrame('Slider', nil, parent)
+    s:SetOrientation('HORIZONTAL')
+    s:SetHeight(16)
+    s:SetPoint('TOPLEFT', 20, y)
+    s:SetPoint('TOPRIGHT', -18, y)
+    s:SetMinMaxValues(min, max)
+    s:SetValueStep(step)
+    if s.SetObeyStepOnDrag then s:SetObeyStepOnDrag(true) end
+    s:EnableMouseWheel(true)
+    local track = s:CreateTexture(nil, 'BACKGROUND')
+    track:SetTexture(FLAT)
+    track:SetVertexColor(0.22, 0.22, 0.24, 1)
+    track:SetHeight(4)
+    track:SetPoint('LEFT')
+    track:SetPoint('RIGHT')
+    local fill = s:CreateTexture(nil, 'BORDER')
+    fill:SetTexture(FLAT)
+    fill:SetVertexColor(0.85, 0.62, 0.08, 0.8)
+    fill:SetHeight(4)
+    fill:SetPoint('LEFT')
+    local thumb = s:CreateTexture(nil, 'OVERLAY')
+    thumb:SetTexture(FLAT)
+    thumb:SetVertexColor(GOLD[1], GOLD[2], GOLD[3], 1)
+    thumb:SetSize(8, 16)
+    s:SetThumbTexture(thumb)
+    local syncing = false
+    local function show(v)
+      value:SetText(format(v))
+      local w = s:GetWidth() or 0
+      fill:SetWidth(math.max(1, (v - min) / (max - min) * w))
+    end
+    s:SetScript('OnValueChanged', function(_, v)
+      v = math.floor(v / step + 0.5) * step
+      show(v)
+      if not syncing then set(v) end
+    end)
+    s:SetScript('OnMouseWheel', function(self, delta)
+      self:SetValue(math.max(min, math.min(max, self:GetValue() + delta * step)))
+    end)
+    s:SetScript('OnSizeChanged', function(self) show(self:GetValue()) end)
+    syncs[#syncs + 1] = function()
+      syncing = true
+      s:SetValue(get())
+      show(get())
+      syncing = false
+    end
+    y = y - 26
+  end
+
+  local function buttons(list)
+    local gap = 6
+    local each = math.floor((width - 36 - gap * (#list - 1)) / #list)
+    for i, item in ipairs(list) do
+      local b = CreateFrame('Button', nil, parent, 'UIPanelButtonTemplate')
+      b:SetSize(each, 22)
+      b:SetPoint('TOPLEFT', 18 + (i - 1) * (each + gap), y)
+      b:SetText(item[1])
+      b:SetScript('OnClick', item[3])
+      tip(b, item[2])
+    end
+    y = y - 30
+  end
+
+  local both = function() return db.showTracker and db.levelTable end
+
+  heading('Panels')
+  checkbox('Show the tracker', 'Level bar, kills and quests, XP per hour, last kill, target mob.',
+    function() return db.showTracker end, setShowTracker)
+  checkbox('Show the level table', 'XP per kill and kills to level for mobs around your level.',
+    function() return db.levelTable end, function(v) db.levelTable = v applyLook() refresh() end)
+  segmented('Layout', {
+      { text = 'Attached', value = true, help = 'The table hangs under the tracker and moves with it.' },
+      { text = 'Separate', value = false, help = 'Each panel has its own place. You can also drag the table away from the tracker, and drop it back under it to attach it again.' },
+    }, function() return db.docked end, setDocked, both)
+  checkbox('Lock panels', 'Stops both panels from being dragged.',
+    function() return db.locked end, function(v) db.locked = v applyLook() end)
+  buttons({ { 'Reset positions', 'Both panels back to the middle of the screen, table attached.', resetPositions } })
+
+  heading('Display')
+  segmented('Numbers for', {
+      { text = 'This session', value = 1 },
+      { text = 'This level', value = 2 },
+    }, function() return db.scope end, function(v) db.scope = v frame.rateDirty = true applyLook() refresh() end)
+  slider('Scale', 0.7, 1.5, 0.05, function(v) return string.format('%d%%', v * 100 + 0.5) end,
+    function() return db.scale end, function(v) db.scale = v applyLook() end)
+  slider('Width', 220, 420, 10, function(v) return string.format('%d', v) end,
+    function() return db.width end, function(v) db.width = v applyLook() refresh() end)
+  slider('Background', 0, 1, 0.05, function(v) return string.format('%d%%', v * 100 + 0.5) end,
+    function() return db.alpha end, function(v) db.alpha = v applyLook() end)
+  checkbox('XP line on mob tooltips', nil, function() return db.tooltip end, function(v) db.tooltip = v end)
+  checkbox('Minimap button', nil, function() return db.minimap end, function(v) db.minimap = v updateMinimap() end)
+
+  heading('Data')
+  buttons({
+    { 'Clear session', 'Start this session\'s numbers over.', function() resetSession() refresh() end },
+    { 'Forget mob values', 'Drop what it learned from your kills; predictions go back to the formula.', function()
+        db.learned, db.byLevel, db.calib, db.calibN = {}, {}, nil, 0
+        say('learned mob values cleared.')
+        refresh()
+      end },
+  })
+  buttons({ { 'Copy level history', 'Opens the per-level table as text to paste into Excel.', function() showExport() end } })
+
+  local function sync() for _, f in ipairs(syncs) do pcall(f) end end
+  syncers[#syncers + 1] = sync
+  return -y + 6, sync
+end
+
+local settingsWin
+openSettings = function()
+  if not settingsWin then
+    local w = CreateFrame('Frame', 'ForeverXPSettings', UIParent, BackdropTemplateMixin and 'BackdropTemplate' or nil)
+    settingsWin = w
+    w:SetWidth(360)
+    w:SetPoint('CENTER', UIParent, 'CENTER', 0, 60)
+    w:SetFrameStrata('DIALOG')
+    w:SetClampedToScreen(true)
+    w:SetMovable(true)
+    w:EnableMouse(true)
+    w:SetScript('OnMouseDown', function(self, b) if b == 'LeftButton' then self:StartMoving() end end)
+    w:SetScript('OnMouseUp', function(self) self:StopMovingOrSizing() end)
+    if w.SetBackdrop then
+      w:SetBackdrop({ edgeFile = 'Interface\\Tooltips\\UI-Tooltip-Border', edgeSize = 12,
+        insets = { left = 3, right = 3, top = 3, bottom = 3 } })
+      w:SetBackdropBorderColor(0.35, 0.35, 0.4, 1)
+    end
+    local bg = w:CreateTexture(nil, 'BACKGROUND')
+    bg:SetPoint('TOPLEFT', 3, -3)
+    bg:SetPoint('BOTTOMRIGHT', -3, 3)
+    bg:SetTexture(FLAT)
+    bg:SetVertexColor(0.05, 0.05, 0.06, 0.96)
+
+    local head = w:CreateTexture(nil, 'ARTWORK')
+    head:SetPoint('TOPLEFT', 3, -3)
+    head:SetPoint('TOPRIGHT', -3, -3)
+    head:SetHeight(HEADER_H)
+    if not setAtlas(head, 'ui-damagemeters-header-bar', FLAT) then head:SetVertexColor(0.12, 0.12, 0.14, 1) end
+    local title = w:CreateFontString(nil, 'OVERLAY', 'GameFontNormal')
+    title:SetPoint('LEFT', head, 'LEFT', 10, 0)
+    title:SetText('Forever XP  |cff888888' .. VERSION .. '|r')
+    local close = CreateFrame('Button', nil, w, 'UIPanelCloseButton')
+    close:SetPoint('RIGHT', head, 'RIGHT', 0, 0)
+    close:SetScript('OnClick', function() w:Hide() end)
+    if UISpecialFrames then table.insert(UISpecialFrames, 'ForeverXPSettings') end
+
+    local body = CreateFrame('Frame', nil, w)
+    body:SetPoint('TOPLEFT', 3, -3 - HEADER_H)
+    body:SetPoint('TOPRIGHT', -3, -3 - HEADER_H)
+    local height, sync = buildSettingsContent(body, 354)
+    body:SetHeight(height)
+    w:SetHeight(height + HEADER_H + 10)
+    w:SetScript('OnShow', sync)
+    w:Hide()
+  end
+  settingsWin:SetShown(not settingsWin:IsShown())
+end
+
+-- The same page under the game's Options > AddOns.
+local function registerOptions()
+  local canvas = CreateFrame('Frame')
+  canvas.name = 'Forever XP'
+  local title = canvas:CreateFontString(nil, 'OVERLAY', 'GameFontNormalLarge')
+  title:SetPoint('TOPLEFT', 16, -12)
+  title:SetText('Forever XP')
+  local inner = CreateFrame('Frame', nil, canvas)
+  inner:SetPoint('TOPLEFT', 0, -40)
+  inner:SetSize(460, 10)
+  local height, sync = buildSettingsContent(inner, 460)
+  inner:SetHeight(height)
+  canvas:SetScript('OnShow', sync)
+  if Settings and Settings.RegisterCanvasLayoutCategory and Settings.RegisterAddOnCategory then
+    local category = Settings.RegisterCanvasLayoutCategory(canvas, 'Forever XP')
+    Settings.RegisterAddOnCategory(category)
+  elseif InterfaceOptions_AddCategory then
+    InterfaceOptions_AddCategory(canvas)
+  end
+end
 
 local function scopeMenu()
   local items = { { text = 'Show numbers for', title = true } }
@@ -1317,7 +1809,13 @@ local function buildFrame()
   else
     gear:SetNormalTexture('Interface\\Buttons\\UI-OptionsButton')
   end
-  gear:SetScript('OnClick', function(self) showMenu(self, SETTINGS) end)
+  gear:SetScript('OnClick', function() openSettings() end)
+  gear:SetScript('OnEnter', function(self)
+    GameTooltip:SetOwner(self, 'ANCHOR_TOP')
+    GameTooltip:AddLine('Settings', 1, 1, 1)
+    GameTooltip:Show()
+  end)
+  gear:SetScript('OnLeave', function() GameTooltip:Hide() end)
 
   titleButton = CreateFrame('Button', nil, header)
   titleButton:SetPoint('LEFT', 8, 0)
@@ -1335,24 +1833,73 @@ local function buildFrame()
   for i = 1, NUM_ROWS do buildRow(i) end
   for i = FIXED_ROWS + 1, NUM_ROWS do rows[i]:Hide() end
 
-  -- The level table, a second box hanging under the window.
-  local panel = CreateFrame('Frame', nil, frame.body)
+  -- The level table: its own window, attached under the tracker or on its own.
+  local TABLE_HEAD = 22
+  local panel = tableFrame or CreateFrame('Frame', 'ForeverXPLevelTable', UIParent)
+  tableFrame = panel
   frame.levelPanel = panel
-  panel:SetPoint('TOPLEFT', frame, 'BOTTOMLEFT', 0, -3)
-  panel:SetPoint('TOPRIGHT', frame, 'BOTTOMRIGHT', 0, -3)
-  panel:SetHeight(22 + (TABLE_SPAN * 2 + 1) * (ROW_H + ROW_GAP) + 4)
+  panel:SetFrameStrata('MEDIUM')
+  panel:SetClampedToScreen(true)
+  panel:SetMovable(true)
+  panel:SetWidth(db.width)
+  panel:SetHeight(TABLE_HEAD + 4 + (TABLE_SPAN * 2 + 1) * (ROW_H + ROW_GAP) + 4)
   panel:EnableMouse(true)
-  panel:SetScript('OnMouseDown', startMove)
-  panel:SetScript('OnMouseUp', stopMove)
+  panel:SetScript('OnMouseDown', startTableMove)
+  panel:SetScript('OnMouseUp', stopTableMove)
+  panel:SetScript('OnHide', stopTableMove)
   panel.bg = panel:CreateTexture(nil, 'BACKGROUND')
   panel.bg:SetAllPoints()
   if not setAtlas(panel.bg, 'damagemeters-background') then
     panel.bg:SetColorTexture(0, 0, 0, 1)
   end
+  panel.head = panel:CreateTexture(nil, 'BACKGROUND', nil, 1)
+  panel.head:SetPoint('TOPLEFT')
+  panel.head:SetPoint('TOPRIGHT')
+  panel.head:SetHeight(TABLE_HEAD)
+  if not setAtlas(panel.head, 'ui-damagemeters-header-bar', FLAT) then
+    panel.head:SetVertexColor(0.12, 0.12, 0.14, 0.95)
+  end
+  local hide = CreateFrame('Button', nil, panel)
+  hide:SetSize(14, 14)
+  hide:SetPoint('TOPRIGHT', -5, -4)
+  if hasAtlas('uitools-icon-close') then
+    hide:SetNormalAtlas('uitools-icon-close')
+  else
+    hide:SetNormalTexture('Interface\\Buttons\\UI-StopButton')
+  end
+  hide:SetHighlightTexture('Interface\\Buttons\\UI-Common-MouseHilight', 'ADD')
+  hide:SetScript('OnClick', function()
+    db.levelTable = false
+    applyLook()
+    say('level table hidden. Turn it back on in settings (/fxp config).')
+  end)
+  hide:SetScript('OnEnter', function(self)
+    GameTooltip:SetOwner(self, 'ANCHOR_TOP')
+    GameTooltip:AddLine('Hide the level table', 1, 1, 1)
+    GameTooltip:AddLine('Turn it back on in settings.', 0.7, 0.7, 0.7)
+    GameTooltip:Show()
+  end)
+  hide:SetScript('OnLeave', function() GameTooltip:Hide() end)
   panel.title = panel:CreateFontString(nil, 'OVERLAY', 'GameFontNormalSmall')
-  panel.title:SetPoint('TOPLEFT', 8, -6)
+  panel.title:SetPoint('LEFT', panel, 'TOPLEFT', 8, -TABLE_HEAD / 2)
+  panel.title:SetPoint('RIGHT', hide, 'LEFT', -4, 0)
+  panel.title:SetJustifyH('LEFT')
+  panel.title:SetWordWrap(false)
   panel.title:SetText('XP per kill and kills to level, by mob level')
-  for i = 1, TABLE_SPAN * 2 + 1 do buildRow(i, panel, 22, levelRows) end
+  local grab = CreateFrame('Frame', nil, panel)
+  grab:SetPoint('TOPLEFT')
+  grab:SetPoint('BOTTOMRIGHT', panel, 'TOPRIGHT', -22, -TABLE_HEAD)
+  grab:EnableMouse(true)
+  grab:SetScript('OnMouseDown', startTableMove)
+  grab:SetScript('OnMouseUp', stopTableMove)
+  grab:SetScript('OnEnter', function(self)
+    GameTooltip:SetOwner(self, 'ANCHOR_TOP')
+    GameTooltip:AddLine('Drag to move the table on its own.', 1, 1, 1)
+    GameTooltip:AddLine('Drop it under the tracker to attach it again.', 0.7, 0.7, 0.7)
+    GameTooltip:Show()
+  end)
+  grab:SetScript('OnLeave', function() GameTooltip:Hide() end)
+  for i = 1, TABLE_SPAN * 2 + 1 do buildRow(i, panel, TABLE_HEAD + 4, levelRows) end
 
   -- The button that retakes the XP per hour reading now.
   local again = CreateFrame('Button', nil, rows[5])
@@ -1372,13 +1919,38 @@ local function buildFrame()
     GameTooltip:Show()
   end)
   again:SetScript('OnLeave', function() GameTooltip:Hide() end)
+
+  -- Hovering the ready-to-turn-in row lists the quests and what each pays.
+  local readyRow = rows[4]
+  readyRow:EnableMouse(true)
+  readyRow:SetScript('OnMouseDown', startMove)
+  readyRow:SetScript('OnMouseUp', stopMove)
+  readyRow:SetScript('OnEnter', function(self)
+    local rdy = frame.ready
+    if not rdy or rdy.count == 0 then return end
+    GameTooltip:SetOwner(self, 'ANCHOR_RIGHT')
+    GameTooltip:AddLine('Ready to turn in')
+    for _, q in ipairs(rdy.list or {}) do
+      GameTooltip:AddDoubleLine(q.title, q.xp and (commas(q.xp) .. ' XP') or 'XP unknown', 1, 1, 1, 1, 1, 1)
+    end
+    if rdy.unknown > 0 then
+      GameTooltip:AddLine(string.format('%d quest%s gave no XP figure, so the total may be higher.',
+        rdy.unknown, rdy.unknown == 1 and '' or 's'), 0.7, 0.7, 0.7, true)
+    end
+    GameTooltip:Show()
+  end)
+  readyRow:SetScript('OnLeave', function() GameTooltip:Hide() end)
   rows[5].right:ClearAllPoints()
   rows[5].right:SetPoint('RIGHT', -20, 0)
   applyLook()
 end
 
 local function toggleWindow()
-  db.shown = not db.shown
+  if not db.showTracker and not db.levelTable then
+    db.showTracker, db.shown = true, true
+  else
+    db.shown = not db.shown
+  end
   applyLook()
   refresh()
 end
@@ -1425,12 +1997,12 @@ local function buildMinimapButton()
   end)
   mm:SetScript('OnDragStop', function(self) self:SetScript('OnUpdate', nil) end)
   mm:SetScript('OnClick', function(self, button)
-    if button == 'RightButton' then showMenu(self, SETTINGS) else toggleWindow() end
+    if button == 'RightButton' then openSettings() else toggleWindow() end
   end)
   mm:SetScript('OnEnter', function(self)
     GameTooltip:SetOwner(self, 'ANCHOR_LEFT')
     GameTooltip:AddLine('Forever XP')
-    GameTooltip:AddLine('Left-click: show or hide the window', 1, 1, 1)
+    GameTooltip:AddLine('Left-click: show or hide the panels', 1, 1, 1)
     GameTooltip:AddLine('Right-click: settings', 1, 1, 1)
     GameTooltip:AddLine('Drag: move this button', 1, 1, 1)
     GameTooltip:Show()
@@ -1451,18 +2023,27 @@ local function slash(msg)
     refresh()
   elseif msg == 'lock' then
     db.locked = not db.locked
-    say(db.locked and 'window locked.' or 'window unlocked.')
+    say(db.locked and 'panels locked.' or 'panels unlocked.')
+    if settingsSync then settingsSync() end
+  elseif msg == 'config' or msg == 'options' or msg == 'settings' then
+    openSettings()
   elseif msg == 'center' then
-    db.left, db.top = nil, nil
-    frame:ClearAllPoints()
-    frame:SetPoint('CENTER')
-    savePlace()
-  elseif msg == 'export' then
-    exportToFile()
+    resetPositions()
   elseif msg == 'copy' then
     showExport()
   elseif msg == 'levels' then
     printLevels()
+  elseif msg == 'created' then
+    local c = cdb.created
+    if type(c) == 'table' and c.at then
+      say(c.exact and ('this character was created ' .. createdText() .. '.')
+        or ('this character was created ' .. createdText() .. ' (it already had '
+          .. duration(c.played or 0) .. ' played when Forever XP first saw it).'))
+    else
+      say('creation date not known yet; asking the game for /played.')
+      askedPlayed = false
+      askCreated()
+    end
   elseif msg:match('^buff') then
     -- /fxp buff            what it sees right now
     -- /fxp buff Name 5     teach it a buff it did not spot by itself (0 forgets it)
@@ -1488,7 +2069,7 @@ local function slash(msg)
     say(string.format('session: total %d, kills %d, quests %d. XP chat pattern: %s',
       session.total, session.mob, session.quest, tostring(killPattern)))
   else
-    say('/fxp shows or hides the window. Also: levels, export, copy, reset, lock, center, buff, debug.')
+    say('/fxp shows or hides the panels. Also: config, levels, created, copy, reset, lock, center, buff, debug.')
   end
 end
 
@@ -1566,6 +2147,7 @@ driver:SetScript('OnEvent', function(self, event, ...)
 
     buildFrame()
     buildMinimapButton()
+    pcall(registerOptions)
     SLASH_FOREVERXP1 = '/fxp'
     SLASH_FOREVERXP2 = '/foreverxp'
     SlashCmdList.FOREVERXP = slash
@@ -1575,6 +2157,7 @@ driver:SetScript('OnEvent', function(self, event, ...)
       'QUEST_LOG_UPDATE', 'QUEST_ACCEPTED', 'QUEST_REMOVED',
       'PLAYER_TARGET_CHANGED', 'UPDATE_MOUSEOVER_UNIT', 'UPDATE_EXHAUSTION',
       'UNIT_AURA', 'PLAYER_REGEN_ENABLED', 'GROUP_ROSTER_UPDATE', 'PLAYER_ENTERING_WORLD', 'NAME_PLATE_UNIT_ADDED',
+      'TIME_PLAYED_MSG',
     }) do
       pcall(self.RegisterEvent, self, e)
     end
@@ -1594,6 +2177,7 @@ driver:SetScript('OnEvent', function(self, event, ...)
       if since < 0.5 then return end
       since = 0
       if frame.moving and IsMouseButtonDown and not IsMouseButtonDown('LeftButton') then stopMove() end
+      if tableFrame and tableFrame.moving and IsMouseButtonDown and not IsMouseButtonDown('LeftButton') then stopTableMove() end
       local ok, err = pcall(refresh)
       if not ok and not self.complained then
         self.complained = true
@@ -1602,6 +2186,7 @@ driver:SetScript('OnEvent', function(self, event, ...)
     end)
 
     pcall(scanQuests)
+    pcall(whoAmI)
     say(VERSION .. ' loaded. Minimap button or /fxp.')
     return
   end
@@ -1616,9 +2201,13 @@ driver:SetScript('OnEvent', function(self, event, ...)
       isLogin = not (type(cdb.logoutAt) == 'number' and GetTime() >= cdb.logoutAt and GetTime() - cdb.logoutAt < 60)
     end
     if isLogin and resumed then startSession() end
+    pcall(whoAmI)
+    pcall(askCreated)
     trace = (isLogin and 'login' or 'reload') .. (resumed and ', had a saved session' or ', no saved session')
   end
-  if event == 'CHAT_MSG_COMBAT_XP_GAIN' then
+  if event == 'TIME_PLAYED_MSG' then
+    pcall(noteCreated, (...))
+  elseif event == 'CHAT_MSG_COMBAT_XP_GAIN' then
     pcall(onXPChat, (...))
   elseif event == 'QUEST_TURNED_IN' then
     pcall(onQuestTurnedIn, ...)

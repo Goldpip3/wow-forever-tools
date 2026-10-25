@@ -1,5 +1,5 @@
 --[[
-  Forever Threat 1.19
+  Forever Threat 1.24
 
   One window of bars, one bar per group member, sorted by threat on the mob you
   are targeting. The window is laid out from Blizzard_DamageMeter's own XML and
@@ -19,7 +19,7 @@
   roster order because sorting would need a comparison.
 ]]
 
-local ADDON = ...
+local ADDON, ns = ...
 local PREFIX = '|cff33ff99Forever Threat:|r '
 
 local DEFAULTS = {
@@ -29,16 +29,19 @@ local DEFAULTS = {
   minimized = false,
   width = 300,
   height = 200,
-  alpha = 0.4,
+  alpha = 0.5,              -- matches the damage meter's background (CurseForge comment)
   barHeight = 20,
   textScale = 1,
   display = 1,              -- 1 threat and %, 2 percent, 3 threat
-  classColors = true,
+  classColors = false,      -- class colour on bars that are not aggro or next
+  highlightMe = false,      -- your own bar in a colour of its own
+  hints = true,             -- the grey help text when the list is empty
   icons = true,
   pets = true,
   strangers = true,         -- read nameplates for people outside the group
   combatOnly = false,
   groupOnly = false,
+  instanceOnly = false,     -- with groupOnly: show when either holds
   warn = true,
   warnAt = 90,
   sound = false,
@@ -425,9 +428,17 @@ local function short(n)
   return string.format('%d', n)
 end
 
+-- Red for aggro and orange for next always win, since they are the warning.
+-- Below that, two options from a CurseForge request: your own bar in blue so
+-- it stands out, and class colours for everyone else.
 local function rowColor(e, isNext)
   if e.tanking then return 0.78, 0.1, 0.1 end
   if isNext then return 0.9, 0.5, 0.08 end
+  if db.highlightMe and e.isPlayer then return 0.2, 0.55, 1.0 end
+  if db.classColors and e.class then
+    local c = (CUSTOM_CLASS_COLORS or RAID_CLASS_COLORS or {})[e.class]
+    if c then return c.r, c.g, c.b end
+  end
   -- Black, lifted just enough that the length of the bar still reads against
   -- the dark row behind it.
   return 0.16, 0.16, 0.16
@@ -688,8 +699,17 @@ refresh = function()
   local hide = not db.shown
   if not testMode and not frame.moving then
     if db.combatOnly and not UnitAffectingCombat('player') then hide = true end
-    if db.groupOnly and not IsInGroup() then hide = true end
+    -- "Only in a group" and "Only in an instance" together mean: show when
+    -- either is true, hide when neither is. A CurseForge request.
+    if db.groupOnly or db.instanceOnly then
+      local ok, inInstance = pcall(IsInInstance)
+      inInstance = ok and inInstance == true
+      local inGroup = IsInGroup() == true
+      local wanted = (db.groupOnly and inGroup) or (db.instanceOnly and inInstance)
+      if not wanted then hide = true end
+    end
   end
+  if ns.dockActive and ns.dockActive() then hide = true end
   if hide then frame:Hide() return end
   frame:Show()
 
@@ -702,7 +722,9 @@ refresh = function()
   end
 
   local strangerOnly = #entries == 1 and entries[1].aggroOnly
-  if #entries > 1 or (#entries == 1 and not strangerOnly) then
+  if not db.hints then
+    frame.empty:SetText('')
+  elseif #entries > 1 or (#entries == 1 and not strangerOnly) then
     frame.empty:SetText('')
   elseif strangerOnly then
     -- One row, and it is somebody outside the group: say how to get more.
@@ -879,7 +901,11 @@ local SETTINGS = {
   { text = 'Lock window', checked = checked('locked'), click = toggle('locked') },
   { text = 'Only show in combat', checked = checked('combatOnly'), click = toggle('combatOnly') },
   { text = 'Only show in a group', checked = checked('groupOnly'), click = toggle('groupOnly') },
+  { text = 'Only show in an instance', checked = checked('instanceOnly'), click = toggle('instanceOnly') },
   { text = 'Count pets', checked = checked('pets'), click = toggle('pets') },
+  { text = 'Class colours', checked = checked('classColors'), click = toggle('classColors') },
+  { text = 'Highlight my bar', checked = checked('highlightMe'), click = toggle('highlightMe') },
+  { text = 'Show hint text', checked = checked('hints'), click = toggle('hints') },
   { text = 'Include people outside my group', checked = checked('strangers'), click = toggle('strangers') },
   { text = 'Friendly nameplates (finds those people)', checked = function() return friendlyPlatesOn() end,
     click = function()
@@ -899,7 +925,7 @@ local SETTINGS = {
   { text = 'Warning sound', checked = checked('sound'), click = toggle('sound') },
   cycler('Bar height', 'barHeight', { 12, 14, 16, 18, 20, 22, 25, 28 }),
   cycler('Text size', 'textScale', { 0.8, 0.9, 1, 1.1, 1.25, 1.5 }, '%', 100),
-  cycler('Background', 'alpha', { 0, 0.2, 0.4, 0.6, 0.8, 1 }, '%', 100),
+  cycler('Background', 'alpha', { 0, 0.25, 0.5, 0.75, 1 }, '%', 100),
   cycler('Scale', 'scale', { 0.8, 0.9, 1, 1.1, 1.25, 1.5 }, '%', 100),
   { text = 'Minimap button', checked = checked('minimap'), click = toggle('minimap') },
   { text = 'Test bars', checked = function() return testMode end,
@@ -1201,7 +1227,7 @@ local function slash(msg)
     end
   elseif cmd == 'where' then
     local function show(v) return IsSecret(v) and 'SECRET' or tostring(v) end
-    say('v1.19 saved left=' .. show(db.left) .. ' top=' .. show(db.top) .. ' scale=' .. show(db.scale))
+    say('v1.24 saved left=' .. show(db.left) .. ' top=' .. show(db.top) .. ' scale=' .. show(db.scale))
     say('now left=' .. show(frame:GetLeft()) .. ' top=' .. show(frame:GetTop()) .. ' frameScale=' .. show(frame:GetScale())
       .. ' effScale=' .. show(frame:GetEffectiveScale()))
     say('screen ' .. show(UIParent:GetWidth()) .. ' x ' .. show(UIParent:GetHeight()) .. ' uiScale=' .. show(UIParent:GetEffectiveScale())
@@ -1217,6 +1243,23 @@ local function slash(msg)
       say('point ' .. i .. ': ' .. show(p) .. ' -> ' .. show(rel and rel.GetName and rel:GetName() or rel) .. ' ' .. show(rp) .. ' ' .. show(x) .. ', ' .. show(y))
     end
     return
+  elseif cmd == 'instance' then
+    db.instanceOnly = not db.instanceOnly
+    say('only in an instance ' .. (db.instanceOnly and 'on' or 'off'))
+  elseif cmd == 'group' then
+    db.groupOnly = not db.groupOnly
+    say('only in a group ' .. (db.groupOnly and 'on' or 'off'))
+  elseif cmd == 'hints' then
+    db.hints = not db.hints
+    say('hint text ' .. (db.hints and 'on' or 'off'))
+  elseif cmd == 'class' then
+    db.classColors = not db.classColors
+    say('class colours ' .. (db.classColors and 'on' or 'off'))
+  elseif cmd == 'me' then
+    db.highlightMe = not db.highlightMe
+    say('your bar ' .. (db.highlightMe and 'highlighted' or 'plain'))
+  elseif cmd == 'dock' then
+    if ns.toggleDock then ns.toggleDock() else say('the damage meter is not loaded, so there is nothing to dock to.') end
   elseif cmd == 'reset' then
     resetPlace()
   elseif cmd == 'minimap' then
@@ -1226,7 +1269,7 @@ local function slash(msg)
   elseif cmd == '' then
     toggleWindow()
   else
-    say('/threat (show or hide) | test | lock | reset | minimap | options')
+    say('/threat (show or hide) | test | lock | reset | minimap | options | group | instance | class | me | hints | dock')
   end
   applyLook()
   updateMinimap()
@@ -1269,6 +1312,7 @@ driver:SetScript('OnEvent', function(self, event, arg1)
     if db and type(ForeverThreatDB) == 'table' and ForeverThreatDB ~= db then
       trace.adopted = event
       db = ForeverThreatDB
+      ns.db = db
       for k, v in pairs(DEFAULTS) do
         if db[k] == nil then db[k] = v end
       end
@@ -1291,7 +1335,12 @@ driver:SetScript('OnEvent', function(self, event, arg1)
   end
   db = ForeverThreatDB
   ForeverThreatCharDB = db
+  ns.db = db
   db.loads = (db.loads or 0) + 1
+  if (db.v or 1) < 6 and db.alpha == 0.4 then
+    -- 1.24: old default 0.4 is off the new 0/25/50/75/100 steps.
+    db.alpha = nil
+  end
   if (db.v or 1) < 5 then
     -- 1.19: row height and text size re-measured against the damage meter.
     db.barHeight, db.textScale = nil, nil
@@ -1308,7 +1357,7 @@ driver:SetScript('OnEvent', function(self, event, arg1)
     -- 1.2 took its sizes from the damage meter; drop the older look.
     db.width, db.height, db.barHeight, db.alpha, db.fontSize = nil, nil, nil, nil, nil
   end
-  db.v = 5
+  db.v = 6
   for k, v in pairs(DEFAULTS) do
     if db[k] == nil then db[k] = v end
   end
@@ -1350,5 +1399,21 @@ driver:SetScript('OnEvent', function(self, event, arg1)
   end)
 
   refresh()
-  say('1.19 loaded. Minimap button or /threat. /threat test shows sample bars.')
+  say('1.24 loaded. Minimap button or /threat. /threat test shows sample bars.')
 end)
+
+-- Shared with ForeverThreatDock.lua, which draws the same list inside the
+-- built-in damage meter's window.
+ns.entries = entries
+ns.collect = collect
+ns.collectTest = collectTest
+ns.isTest = function() return testMode end
+ns.rowColor = rowColor
+ns.rowTooltip = rowTooltip
+ns.short = short
+ns.plain = plain
+ns.IsSecret = IsSecret
+ns.mobUnit = mobUnit
+ns.say = say
+ns.getFrame = function() return frame end
+ns.refresh = function() if refresh then refresh() end end

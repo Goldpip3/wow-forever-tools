@@ -1,0 +1,9 @@
+## Interface: 16001, 11507, 11508, 11509
+## Title: RXP Tag Macros
+## Notes: Keeps two macros, RXPTag and RXPMelee, pointed at the mobs of your current RestedXP guide step. RXPTag casts your class's instant tag spell; RXPMelee auto-attacks. /rxptag for options.
+## Author: Andres
+## Version: 1.0
+## Dependencies: RXPGuides
+## SavedVariables: RXPTagMacrosDB
+
+RXPTagMacros.lua

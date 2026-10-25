@@ -1,0 +1,11 @@
+## Interface: 16001, 11507, 11508, 11509
+## Title: Forever Quest Share
+## IconTexture: Interface\Icons\INV_Misc_GroupNeedMore
+## Notes: Shows which of your quests your party or raid has, and shares the ones they are missing in one click.
+## Author: Andres
+## Version: 1.0
+## SavedVariables: ForeverQuestShareDB
+## X-Curse-Project-ID: 1723551
+
+ForeverSV\ForeverQuestShare.lua
+ForeverQuestShare.lua

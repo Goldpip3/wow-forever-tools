@@ -11,14 +11,24 @@ See what is in your bank from anywhere in WoW Forever, without walking to a bank
 **Main category:** Bags & Inventory
 **License:** All Rights Reserved (same as Forever Threat)
 **Logo:** ForeverBank-icon-400.png
-**First file:** ForeverBank-1.0.zip, release type Release, game version WoW Forever 1.60.1
+**Files:** ForeverBank-1.0.zip (2026-09-21), ForeverBank-1.1.zip (2026-09-28), ForeverBank-1.2.zip (2026-09-29), ForeverBank-1.3.zip (2026-10-01), release type Release, game version WoW Forever 1.60.1
 **After approval:** put the project id in ForeverBank.toc as `## X-Curse-Project-ID: <id>`
 
-## Description (paste into the description editor)
+## Description (live on CurseForge since 2026-10-01, version 1.3)
 
-You are out questing and can't remember whether that stack of cloth is in your bank or you sold it. Forever Bank answers that. It saves a copy of your bank every time you visit a banker and shows you that copy anywhere in the world.
+Forever Bank saves a copy of your bank every time you visit a banker. You can open that copy anywhere in the world.
 
-Type `/fbank` or click the minimap button. The window shows every bank slot the way you left it, with item counts and quality borders. The bottom corner tells you how long ago the bank was last seen and how many slots are free. While the real bank is open the window reads "live" and updates as you move things.
+Open your bags and click the bag icon to the left of the search box. The minimap button and `/fbank` open it too. The window uses the game's own bag frame, so it looks like your backpack: every bank slot the way you left it, with item counts and quality borders. The coin bar at the bottom shows how many slots are free and how long ago the bank was last seen. While the real bank is open it reads "live" and updates as you move things.
+
+## Vendor value
+
+The top of your backpack shows what your bags would sell for at a vendor. It starts at Junk (grey items). Click it to step up to Normal, Uncommon, Rare and Epic; right-click steps back down. Each step counts everything of that quality and lower, so Uncommon is grey, white and green together. Items a vendor won't buy are left out. It updates as you loot.
+
+## Settings
+
+Open the settings with `/fbank settings`, by right-clicking the minimap button or the bank button on your backpack, or under Options > AddOns > Forever Bank.
+
+You can turn the vendor value and the bank button off, and pick which qualities the vendor value counts. With both turned off, your backpack goes back to the game's normal layout. The bank window has sliders for columns and scale, a minimap button switch, a reset for its position, and a button to forget the saved bank for the character you are on.
 
 ## The window
 
@@ -27,6 +37,9 @@ The search box dims everything that doesn't match what you type. Shift-click an 
 ## Commands
 
 `/fbank` shows or hides the window.
+`/fbank settings` opens the settings.
+`/fbank value` turns the vendor value on or off.
+`/fbank button` turns the backpack's bank button on or off.
 `/fbank cols 12` sets how many slots wide the window is.
 `/fbank scale 0.9` sets its size.
 `/fbank minimap` shows or hides the minimap button.
@@ -38,6 +51,8 @@ The game only lets add-ons read the bank while the bank window is open. Visit a 
 
 It covers the bank of the character you are logged in on. It does not show other characters.
 
+While the vendor value or the bank button is on, the backpack and combined bag grow one row taller to fit them, and the search box and cleanup button move down into that row.
+
 ## Addon policy
 
-The add-on reads your bank and draws it. It moves no items, sends no data, and automates nothing.
+The add-on reads your bank and bags and draws them. It moves no items, sells nothing, sends no data, and automates nothing.
