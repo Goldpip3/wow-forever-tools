@@ -258,7 +258,7 @@ export const SHAMAN_EFFECTS: Effect[] = [
     providers: [{ classId: "shaman", specs: ANY, choice: FIRE }],
     forever: {
       status: "changed",
-      note: "Reaches party and raid members within 30 yards, where Classic reached only the party within 20. Rank 3 gives 60 Fire resistance for 5 min.",
+      note: "Reaches party or raid members within 30 yards, where Classic reached only the party within 20. Rank 3 gives 60 Fire resistance for 5 min.",
     },
   },
   {

@@ -65,17 +65,6 @@ describe('damage over time', () => {
     expect(ticksOf(result, 'corruption-dot')).toBeGreaterThanOrEqual(casts * CORRUPTION.dot!.ticks - 6);
   });
 
-  it('Malediction raises the ticks and not the hit that started them', () => {
-    const apl = [{ spellId: 'immolate', text: 'not debuff.immolate.up' }, { spellId: 'shadow-bolt' }];
-    const plain = run({}, apl);
-    const cursed = run({ Malediction: 5 }, apl);
-    const per = (r: typeof plain, id: string) => {
-      const t = r.abilities.find((a) => a.id === id)!;
-      return t.damage / t.hits;
-    };
-    expect(per(cursed, 'immolate-dot') / per(plain, 'immolate-dot')).toBeCloseTo(1.05, 6);
-    expect(per(cursed, 'immolate') / per(plain, 'immolate')).toBeCloseTo(1, 6);
-  });
 });
 
 describe('Corruption', () => {

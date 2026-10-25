@@ -158,17 +158,13 @@ export const FROST_TALENT_HOOKS: Record<string, TalentHook> = {
   },
 
   'Elemental Precision': (rank, mods) => {
-    // One per cent per rank, for frost and fire. A frost mage casts nothing else.
-    mods.spellHit += rank;
+    // Two per cent per rank, for frost and fire. A frost mage casts nothing else.
+    mods.spellHit += 2 * rank;
   },
 
   'Ice Shards': (rank, mods) => {
     // The base critical bonus is half again; each rank adds a fifth of that base.
     addCritBonus(mods, 'frost', 0.5 * 0.2 * rank);
-  },
-
-  'Piercing Ice': (rank, mods) => {
-    multiplySchool(mods, 'frost', 1 + 0.02 * rank);
   },
 
   'Frost Channeling': (rank, mods) => {

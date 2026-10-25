@@ -153,7 +153,6 @@ export function warlockSpec(specId: number, label: string): SpecModule {
 
     damageBonusFor: ({ spellId, school, actor, now, mods, periodic }) => {
       let bonus = 1;
-      if (periodic) bonus *= 1 + (mods.flags.malediction ?? 0);
       if (spellId === 'immolate' && !periodic) bonus *= 1 + (mods.flags.aftermath ?? 0);
       if (school === 'shadow') {
         if (actor.targetAuras.has(WARLOCK_AURAS.improvedShadowBolt, now)) {
@@ -194,7 +193,8 @@ export function warlockSpec(specId: number, label: string): SpecModule {
     },
 
     unmodelledTalents: {
-      'Soul Harvesting': 'nothing dies with Drain Soul on it.',
+      'Soul Harvest': 'nothing dies with Drain Soul on it.',
+      'Grim Reach': 'range does nothing to damage.',
       'Improved Drains': 'Drain Life and Drain Soul are not in the rotation.',
       'Fel Concentration': 'nothing here interrupts a cast.',
       'Amplify Curse': 'it is a three minute button for one Bane, which the rotation does not hold.',

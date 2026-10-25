@@ -35,6 +35,13 @@
           "max": 5
         },
         {
+          "name": "Missile Barrage",
+          "tier": 1,
+          "column": 4,
+          "rank": 0,
+          "max": 2
+        },
+        {
           "name": "Arcane Subtlety",
           "tier": 2,
           "column": 1,
@@ -105,7 +112,7 @@
           "max": 3
         },
         {
-          "name": "Missile Barrage",
+          "name": "Arcane Wrath",
           "tier": 4,
           "column": 4,
           "rank": 0,
@@ -146,7 +153,7 @@
       "points": 0,
       "list": [
         {
-          "name": "Wake of Fire",
+          "name": "Improved Fire Blast",
           "tier": 1,
           "column": 1,
           "rank": 0,
@@ -223,7 +230,7 @@
           "max": 2
         },
         {
-          "name": "Hot Streak",
+          "name": "Heating Up",
           "tier": 4,
           "column": 3,
           "rank": 0,
@@ -241,7 +248,7 @@
           "tier": 5,
           "column": 2,
           "rank": 0,
-          "max": 3
+          "max": 5
         },
         {
           "name": "Blast Wave",
@@ -255,7 +262,7 @@
           "tier": 6,
           "column": 3,
           "rank": 0,
-          "max": 5
+          "max": 3
         },
         {
           "name": "Combustion",
@@ -289,7 +296,7 @@
           "tier": 1,
           "column": 3,
           "rank": 3,
-          "max": 5
+          "max": 3
         },
         {
           "name": "Ice Shards",
@@ -299,10 +306,10 @@
           "max": 5
         },
         {
-          "name": "Permafrost",
+          "name": "Frostbite",
           "tier": 2,
           "column": 2,
-          "rank": 0,
+          "rank": 3,
           "max": 3
         },
         {
@@ -313,21 +320,21 @@
           "max": 2
         },
         {
-          "name": "Frostbite",
+          "name": "Permafrost",
           "tier": 2,
           "column": 4,
-          "rank": 3,
+          "rank": 0,
           "max": 3
         },
         {
-          "name": "Piercing Ice",
+          "name": "Frost Channeling",
           "tier": 3,
           "column": 1,
           "rank": 3,
           "max": 3
         },
         {
-          "name": "Frost Channeling",
+          "name": "Improved Blizzard",
           "tier": 3,
           "column": 2,
           "rank": 3,
@@ -339,13 +346,6 @@
           "column": 3,
           "rank": 1,
           "max": 1
-        },
-        {
-          "name": "Improved Blizzard",
-          "tier": 3,
-          "column": 4,
-          "rank": 0,
-          "max": 3
         },
         {
           "name": "Arctic Reach",

@@ -21,7 +21,6 @@ import {
   WARRIOR_ABILITIES,
   WARRIOR_FLAGS,
   WARRIOR_TALENT_HOOKS,
-  whirlwindHitsOffhand,
 } from '../../data/warrior';
 import type { Actor } from '../actor';
 import type { SpecModule } from '../spec';
@@ -202,14 +201,10 @@ const base = {
     if (connected) {
       const chance = mods.flags[WARRIOR_FLAGS.unbridledChance] ?? 0;
       if (chance > 0 && rng.chance(Math.min(1, chance))) {
-        actor.gain('rage', event.weapon.twoHanded ? 2 : 1);
+        actor.gain('rage', 1);
       }
     }
   },
-
-  /** Raging Blows sends Whirlwind through the off hand as well. */
-  extraHandsFor: (spellId: string, mods: SpellMods): Hand[] =>
-    (spellId === 'whirlwind' && whirlwindHitsOffhand(mods) ? ['off'] : []),
 
   /**
    * The heartbeat: rage from Anger Management, and Enrage from being hit.
@@ -251,6 +246,8 @@ const base = {
     'Iron Will': 'it resists stuns, which no fight here applies.',
     'Improved Hamstring': 'Hamstring is not in any rotation.',
     'Improved Intercept': 'Intercept is not in any rotation.',
+    'Lingering Rage': 'it holds rage after combat ends, and every fight here is one pull.',
+    'Gore Drinker': 'it restores health, which nothing here tracks.',
     'Piercing Howl': 'it slows things down and deals no damage.',
     'Spearing Strike':
       'it deals forty per cent weapon damage and no rotation is better for pressing it.',

@@ -3,8 +3,7 @@
  *
  * Forever called this tree Shadow Magic until build 1.60.1.69876 renamed it back
  * to Shadow, with the same talents in it. It still reads differently from
- * Classic: Shadow Weaving is a stacking bonus on the priest rather than a debuff
- * on the boss, Shadowform doubles the critical bonus and halves the cost, and
+ * Classic: Shadowform doubles the critical bonus and halves the cost, and
  * Discipline has Twin Disciplines and Penance. Every hook below is keyed by the name in
  * public/data/talents.generated.json and cites the description it was read
  * from.
@@ -191,13 +190,23 @@ export const PRIEST_TALENT_HOOKS: Record<string, TalentHook> = {
     mods.flags.mindBlastCooldownOff = 0.5 * rank;
   },
 
-  // 'Your Mind Flay now deals 10% more damage ...'
+  /**
+   * 'Each instance of damage of Mind Flay deals 10% more damage than its previous
+   * instance of damage.' The channel lands as one hit here, so it gets the
+   * average of its ticks, each a tenth a rank above the last: 1, 1.1 and 1.21 at
+   * rank 1. That assumes the channel runs its full length.
+   */
   'Improved Mind Flay': (rank, mods) => {
-    multiplyDamage(mods, MIND_FLAY.id, 1 + 0.1 * rank);
+    const step = 1 + 0.1 * rank;
+    const ticks = MIND_FLAY.channel!.ticks;
+    let sum = 0;
+    for (let k = 0; k < ticks; k++) sum += step ** k;
+    multiplyDamage(mods, MIND_FLAY.id, sum / ticks);
   },
 
   // 'Your Shadow damage spells have a 33% chance to increase the Shadow damage
-  // you deal by 2% for 15 sec, stacking up to 5 times.' A third a rank.
+  // the target takes from you by 2% for 15 sec, stacking up to 5 times.' A third
+  // a rank. It sits on the target now, which comes to the same for one priest.
   'Shadow Weaving': (rank, mods) => {
     mods.flags.shadowWeaving = Math.min(1, rank / 3);
   },

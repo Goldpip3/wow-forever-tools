@@ -59,7 +59,8 @@ export const SHAMAN_UNMODELLED: Record<string, string> = {
   Anticipation: 'a dodge chance, which does nothing to damage.',
   'Spirit Weapons': 'it moves threat and parry, neither of which is damage.',
   'Elemental Warding': 'it reduces damage taken, which nothing here deals.',
-  'Improved Fire Nova': 'Fire Nova is not in any rotation.',
+  'Trial by Fire': 'Fire Nova and Magma Totem are not in any rotation.',
+  'Elemental Mastery': 'its talent text gives no cooldown, so how often it could be pressed is not known.',
   'Eye of the Storm': 'it reduces pushback, and nothing here interrupts a cast.',
   'Elemental Reach': 'range does nothing standing still.',
   Earthbound: 'Earthbind Totem is not in any rotation.',
@@ -88,7 +89,6 @@ export const shamanBase = {
     spellId: string; actor: Actor; now: number; mods: SpellMods;
   }): number => {
     let bonus = 0;
-    if (LIGHTNING.has(spellId)) bonus += mods.flags.callOfThunder ?? 0;
     if (MELEE.has(spellId) && actor.auras.has(SHAMAN_AURAS.devastation, now)) {
       bonus += mods.flags.elementalDevastation ?? 0;
     }
@@ -119,7 +119,9 @@ export const shamanBase = {
       for (const id of SHOCKS) actor.startCooldown(id, now, shockCooldown(mods));
     }
     if (spellId === 'flame-shock') {
-      actor.targetAuras.apply(SHAMAN_AURAS.flameShock, now, { duration: FLAME_SHOCK.duration });
+      // Call of Flame's extra ticks make the burn last longer.
+      const extra = FLAME_SHOCK.interval * (mods.dotTicks[SHAMAN_AURAS.flameShock] ?? 0);
+      actor.targetAuras.apply(SHAMAN_AURAS.flameShock, now, { duration: FLAME_SHOCK.duration + extra });
     }
     if (spellId === 'stormstrike') {
       actor.targetAuras.apply(SHAMAN_AURAS.stormstrike, now, { duration: STORMSTRIKE.duration });
@@ -146,7 +148,7 @@ export const shamanBase = {
       actor.auras.apply(SHAMAN_AURAS.clearcasting, now, { duration: CLEARCASTING.duration });
     }
 
-    if (outcome === 'crit' && (mods.flags.elementalDevastation ?? 0) > 0) {
+    if (outcome === 'crit' && DAMAGE_SPELLS.has(spellId) && (mods.flags.elementalDevastation ?? 0) > 0) {
       actor.auras.apply(SHAMAN_AURAS.devastation, now, { duration: ELEMENTAL_DEVASTATION.duration });
     }
 

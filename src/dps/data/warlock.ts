@@ -142,11 +142,6 @@ export const WARLOCK_TALENT_HOOKS: Record<string, TalentHook> = {
     multiplyDamage(mods, CORRUPTION.id, 1 + 0.02 * rank);
   },
 
-  // 'Increases all periodic damage done by your Warlock spells by 1%.'
-  Malediction: (rank, mods) => {
-    mods.flags.malediction = 0.01 * rank;
-  },
-
   // 'Increases the damage done by your Bane of Agony by 5%.'
   'Improved Bane of Agony': (rank, mods) => {
     multiplyDamage(mods, BANE_OF_AGONY.id, 1 + 0.05 * rank);
@@ -163,9 +158,9 @@ export const WARLOCK_TALENT_HOOKS: Record<string, TalentHook> = {
     mods.flags.nightfall = 0.02 * rank;
   },
 
-  // 'Increases the damage dealt or life drained by your Shadow spells by 1%.'
+  // 'Increases the damage dealt or life drained by your Shadow spells by 2%.'
   'Shadow Mastery': (rank, mods) => {
-    multiplySchool(mods, 'shadow', 1 + 0.01 * rank);
+    multiplySchool(mods, 'shadow', 1 + 0.02 * rank);
   },
 
   /* ----------------------------------------------------------- Demonology */

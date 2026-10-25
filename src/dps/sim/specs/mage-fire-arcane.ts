@@ -6,7 +6,7 @@
  * that only one of them reads. Frost stays in its own file so its pinned answer
  * cannot move.
  *
- * Several talents here change a cast after it has been chosen: Hot Streak and
+ * Several talents here change a cast after it has been chosen: Heating Up and
  * Presence of Mind make it faster, Missile Barrage halves a channel, Arcane
  * Blast's stacks are spent by the next spell. The engine asks how fast a cast
  * goes after the cast has started, so each of those is decided at the start
@@ -33,6 +33,7 @@ import {
   FIRE_SPELLS,
   FIRE_TALENT_HOOKS,
   HOT_STREAK,
+  FIRE_POWER,
   IGNITE,
   IMPROVED_SCORCH,
   MISSILE_BARRAGE,
@@ -59,6 +60,12 @@ export const IGNITE_ID = 'ignite';
 /** Spells with a cast time Presence of Mind can make instant. */
 const CAST_SPELLS = new Set(['fireball', 'scorch', 'pyroblast', 'arcane-blast']);
 const HOT_STREAK_SPELLS = new Set(['fireball', 'fire-blast', 'scorch']);
+/**
+ * What Fire Power counts as your Fire effects on the target. Ignite has no aura of
+ * its own on the target, so it is given one below. Whether the game counts Fire
+ * Vulnerability as one of yours is a guess; it is counted.
+ */
+const FIRE_EFFECTS = ['fireball', 'pyroblast', IGNITE_ID, MAGE_AURAS.fireVulnerability];
 const INCINERATION_SPELLS = new Set(['fire-blast', 'scorch', 'arcane-blast']);
 
 /**
@@ -210,10 +217,15 @@ function mageSpec(parts: MageParts): SpecModule {
       return bonus;
     },
 
-    damageBonusFor: ({ spellId, school, actor, now }) => {
+    damageBonusFor: ({ spellId, school, actor, now, mods }) => {
       let bonus = 1;
       if (school === 'fire') {
         bonus *= 1 + IMPROVED_SCORCH.perStack * actor.targetAuras.stacks(MAGE_AURAS.fireVulnerability, now);
+        const firePower = mods.flags.firePower ?? 0;
+        if (firePower > 0) {
+          const effects = FIRE_EFFECTS.filter((id) => actor.targetAuras.has(id, now)).length;
+          bonus *= 1 + firePower * Math.min(FIRE_POWER.maxEffects, effects);
+        }
       }
       if (actor.auras.has(MAGE_AURAS.arcanePower, now)) bonus *= 1 + ARCANE_POWER.damage;
       if (spellId === thisCast.spellId && spellId !== 'arcane-blast') {
@@ -234,13 +246,21 @@ function mageSpec(parts: MageParts): SpecModule {
 
       if (crit && school === 'fire') {
         const ignite = mods.flags.ignite ?? 0;
-        if (ignite > 0) bleed?.(IGNITE_ID, amount * ignite, IGNITE.ticks, IGNITE.interval, 'fire');
+        if (ignite > 0) {
+          bleed?.(IGNITE_ID, amount * ignite, IGNITE.ticks, IGNITE.interval, 'fire');
+          actor.targetAuras.apply(IGNITE_ID, now, { duration: IGNITE.ticks * IGNITE.interval });
+        }
         const refund = mods.flags.masterOfElements ?? 0;
         if (refund > 0) actor.restore((BASE_COST[spellId] ?? 0) * refund);
       }
 
-      if (mods.flags.hotStreak && crit && HOT_STREAK_SPELLS.has(spellId)) {
-        actor.auras.apply(MAGE_AURAS.hotStreak, now, { duration: HOT_STREAK.duration, maxStacks: HOT_STREAK.stacks });
+      // Heating Up keeps the aura its Classic ancestor had, hot-streak, so a rotation
+      // someone saved still reads it.
+      if (mods.flags.hotStreak && HOT_STREAK_SPELLS.has(spellId)) {
+        const stack = () =>
+          actor.auras.apply(MAGE_AURAS.hotStreak, now, { duration: HOT_STREAK.duration, maxStacks: HOT_STREAK.stacks });
+        if (crit) stack();
+        if (spellId === 'fire-blast') stack();
       }
 
       if (spellId === 'scorch') {
@@ -266,9 +286,10 @@ function mageSpec(parts: MageParts): SpecModule {
         actor.auras.apply(MAGE_AURAS.arcaneBlast, now, { duration: ARCANE_BLAST.duration, maxStacks: ARCANE_BLAST.stacks });
       }
 
-      if (mods.flags.missileBarrage) {
-        const chance = spellId === 'arcane-blast' ? MISSILE_BARRAGE.fromBlast
-          : spellId === 'fireball' ? MISSILE_BARRAGE.fromBolts : 0;
+      const barrageRank = mods.flags.missileBarrage ?? 0;
+      if (barrageRank > 0) {
+        const chance = barrageRank * (spellId === 'arcane-blast' ? MISSILE_BARRAGE.fromBlast
+          : spellId === 'fireball' ? MISSILE_BARRAGE.fromBolts : 0);
         if (chance > 0 && rng.chance(chance)) {
           actor.auras.apply(MAGE_AURAS.missileBarrage, now, { duration: MISSILE_BARRAGE.duration });
         }
@@ -305,6 +326,7 @@ const NEITHER: Record<string, string> = {
   'Arcane Resilience': 'armor does nothing to damage.',
   'Arcane Geometry': 'range does nothing to damage.',
   'Arcane Shielding': 'Mana Shield is not in any rotation.',
+  'Arcane Wrath': 'no rotation here casts it.',
   'Improved Counterspell': 'Counterspell is not in any rotation.',
   'Flame Throwing': 'range does nothing to damage.',
   Impact: 'a stun does nothing to a boss.',
@@ -317,7 +339,6 @@ const NEITHER: Record<string, string> = {
   Permafrost: 'a slow does nothing to a boss.',
   'Improved Frost Nova': 'Frost Nova is not in any rotation.',
   Frostbite: 'a boss cannot be frozen.',
-  'Piercing Ice': 'no Frost spell is in this rotation.',
   'Frost Channeling': 'no Frost spell is in this rotation.',
   'Ice Lance': 'no rotation here casts it.',
   'Improved Blizzard': 'Blizzard is not in any rotation.',
@@ -332,12 +353,12 @@ const NEITHER: Record<string, string> = {
 };
 
 const FIRE_ONLY: Record<string, string> = {
-  'Wake of Fire': 'Fire Blast is not in the Arcane rotation.',
+  'Improved Fire Blast': 'Fire Blast is not in the Arcane rotation.',
   'Improved Fireball': 'Fireball is not in the Arcane rotation.',
   Ignite: 'the Arcane rotation casts no Fire spells.',
   Pyroblast: 'it is not in the Arcane rotation.',
   'Improved Scorch': 'Scorch is not in the Arcane rotation.',
-  'Hot Streak': 'the Arcane rotation casts no Fire spells.',
+  'Heating Up': 'the Arcane rotation casts no Fire spells.',
   'Critical Mass': 'the Arcane rotation casts no Fire spells.',
   'Blast Wave': 'it is not in the Arcane rotation.',
   'Fire Power': 'the Arcane rotation casts no Fire spells.',
@@ -373,7 +394,7 @@ export const mageFire: SpecModule = mageSpec({
   spells: FIRE_SPELLS,
   hooks: fireHooks,
   schoolPower: 'firePower',
-  rotationLabel: 'Fireball, with Scorch keeping the target vulnerable and Pyroblast on a full Hot Streak',
+  rotationLabel: 'Fireball, with Scorch keeping the target vulnerable and Pyroblast on three stacks of Heating Up',
   rotation: (talents) => [
     ...manaLines(),
     {
@@ -409,6 +430,8 @@ export const mageFire: SpecModule = mageSpec({
   notes: [
     'Ignite burns for each critical strike on its own. In Classic a second critical strike ' +
       'rolled into the first, which this neither gains nor loses much by.',
+    'Fire Power counts Fireball\'s and Pyroblast\'s burning, Ignite and Fire Vulnerability as your ' +
+      'Fire effects on the target. Whether the game counts Fire Vulnerability is a guess.',
     ...COMMON_NOTES,
   ],
 });

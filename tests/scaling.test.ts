@@ -117,14 +117,14 @@ describe('what the reader ends up seeing', () => {
   });
 
   it('leaves the numbers a talent point does not move alone', () => {
-    // Bloodthrill scales its proc chance; the duration is fixed.
-    const talent = find('Warrior|Bloodthrill')!;
+    // Frenzy scales its proc chance; the attack speed and the duration are fixed.
+    const talent = find('Hunter|Frenzy')!;
     for (let r = 1; r <= talent.max; r += 1) {
       const text = rankText(talent, r).text;
-      expect(text, 'rank ' + r).toContain('Lasts 6 sec');
+      expect(text, 'rank ' + r).toContain('30% attack speed increase for 8 sec');
     }
-    expect(rankText(talent, 1).text).toContain('4% chance');
-    expect(rankText(talent, 5).text).toContain('20% chance');
+    expect(rankText(talent, 1).text).toContain('20% chance');
+    expect(rankText(talent, 5).text).toContain('100% chance');
   });
 });
 

@@ -113,11 +113,6 @@ describe('frost talents', () => {
     expect(shards).toBeCloseTo(plain, 9);
   });
 
-  it('Piercing Ice adds two per cent a rank to frost damage', () => {
-    const result = simulate(config({ 'Piercing Ice': 3 }), mageFrost);
-    expect(result.dps).toBeCloseTo((AVERAGE_HIT * 1.06) / 3, 9);
-  });
-
   it('Frost Channeling makes Frostbolt cheaper', () => {
     const cheap = config({ 'Frost Channeling': 3 });
     cheap.fight.overrides!.infiniteMana = false;
@@ -130,7 +125,7 @@ describe('frost talents', () => {
   });
 
   it('Elemental Precision lands more of them', () => {
-    const withHit = config({ 'Elemental Precision': 5 });
+    const withHit = config({ 'Elemental Precision': 3 });
     delete withHit.fight.overrides!.forceSpellHit;
     withHit.fight.iterations = 200;
     const without = config();
