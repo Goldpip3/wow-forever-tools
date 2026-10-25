@@ -753,13 +753,8 @@ export function buildSpellTip(effect: Effect): HTMLElement {
     tip.appendChild(el('div', 'tip__est', 'Higher ranks were scaled from the rank the demo showed.'));
   }
 
-  if (real?.classic) {
-    tip.appendChild(el('div', 'tip__hr'));
-    const label = el('div', 'tip__classic-label');
-    label.appendChild(el('span', '', 'In Classic'));
-    tip.appendChild(label);
-    tip.appendChild(el('div', 'tip__classic-text', real.classic));
-  }
+  // What it does now, and nothing about what it did in Classic: the planner is for
+  // building tonight's raid, and the old text only made the tooltip twice as long.
 
   tip.appendChild(el('div', 'tip__hr'));
 
