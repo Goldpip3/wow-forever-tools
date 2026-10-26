@@ -34,7 +34,7 @@ export const PALADIN_EFFECTS: Effect[] = [
     providers: [{ classId: "paladin", specs: ANY, choice: AURA }],
     forever: {
       status: "changed",
-      note: "30 Holy damage to each attacker at rank 5, up from 20 in Classic. Improved Retribution Aura was cut from the Retribution tree.",
+      note: "20 Holy damage to each attacker at rank 5 at build 1.60.1.70425, the same as Classic; build 1.60.1.70009 read 30. Improved Retribution Aura was cut from the Retribution tree.",
     },
   },
   {
@@ -145,7 +145,7 @@ export const PALADIN_EFFECTS: Effect[] = [
   },
   {
     id: "blessing-of-salvation",
-    name: "Blessing of Salvation",
+    name: "Salvation",
     icon: "spell_holy_sealofsalvation",
     kind: "buff",
     scope: "raid",
@@ -153,7 +153,7 @@ export const PALADIN_EFFECTS: Effect[] = [
     providers: [{ classId: "paladin", specs: ANY, choice: BLESSING }],
     forever: {
       status: "changed",
-      note: "Same 30% less threat, but it lasts 1 hour rather than 5 min.",
+      note: "Called Salvation at build 1.60.1.70425, and its text no longer calls it a Blessing. Same 30% less threat, for 1 hour rather than 5 min. Mass Salvation gives it to every member of the target's class.",
     },
   },
   {

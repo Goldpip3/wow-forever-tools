@@ -33,10 +33,6 @@ export const DRUID_AURAS = {
 export const RIP_BLEED_ID = 'rip-bleed';
 export const RAKE_BLEED_ID = 'rake-bleed';
 
-/** The most energy Tiger's Fury is pressed at, so King of the Jungle's is not wasted. */
-const furyEnergy = (talents: Record<string, number>): number =>
-  K.ENERGY_MAX.value - 20 * (talents['King of the Jungle'] ?? 0);
-
 /** Combo points at the moment a finisher was pressed, read back when it lands. */
 let pointsSpent = 0;
 
@@ -65,12 +61,11 @@ export const druidFeral: SpecModule = {
 
   rotations: {
     standard: (talents): PriorityEntry[] => [
-      // Tiger's Fury costs nothing now, so it goes on cooldown. With King of the
-      // Jungle it waits until the energy it hands back would not be wasted.
+      // Tiger's Fury costs nothing now, so it goes on cooldown.
       {
         spellId: 'tigers-fury',
-        when: (ctx) => !ctx.has(DRUID_AURAS.tigersFury) && ctx.energy <= furyEnergy(talents),
-        text: 'not buff.tigers-fury.up and energy <= ' + furyEnergy(talents),
+        when: (ctx) => !ctx.has(DRUID_AURAS.tigersFury),
+        text: 'not buff.tigers-fury.up',
       },
       {
         spellId: 'berserk',
@@ -148,12 +143,10 @@ export const druidFeral: SpecModule = {
     return bleeding ? multiplier * (1 + bonus) : multiplier;
   },
 
-  onCastStart: ({ spellId, actor, now, mods }) => {
+  onCastStart: ({ spellId, actor, now }) => {
     if (spellId === 'rip') pointsSpent = actor.comboPoints;
     if (spellId === 'tigers-fury') {
       actor.auras.apply(DRUID_AURAS.tigersFury, now, { duration: TIGERS_FURY.duration });
-      const energy = mods.flags.kingOfTheJungle ?? 0;
-      if (energy > 0) actor.gain('energy', energy);
     }
     if (spellId === 'berserk') {
       actor.auras.apply(DRUID_AURAS.berserk, now, { duration: BERSERK.duration });
@@ -203,6 +196,8 @@ export const druidFeral: SpecModule = {
     'Thick Hide': 'armor does nothing to damage.',
     'Feral Charge': 'the boss stands still, so there is nothing to charge at.',
     'Primal Bite': 'it needs Bear Form, and the druid here is in Cat Form.',
+    'Shifting Power': 'its talent text gives no cooldown, so how often it could be pressed is not known.',
+    'Improved Shifting Power': 'Shifting Power is not in the rotation.',
     'Natural Reaction': 'a dodge chance, which does nothing to damage.',
     Furor: 'the druid is in Cat Form from the pull and never leaves it.',
     'Improved Wrath': 'a cat does not cast Wrath.',

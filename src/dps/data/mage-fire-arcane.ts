@@ -7,7 +7,7 @@
  * both files speak about, such as Arcane Instability, get their own hooks
  * because a Fire or Arcane mage needs them to reach more than Frost.
  *
- * Forever's Fire and Arcane trees are new in most places. Hot Streak shortens
+ * Forever's Fire and Arcane trees are new in most places. Heating Up shortens
  * Pyroblast rather than making it free, Arcane Blast raises every other spell
  * rather than itself, and Missile Barrage is a talent of its own. Every hook
  * cites the description it was read from. Spell numbers are the highest rank
@@ -25,10 +25,13 @@ import { EVOCATION_SPELL, MANA_GEM, MANA_POTION } from './mage';
 export const FIRE_BLAST_COOLDOWN = 8;
 export const IMPROVED_SCORCH = { perStack: 0.03, stacks: 5, duration: 30 };
 export const HOT_STREAK = { perStack: 0.25, stacks: 3, duration: 20 };
-export const COMBUSTION = { perHit: 10, crits: 4, cooldown: 180 };
+export const COMBUSTION = { perHit: 10, crits: 3, cooldown: 180 };
 export const IGNITE = { ticks: 2, interval: 2 };
 export const ARCANE_BLAST = { perStack: 0.1, costPerStack: 1.75, stacks: 4, duration: 8 };
-export const MISSILE_BARRAGE = { fromBlast: 0.4, fromBolts: 0.2, duration: 15, speed: 2 };
+/** Missile Barrage's chances are per rank: twenty and ten at rank 1, forty and twenty at rank 2. */
+export const MISSILE_BARRAGE = { fromBlast: 0.2, fromBolts: 0.1, duration: 15, speed: 2 };
+/** Fire Power: a share per Fire effect of yours on the target, counted up to four of them. */
+export const FIRE_POWER = { perEffect: 0.01, maxEffects: 4 };
 export const ARCANE_POWER = { damage: 0.3, cost: 0.3, duration: 15, cooldown: 180 };
 export const PRESENCE_OF_MIND = { cooldown: 180 };
 
@@ -137,8 +140,9 @@ export const COMBUSTION_SPELL: SpellDef = {
   forever: {
     status: 'changed',
     note:
-      'Ten per cent more critical strike chance for each Fire hit until four critical strikes, on ' +
-      'a 3 min cooldown, in the beta client at build 1.60.1.70009. Classic stopped at three.',
+      'Ten per cent more critical strike chance for each Fire hit until three critical strikes, ' +
+      'on a 3 min cooldown. The talent text at build 1.60.1.70425 says three, as Classic did; ' +
+      'build 1.60.1.70009 said four.',
   },
 };
 
@@ -284,12 +288,12 @@ const SHARED_HOOKS: Record<string, TalentHook> = {
     mods.flags.presenceOfMind = 1;
   },
 
-  // 'Gives your Arcane Blast spell a 40% chance, and your Fireball, Frostbolt,
-  // and Frostfire Bolt spells a 20% chance to reduce the channeled duration of
-  // your next Arcane Missiles spell by 50%, reduce the Mana cost by 100%, and
-  // missiles will fire every 0.5 sec.'
-  'Missile Barrage': (_rank, mods) => {
-    mods.flags.missileBarrage = 1;
+  // 'Gives your Arcane Blast spell a 20% chance, and your Arcane Wrath, Fireball,
+  // Frostbolt, Frost Blast, and Frostfire Bolt spells a 10% chance to reduce the
+  // channeled duration of your next Arcane Missiles spell by 50%, reduce the Mana
+  // cost by 100%, and missiles fire every 0.5 sec.' Double both at rank 2.
+  'Missile Barrage': (rank, mods) => {
+    mods.flags.missileBarrage = rank;
   },
 
   // 'Your Fire and Frost critical strikes will refund 10% of their base mana cost.'
@@ -301,9 +305,9 @@ const SHARED_HOOKS: Record<string, TalentHook> = {
 export const FIRE_TALENT_HOOKS: Record<string, TalentHook> = {
   ...SHARED_HOOKS,
 
-  // 'Reduces the cooldown of your Fire Blast spell by 1 sec.' The crit after a
-  // kill does nothing against one boss.
-  'Wake of Fire': (rank, mods) => {
+  // 'Reduces the cooldown of your Fire Blast spell by 1 sec and increases its
+  // range by 8 yards.' Range does nothing to damage.
+  'Improved Fire Blast': (rank, mods) => {
     mods.flags.fireBlastCooldownOff = rank;
   },
 
@@ -331,7 +335,11 @@ export const FIRE_TALENT_HOOKS: Record<string, TalentHook> = {
     mods.flags.improvedScorch = Math.min(1, rank / 3);
   },
 
-  'Hot Streak': (_rank, mods) => {
+  // 'Non-periodic critical strikes with Fireball, Frostfire Bolt, Fire Blast, and
+  // Scorch reduce the cast time of your next Pyroblast cast within 20 sec by 25%,
+  // stacking up to 3 times. Fire Blast grants an additional stack every time it
+  // deals damage.'
+  'Heating Up': (_rank, mods) => {
     mods.flags.hotStreak = 1;
   },
 
@@ -340,19 +348,20 @@ export const FIRE_TALENT_HOOKS: Record<string, TalentHook> = {
     mods.spellCrit.fire = (mods.spellCrit.fire ?? 0) + 2 * rank;
   },
 
-  // 'Increases the damage done by your Fire spells by 2%.'
+  // 'Increases the damage done by your Fire spells by 1% per your Fire effects on
+  // the target, up to a maximum increase of 4%.' The spec counts the effects.
   'Fire Power': (rank, mods) => {
-    multiplySchool(mods, 'fire', 1 + 0.02 * rank);
+    mods.flags.firePower = FIRE_POWER.perEffect * rank;
   },
 
   Combustion: (_rank, mods) => {
     mods.flags.combustion = 1;
   },
 
-  // 'Increases your chance to hit with Fire and Frost spells by 1%.' A Fire
+  // 'Improves your chance to hit with Frost and Fire spells by 2%.' A Fire
   // mage casts nothing else.
   'Elemental Precision': (rank, mods) => {
-    mods.spellHit += rank;
+    mods.spellHit += 2 * rank;
   },
 };
 

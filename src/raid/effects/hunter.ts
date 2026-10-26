@@ -46,7 +46,7 @@ export const HUNTER_EFFECTS: Effect[] = [
     providers: [{ classId: "hunter", specs: ANY }],
     forever: {
       status: "changed",
-      note: "Rank 4 gives everyone attacking the target 71 ranged attack power at build 1.60.1.70009, against Classic's 110, and Rank 3 reads 98. Improved Hunter's Mark was cut from the Marksmanship tree.",
+      note: "Rank 4 gives everyone attacking the target 143 ranged attack power at build 1.60.1.70425, against Classic's 110, and Rank 3 reads 98. Build 1.60.1.70009 read 71 at Rank 4. Improved Hunter's Mark was cut from the Marksmanship tree.",
     },
   },
   {

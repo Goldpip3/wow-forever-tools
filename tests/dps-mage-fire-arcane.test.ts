@@ -88,22 +88,43 @@ describe('Fire', () => {
     expect(scorched.auras.some((a) => a.id === MAGE_AURAS.fireVulnerability)).toBe(true);
   });
 
-  it('Hot Streak takes a quarter off Pyroblast for each stack', () => {
+  it('Heating Up takes a quarter off Pyroblast for each stack', () => {
     const apl = [
       { spellId: 'pyroblast', text: 'buff.hot-streak.stacks >= 3' },
       { spellId: 'scorch' },
     ];
-    const result = fire({ 'Hot Streak': 1, Pyroblast: 1 }, apl, crits);
+    const result = fire({ 'Heating Up': 1, Pyroblast: 1 }, apl, crits);
     const pyro = result.abilities.find((a) => a.id === 'pyroblast')!;
     // Three Scorches and a Pyroblast of a second and a half: six seconds a round.
     expect(pyro.casts).toBeGreaterThanOrEqual(48);
   });
 
-  it('Combustion stops after four critical strikes', () => {
+  it('Fire Power counts the Fire effects on the target, and none means nothing', () => {
+    const scorch = [{ spellId: 'scorch' }];
+    expect(fire({ 'Fire Power': 3 }, scorch).dps).toBeCloseTo(fire({}, scorch).dps, 9);
+
+    // Fireball's burn outlasts the next cast, so every Fireball after the first,
+    // and every tick, lands with one effect up: three per cent at rank 3.
+    const bolts = [{ spellId: 'fireball' }];
+    const plain = fire({}, bolts);
+    const powered = fire({ 'Fire Power': 3 }, bolts);
+    const ratio = powered.dps / plain.dps;
+    expect(ratio).toBeGreaterThan(1.029);
+    expect(ratio).toBeLessThanOrEqual(1.03 + 1e-9);
+  });
+
+  it('Heating Up gives Fire Blast a stack even when it does not crit', () => {
+    const blasts = fire({ 'Heating Up': 1 }, [{ spellId: 'fire-blast' }]);
+    expect(blasts.auras.some((a) => a.id === MAGE_AURAS.hotStreak)).toBe(true);
+    const without = fire({}, [{ spellId: 'fire-blast' }]);
+    expect(without.auras.some((a) => a.id === MAGE_AURAS.hotStreak)).toBe(false);
+  });
+
+  it('Combustion stops after three critical strikes', () => {
     const result = fire({ Combustion: 1 }, [{ spellId: 'combustion' }, { spellId: 'scorch' }], crits);
     const uptime = result.auras.find((a) => a.id === MAGE_AURAS.combustion)!.uptime;
-    // Four Scorches a second and a half apart, twice in a five minute fight.
-    expect(uptime).toBeLessThan(2 * 4 * 1.5 + 1);
+    // Three Scorches a second and a half apart, twice in a five minute fight.
+    expect(uptime).toBeLessThan(2 * 3 * 1.5 + 1);
   });
 
   it('Improved Fireball takes half a second off at five ranks', () => {

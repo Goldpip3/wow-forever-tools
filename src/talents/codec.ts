@@ -1,11 +1,12 @@
 import type { ClassTalents } from './types';
 import { MAX_LEVEL, MIN_LEVEL, emptyRanks, legalize, totalSpent, type BuildState, type Ranks } from './build';
+import { RENAMED_AT_70425, layoutBefore70425 } from './layout-70009';
 
 /**
  * Build codes match talentsforever.com so their links can be pasted here and back:
  *   <class>/<level>/<tree1>-<tree2>-<tree3>
  * Each tree segment is one digit per talent, in that tree's talent array order.
- * Example: warrior/60/05305213030510201-000000000000000000-0000000000000000000
+ * Example: warrior/60/05305213030510201-00000000000000000-000000000000000000
  */
 
 export interface ParsedCode {
@@ -102,18 +103,81 @@ export function decode(cls: ClassTalents, input: string): BuildState | null {
 export function decodeChecked(
   cls: ClassTalents,
   input: string,
-): { build: BuildState; dropped: number } | null {
+): { build: BuildState; dropped: number; migrated?: boolean } | null {
   const parsed = parseCode(input);
   if (!parsed) return null;
+  const current = checkAgainst(cls, parsed);
+  const old = layoutBefore70425(dataKeyFor(parsed.classKey));
+  if (!old || !madeBefore70425(cls, old, parsed, current.dropped)) return current;
+  return { ...moveToCurrentTrees(cls, old, parsed), migrated: true };
+}
+
+/** The build a code describes in one layout, and how many of its points broke the rules. */
+function checkAgainst(cls: ClassTalents, parsed: ParsedCode): { build: BuildState; dropped: number } {
   const legal = legalize(cls, { classKey: parsed.classKey, level: parsed.level, ranks: ranksFromCode(cls, parsed) });
   // Counted against the digits as written, so a 9 on a three-rank talent counts as six
   // points left out rather than disappearing in the clamp.
-  const written = parsed.trees.reduce((sum, segment, t) => {
+  const dropped = Math.max(legal.dropped, writtenPoints(cls, parsed) - totalSpent(legal.build.ranks));
+  return { build: legal.build, dropped };
+}
+
+function writtenPoints(cls: ClassTalents, parsed: ParsedCode): number {
+  return parsed.trees.reduce((sum, segment, t) => {
     const count = cls.trees[t]?.talents.length ?? 0;
     return sum + [...segment.slice(0, count)].reduce((n, c) => n + (Number.parseInt(c, 10) || 0), 0);
   }, 0);
-  const dropped = Math.max(legal.dropped, written - totalSpent(legal.build.ranks));
-  return { build: legal.build, dropped };
+}
+
+/**
+ * Whether a code was written against the trees before build 1.60.1.70425.
+ *
+ * Codes carry no version, so this goes on what the digits allow. A tree whose talent count
+ * changed tells by its length, since every encoder writes a whole tree. Otherwise a code
+ * the new trees accept is read as new, and one only the old trees accept is read as old.
+ * A code both accept is read as new: that is every link made since, so a new link is never
+ * moved, and an old one that happens to fit both is left as it reads.
+ */
+function madeBefore70425(cls: ClassTalents, old: ClassTalents, parsed: ParsedCode, droppedNow: number): boolean {
+  let oldLength = false;
+  let newLength = false;
+  parsed.trees.forEach((segment, t) => {
+    const nowCount = cls.trees[t]?.talents.length;
+    const thenCount = old.trees[t]?.talents.length;
+    if (nowCount === thenCount) return;
+    if (segment.length === thenCount) oldLength = true;
+    if (segment.length === nowCount) newLength = true;
+  });
+  if (oldLength !== newLength) return oldLength;
+  if (!droppedNow) return false;
+  return checkAgainst(old, parsed).dropped < droppedNow;
+}
+
+/** An old code read under the old rules, then each rank carried to its talent's new place by name. */
+function moveToCurrentTrees(
+  cls: ClassTalents,
+  old: ClassTalents,
+  parsed: ParsedCode,
+): { build: BuildState; dropped: number } {
+  const then = checkAgainst(old, parsed);
+  const ranks = emptyRanks(cls);
+  let lost = 0;
+  old.trees.forEach((tree, t) => {
+    const place = new Map(cls.trees[t]?.talents.map((talent, i) => [talent.name, i]) ?? []);
+    tree.talents.forEach((talent, i) => {
+      const rank = then.build.ranks[t]?.[i] ?? 0;
+      if (!rank) return;
+      const at = place.get(RENAMED_AT_70425[talent.name] ?? talent.name);
+      if (at === undefined) {
+        lost += rank;
+        return;
+      }
+      const max = cls.trees[t]!.talents[at]!.max;
+      ranks[t]![at] = Math.min(max, rank);
+      lost += Math.max(0, rank - max);
+    });
+  });
+  const legal = legalize(cls, { classKey: parsed.classKey, level: parsed.level, ranks });
+  return { build: legal.build, dropped: then.dropped + lost + legal.dropped };
 }
 
 /**
@@ -127,9 +191,10 @@ export function decodeChecked(
 export function legalCode(
   cls: ClassTalents,
   input: string,
-): { code: string; dropped: number } | null {
+): { code: string; dropped: number; migrated?: boolean } | null {
   const checked = decodeChecked(cls, input);
   if (!checked) return null;
+  if (checked.migrated) return { code: encode(checked.build), dropped: checked.dropped, migrated: true };
   if (!checked.dropped) return { code: input.trim(), dropped: 0 };
   return { code: encode(checked.build), dropped: checked.dropped };
 }

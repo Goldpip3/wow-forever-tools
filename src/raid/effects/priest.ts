@@ -93,7 +93,7 @@ export const PRIEST_EFFECTS: Effect[] = [
     ],
     forever: {
       status: "changed",
-      note: "Heals the party for 20% of the Priest’s Shadow damage for 30 sec rather than 1 min, and can now proc Spirit Tap. Improved Vampiric Embrace was cut.",
+      note: "Heals the party for 20% of the Priest’s Shadow damage for 30 sec rather than 1 min. Improved Vampiric Embrace was cut.",
     },
   },
   {
@@ -112,7 +112,7 @@ export const PRIEST_EFFECTS: Effect[] = [
     ],
     forever: {
       status: "changed",
-      note: "Now a self-buff: the Priest’s own Shadow damage goes up 2% per stack, up to 5. It is no longer a raid-wide debuff on the target.",
+      note: "It sits on the target, but only the Priest’s own Shadow damage goes up, 2% per stack, up to 5. Other Shadow casters get nothing from it.",
     },
   },
   {

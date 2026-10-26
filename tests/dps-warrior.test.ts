@@ -298,14 +298,22 @@ describe('warrior talents', () => {
     expect(plain.dps).toBeGreaterThan(0);
   });
 
-  it('Dual Wield Specialization pays the off hand three ways', () => {
+  it('Dual Wield Specialization pays the off hand two ways, and leaves hit to Furious Precision', () => {
     const mods = {
       offhandDamage: 1, offhandRage: 1, offhandHit: 0,
     } as { offhandDamage: number; offhandRage: number; offhandHit: number };
     WARRIOR_TALENT_HOOKS['Dual Wield Specialization']!(5, mods as never);
     expect(mods.offhandDamage).toBeCloseTo(1.25, 9);
-    expect(mods.offhandRage).toBeCloseTo(2, 9);
-    expect(mods.offhandHit).toBe(10);
+    expect(mods.offhandRage).toBeCloseTo(1.5, 9);
+    expect(mods.offhandHit).toBe(0);
+  });
+
+  it('Furious Precision reads its off-hand hit off the text, not a rate', () => {
+    for (const [rank, hit] of [[1, 4], [2, 7], [3, 10]] as const) {
+      const mods = { offhandHit: 0 } as { offhandHit: number };
+      WARRIOR_TALENT_HOOKS['Furious Precision']!(rank, mods as never);
+      expect(mods.offhandHit).toBe(hit);
+    }
   });
 });
 

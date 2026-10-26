@@ -31,7 +31,7 @@ const DATA: TalentData = JSON.parse(
 );
 
 const WARRIOR: ClassTalents = DATA.talents.Warrior!;
-const EXAMPLE = 'warrior/60/05305213030510201-000000000000000000-000000000000000000';
+const EXAMPLE = 'warrior/60/05305213030510201-00000000000000000-000000000000000000';
 
 function treeIndex(cls: ClassTalents, name: string): number {
   return cls.trees.findIndex((t) => t.name === name);
@@ -570,7 +570,7 @@ describe('talent legality', () => {
   it('a link at level 10 cannot spend five points', () => {
     const { build, dropped } = decodeChecked(
       WARRIOR,
-      'warrior/10/05000000000000000-000000000000000000-000000000000000000',
+      'warrior/10/05000000000000000-00000000000000000-000000000000000000',
     )!;
     expect(pointsLeft(build)).toBe(0);
     expect(dropped).toBe(4);
@@ -579,7 +579,7 @@ describe('talent legality', () => {
 
   it('a link that skips the first row loses the stranded talent', () => {
     // One point in Improved Charge and nothing above it.
-    const { build, dropped } = decodeChecked(WARRIOR, 'warrior/60/00010000000000000-000000000000000000-000000000000000000')!;
+    const { build, dropped } = decodeChecked(WARRIOR, 'warrior/60/00010000000000000-00000000000000000-000000000000000000')!;
     expect(build.ranks[arms]![charge]).toBe(0);
     expect(dropped).toBe(1);
   });
@@ -718,9 +718,9 @@ describe('one set of rules at every way in', () => {
 
   it('keeps a short valid link exactly as written, and rewrites an invalid one', () => {
     expect(legalCode(WARRIOR, 'warrior/60/05')).toEqual({ code: 'warrior/60/05', dropped: 0 });
-    const fixed = legalCode(WARRIOR, 'warrior/10/05000000000000000-000000000000000000-000000000000000000')!;
+    const fixed = legalCode(WARRIOR, 'warrior/10/05000000000000000-00000000000000000-000000000000000000')!;
     expect(fixed.dropped).toBe(4);
-    expect(fixed.code).toBe('warrior/10/01000000000000000-000000000000000000-000000000000000000');
+    expect(fixed.code).toBe('warrior/10/01000000000000000-00000000000000000-000000000000000000');
   });
 });
 

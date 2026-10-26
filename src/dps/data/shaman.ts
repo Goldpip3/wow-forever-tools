@@ -37,7 +37,7 @@ export const STORMSTRIKE_SPELLS = ['lightning-bolt', 'chain-lightning', 'earth-s
 /** "Increases your attack speed by 30% for 25 sec", 3 min cooldown. Casting is not sped up. */
 export const RAGE_OF_THE_FARSEER = { duration: 25, speed: 0.3, cooldown: 180 };
 export const SHOCK_COOLDOWN = 6;
-export const FLAME_SHOCK = { duration: 12 };
+export const FLAME_SHOCK = { duration: 12, interval: 3 };
 export const ELEMENTAL_DEVASTATION = { duration: 10, perRank: 3 };
 export const CLEARCASTING = { chance: 0.1, duration: 15 };
 
@@ -225,13 +225,16 @@ export const SHAMAN_TALENT_HOOKS: Record<string, TalentHook> = {
   },
 
   // 'Increases the damage done by ... your Flame Shock, Fire Nova, and Lava
-  // Burst spells by 5%.'
+  // Burst spells by 5%, as well as increases the duration of your Flame Shock
+  // spell by 3 sec.' Three seconds is one more tick at the same size, which is
+  // an assumption: the text gives the time, not the damage.
   'Call of Flame': (rank, mods) => {
     for (const id of [FLAME_SHOCK_SPELL.id, LAVA_BURST.id]) multiplyDamage(mods, id, 1 + 0.05 * rank);
+    mods.dotTicks[FLAME_SHOCK_SPELL.id] = (mods.dotTicks[FLAME_SHOCK_SPELL.id] ?? 0) + rank;
   },
 
-  // 'Your offensive spell critical strikes will increase your chance to get a
-  // critical strike with melee attacks by 3% for 10 sec.'
+  // 'Your Critical Strikes with direct damage spells increase your chance to get
+  // a Critical Strike with melee attacks by 3% for 10 sec.'
   'Elemental Devastation': (rank, mods) => {
     mods.flags.elementalDevastation = ELEMENTAL_DEVASTATION.perRank * rank;
   },
@@ -246,12 +249,6 @@ export const SHAMAN_TALENT_HOOKS: Record<string, TalentHook> = {
   // Nature spells by 20%.' The bonus is the half again, so a fifth of it a rank.
   'Elemental Fury': (rank, mods) => {
     for (const school of ['fire', 'frost', 'nature'] as const) addCritBonus(mods, school, 0.5 * 0.2 * rank);
-  },
-
-  // 'Increases the critical strike chance of your Lightning Bolt and Chain
-  // Lightning spells by 3%.'
-  'Call of Thunder': (_rank, mods) => {
-    mods.flags.callOfThunder = 3;
   },
 
   // 'Gives your Lightning Bolt and Chain Lightning spells a 3% chance to cast a

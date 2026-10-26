@@ -107,13 +107,24 @@ async function switchClass(classKey: string, level: number, code?: string): Prom
   fresh.level = level;
   build = fresh;
   update();
-  if (decoded?.dropped) {
+  if (decoded?.migrated) {
+    toast(
+      'That link was made for the trees before beta build 1.60.1.70425, so its points were moved to where ' +
+        'those talents are now.' + (decoded.dropped ? ' ' + pointsLeftOut(decoded.dropped) : ''),
+      6000,
+    );
+  } else if (decoded?.dropped) {
     toast(
       decoded.dropped + (decoded.dropped === 1 ? ' point' : ' points') +
         ' in that link broke the talent rules and were left out.',
       4000,
     );
   }
+}
+
+/** The second sentence of the moved-link toast, when some points could not be carried. */
+function pointsLeftOut(n: number): string {
+  return n + (n === 1 ? ' point was' : ' points were') + ' left out: the talent is gone, or the new trees do not allow it.';
 }
 
 /* ------------------------------------------------------------------ drawing */

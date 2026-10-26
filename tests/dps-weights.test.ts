@@ -151,8 +151,8 @@ describe('deriving stat weights', () => {
   });
 
   it('says when hit has stopped paying', () => {
-    // Fifteen points of hit on gear plus five from Elemental Precision is past
-    // the seventeen it takes to cap against a boss.
+    // Fifteen points of hit on gear plus eight from talents is past the
+    // seventeen it takes to cap against a boss.
     const cfg = configFor(fight());
     cfg.stats.spellHit = 15;
     const capped = deriveWeights(cfg, mageFrost, { iterations: 20 });
@@ -164,8 +164,8 @@ describe('deriving stat weights', () => {
 
   it('measures only the part of a step that still helps', () => {
     const cfg = configFor(fight());
-    // Talents give five, so gear hit of eleven and a half leaves half a point.
-    cfg.stats.spellHit = 11.5;
+    // Talents give eight, so gear hit of eight and a half leaves half a point.
+    cfg.stats.spellHit = 8.5;
     const partial = deriveWeights(cfg, mageFrost, { iterations: 20 });
     const hit = partial.weights.find((w) => w.stat === 'spellHit')!;
     expect(hit.capped).toBeUndefined();

@@ -145,7 +145,7 @@ export const MAGE_EFFECTS: Effect[] = [
     ],
     forever: {
       status: "changed",
-      note: "Forever only raises the Mage’s own Ice Lance and Frostbolt crit chance, 2% a stack up to 5 at rank 5. It is no longer a raid-wide frost crit debuff.",
+      note: "Forever applies it from Frostbolt, Frost Blast and empowered Ice Lance, and each stack raises the damage the target takes from the Mage’s next Cone of Cold by 5%, up to 5. It is no longer a raid-wide frost crit debuff.",
     },
   },
   {

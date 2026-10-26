@@ -761,8 +761,17 @@ function checkBuild(player: Player): boolean {
   const cls = classTalents(talentData, parsed.classKey);
   if (!cls) return false;
   const legal = legalCode(cls, player.build);
-  if (!legal || !legal.dropped) return false;
+  if (!legal || (!legal.dropped && !legal.migrated)) return false;
   player.build = legal.code;
+  if (legal.migrated) {
+    toast(
+      player.name + '’s talent link was made for the trees before beta build 1.60.1.70425, so its points ' +
+        'were moved to where those talents are now.' +
+        (legal.dropped ? ' ' + legal.dropped + (legal.dropped === 1 ? ' point was' : ' points were') + ' left out.' : ''),
+      6000,
+    );
+    return true;
+  }
   toast(
     legal.dropped + (legal.dropped === 1 ? ' point' : ' points') + ' in ' + player.name +
       '’s talent link broke the talent rules and were left out.',

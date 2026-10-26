@@ -127,14 +127,6 @@ describe('the talents', () => {
     expect(claw.crits / claw.hits).toBeGreaterThan(0.75);
   });
 
-  it("King of the Jungle hands energy back through Tiger's Fury", () => {
-    const apl = [{ spellId: 'tigers-fury', text: 'not buff.tigers-fury.up' }, { spellId: 'claw' }];
-    const without = run({}, {}, apl);
-    const withIt = run({ 'King of the Jungle': 3 }, {}, apl);
-    const claws = (r: typeof without) => r.abilities.find((a) => a.id === 'claw')?.casts ?? 0;
-    expect(claws(withIt)).toBeGreaterThan(claws(without));
-  });
-
   it("Tiger's Fury raises physical damage by 15% for six seconds in every thirty", () => {
     const paws = (r: ReturnType<typeof run>) => r.abilities.find((a) => a.id === AUTO_ATTACK_ID.main)!;
     const idle = [{ spellId: 'claw', text: 'energy > 200' }];
@@ -157,11 +149,11 @@ describe('the talents', () => {
     expect(torn.dps).toBeCloseTo(plain.dps, 6);
   });
 
-  it('Predatory Instincts raises what a pressed strike crits for and not a swing', () => {
+  it('Natural Instinct raises what a pressed strike crits for and not a swing', () => {
     const crits = { overrides: { forceAverageDamage: true, forceMeleeTable: { ...HIT, crit: 100 } } };
     const apl = [{ spellId: 'claw' }];
     const plain = run({}, crits, apl);
-    const sharp = run({ 'Predatory Instincts': 2 }, crits, apl);
+    const sharp = run({ 'Natural Instinct': 2 }, crits, apl);
     const swing = (r: typeof plain) => r.abilities.find((a) => a.id === AUTO_ATTACK_ID.main)!.damage;
     const claw = (r: typeof plain) => r.abilities.find((a) => a.id === 'claw')!.damage;
     expect(swing(sharp)).toBeCloseTo(swing(plain), 6);

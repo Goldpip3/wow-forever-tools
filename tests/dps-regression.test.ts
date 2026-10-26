@@ -18,7 +18,7 @@ import type { FightConfig } from '../src/dps/sim/types';
  * change to the model moves it on purpose, move the number here in the same
  * commit and say why in the message.
  */
-const SAMPLE_MAGE_DPS = 362.9604041503;
+const SAMPLE_MAGE_DPS = 356.82283003980285;
 
 function fightFor(buffs: string[], consumables: string[]): FightConfig {
   return {

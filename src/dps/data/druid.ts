@@ -3,9 +3,8 @@
  * further down, for Balance.
  *
  * Forever's Feral tree is its own. Berserk makes every combo point strike a
- * critical one, Blood Frenzy hands a point back on a critical strike, Rend and
- * Tear rewards a bleeding target, and King of the Jungle hands energy back
- * through Tiger's Fury. Primal Bite, the talent that took Mangle's place, needs
+ * critical one, Blood Frenzy hands a point back on a critical strike, and Rend
+ * and Tear rewards a bleeding target. Primal Bite, the talent that took Mangle's place, needs
  * Bear Form, so a cat never presses it. Every hook below is keyed by the name in
  * public/data/talents.generated.json and cites the description it was read
  * from.
@@ -284,9 +283,10 @@ export const DRUID_TALENT_HOOKS: Record<string, TalentHook> = {
     mods.flags.bloodFrenzy = 0.5 * rank;
   },
 
-  // 'Increases the critical strike damage bonus of your melee abilities by 10%.'
-  // Abilities alone, so the paws' own swings are left as they were.
-  'Predatory Instincts': (rank, mods) => {
+  // 'Increases the critical strike damage bonus of your melee abilities by 10%
+  // and increases your spell healing by 12% of your Intellect.' Abilities alone,
+  // so the paws' own swings are left as they were. Healing is not simulated.
+  'Natural Instinct': (rank, mods) => {
     mods.critBonus.physical = (mods.critBonus.physical ?? 0) + 0.1 * rank;
   },
 
@@ -294,12 +294,6 @@ export const DRUID_TALENT_HOOKS: Record<string, TalentHook> = {
   // all party or raid members within 45 yards by 3%.' The druid is one of them.
   'Leader of the Pack': (_rank, mods) => {
     mods.meleeCrit += 3;
-  },
-
-  // "Tiger's Fury now instantly grants you 20 Energy." Only the first rank is
-  // given; twenty a rank is assumed.
-  'King of the Jungle': (rank, mods) => {
-    mods.flags.kingOfTheJungle = 20 * rank;
   },
 
   // 'Increases damage done by your melee abilities on Bleeding targets by 2%.'

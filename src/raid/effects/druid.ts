@@ -136,7 +136,7 @@ export const DRUID_EFFECTS: Effect[] = [
     providers: [{ classId: "druid", specs: ANY }],
     forever: {
       status: "changed",
-      note: "Rank 6 deals 22 Nature damage to attackers, up from 18. Improved Thorns was cut from the Balance tree.",
+      note: "Rank 6 deals 18 Nature damage to attackers at build 1.60.1.70425, the same as Classic; build 1.60.1.70009 read 22. Improved Thorns was cut from the Balance tree.",
     },
   },
   {
