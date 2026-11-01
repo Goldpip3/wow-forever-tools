@@ -14,6 +14,7 @@
 import { compressToEncodedURIComponent } from 'lz-string';
 import type { Coverage, Player, Roster } from './types';
 import { activeGroupCount } from './engine';
+import { campObjectById } from './camp';
 
 /**
  * Planner effect id to the gear page's buff id, where the two describe the same thing.
@@ -81,6 +82,13 @@ export function handoffFor(roster: Roster, coverage: Coverage, player: Player): 
     const reaches =
       effect.scope === 'raid' || effect.scope === 'target' || (effect.scope === 'party' && !!cov.groups[group]);
     if (!reaches) continue;
+    // The simulator has the class buff, not the smaller camp version, so a camp cover is
+    // named rather than counted at the class buff's number.
+    const camp = cov.campObject ? campObjectById(cov.campObject) : undefined;
+    if (camp) {
+      notSimulated.add(effect.name + ' (at camp, ' + camp.name + ')');
+      continue;
+    }
     const sim = SIM_BUFF_FOR[effect.id];
     if (sim) simulated.add(sim);
     else notSimulated.add(effect.name);

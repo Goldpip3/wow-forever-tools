@@ -44,6 +44,17 @@ localStorage.
 A `Player` with `discord` set is a real person. Its absence is what makes a seat
 hypothetical.
 
+## Camp buffs and compare
+
+**Camp objects** live in `src/raid/camp.ts`, not in the effect catalog: nobody seated provides
+them. A ticked object covers its class buff only where no player brings it, and the text on
+each is Blizzard's 21 October 2026 post, word for word. Whether camp buffs hold inside a raid
+instance is not confirmed, and the page says so. In roster mode the picks stay in this browser
+per event (`wf.camp.<eventId>`); the bot has no field for them.
+
+**Compare** (`#cmp=<name>:<code>,...`) is planner-only and read-only. Each entry is an ordinary
+planner code, so the codec does not change for it.
+
 ## Rules that are easy to break
 
 - **Real game text only.** Spell and talent descriptions come from the data, never from a
@@ -80,7 +91,7 @@ hypothetical.
 
 ```
 npm run dev      # vite on 5273
-npm test         # vitest, 1128 tests
+npm test         # vitest, 1167 tests
 npm run build    # typecheck, then dist/
 npm run e2e      # Playwright smoke tests against dist/; build first
 npm run import   # refetch talent data after the beta changes

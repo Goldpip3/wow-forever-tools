@@ -486,3 +486,35 @@ test('the character form previews what it is describing, and its fields are legi
 
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
 });
+
+test('camp picks live in the planner link', async ({ page }) => {
+  const code = compressToEncodedURIComponent(JSON.stringify([1, 10, 0, [[0, 0, 'Ragnar', 'warrior', 161, [], [], []]], []]));
+  await page.goto('/raid.html#' + code);
+  await page.getByRole('checkbox', { name: 'First Aid Kit' }).check();
+  await expect(page.locator('.raidbar__chip--camp')).toHaveCount(1);
+  await page.reload();
+  await expect(page.locator('.raidbar__chip--camp')).toHaveCount(1);
+  await expect(page.getByRole('checkbox', { name: 'First Aid Kit' })).toBeChecked();
+});
+
+test('a compare link opens two rosters side by side with no sideways scroll', async ({ page }) => {
+  const a = compressToEncodedURIComponent(JSON.stringify([1, 10, 0, [[0, 0, 'Ragnar', 'warrior', 161, [], [], []]], []]));
+  const b = compressToEncodedURIComponent(JSON.stringify([1, 10, 0, [[0, 0, 'Jaina', 'mage', 61, [], [], []]], []]));
+  await page.goto('/raid.html#cmp=Tuesday:' + a + ',Thursday:' + b);
+  await expect(page.locator('.cmp-card')).toHaveCount(2);
+  await expect(page.locator('.cmp-card__name')).toHaveText(['Tuesday', 'Thursday']);
+  await expect(page.locator('.cmp-card').first()).toContainText('Ragnar');
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  expect(overflow).toBeLessThanOrEqual(1);
+
+  await page.locator('.cmp-card').first().getByRole('button', { name: 'Open in planner' }).click();
+  await expect.poll(() => new URL(page.url()).hash).toBe('#' + a);
+  await expect(page.locator('.cmp-card')).toHaveCount(0);
+  await expect(page.getByText('Ragnar').first()).toBeVisible();
+});
+
+test('a compare link with one good roster says so and shows the planner', async ({ page }) => {
+  await page.goto('/raid.html#cmp=Only:junk');
+  await expect(page.locator('#toast')).toContainText('fewer than two rosters');
+  await expect(page.locator('.cmp-card')).toHaveCount(0);
+});

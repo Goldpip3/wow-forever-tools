@@ -96,6 +96,8 @@ export type RaidSize = 40 | 20 | 10;
 
 export interface RosterSettings {
   debuffCap: number;
+  /** Camp objects the raid will set up, by id from src/raid/camp.ts. */
+  camp: string[];
 }
 
 export interface Roster {
@@ -123,6 +125,13 @@ export interface EffectCoverage {
   covered: boolean;
   /** Set when another active effect overwrites this one. */
   overriddenBy?: string[];
+  /**
+   * A ticked camp object stands in for this buff because nobody here brings it. `covered`
+   * is true and `providers` is empty when this is set.
+   */
+  campObject?: string;
+  /** A ticked camp object that does nothing, because a player here already brings this. */
+  campWasted?: string;
 }
 
 export type WarningLevel = 'error' | 'warn' | 'info';

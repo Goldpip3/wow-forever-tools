@@ -18,6 +18,7 @@ import { CATEGORIES, META_ORDER, type MetaCategory } from './categories';
 import { activeGroupCount, specLabel } from './engine';
 import { effectById } from './effects/index';
 import { overview, profileGroups, seatValue, type GroupProfile, type Suggestion } from './suggestions';
+import { campObjectById, campSkillLabel, withArticle } from './camp';
 
 function el(tag: string, cls?: string, text?: string): HTMLElement {
   const node = document.createElement(tag);
@@ -53,6 +54,8 @@ export interface RaidHandlers {
   onPublish?: () => void;
   onAddGuest?: () => void;
   onSeatAll?: () => void;
+  /** Tick or untick a camp object. Both modes; roster mode keeps it on this device. */
+  onToggleCamp?: (id: string, on: boolean) => void;
 }
 
 /* ------------------------------------------------------------------ toolbar */
@@ -535,11 +538,13 @@ export function renderRaidBuffBar(roster: Roster, coverage: Coverage): HTMLEleme
     });
   if (!rows.length) return null;
   const covered = rows.filter((c) => c.covered).length;
+  const atCamp = rows.filter((c) => c.campObject).length;
 
   const bar = el('div', 'raidbar');
   const head = el('span', 'raidbar__head');
   head.appendChild(el('span', 'raidbar__title', 'Raid buffs'));
   head.appendChild(el('span', 'tally' + (covered === rows.length ? ' tally--ok' : ''), covered + '/' + rows.length));
+  if (atCamp) head.appendChild(el('span', 'tally tally--camp', atCamp + ' at camp'));
   bar.appendChild(head);
 
   const icons = el('div', 'raidbar__icons');
@@ -548,6 +553,7 @@ export function renderRaidBuffBar(roster: Roster, coverage: Coverage): HTMLEleme
     const chip = el('button', 'raidbar__chip raidbar__chip--' + state);
     chip.dataset.effect = cov.effect.id;
     chip.appendChild(iconImg(cov.effect.icon, '', 'raidbar__icon'));
+    if (state === 'camp') chip.appendChild(iconImg('spell_fire_fire', '', 'raidbar__badge'));
     chip.setAttribute('aria-label', cov.effect.name + ', ' + STATE_LABEL[state].toLowerCase());
     chip.addEventListener('click', () => {
       document
@@ -681,6 +687,8 @@ function providerClass(cov: EffectCoverage): string {
 
 /** Who in this raid brings it, or which classes could. */
 function providerLine(cov: EffectCoverage): string {
+  const camp = cov.campObject ? campObjectById(cov.campObject) : undefined;
+  if (camp) return withArticle(camp.name) + ' (' + campSkillLabel(camp) + ') stands in for it at camp.';
   if (cov.providers.length) return cov.providers.map((p) => p.name).join(', ');
   if (cov.possibleBy.length) {
     const names = cov.possibleBy.map((p) => p.name);
@@ -699,16 +707,19 @@ function providerLine(cov: EffectCoverage): string {
  * already in the raid is working, yet only one of the pair actually applies, so it
  * reads differently from a clean cover.
  */
-type CoverState = 'covered' | 'overlaps' | 'available' | 'missing';
+export type CoverState = 'covered' | 'camp' | 'overlaps' | 'available' | 'missing';
 
-function coverState(cov: EffectCoverage): CoverState {
+export function coverState(cov: EffectCoverage): CoverState {
+  // Nobody here brings it; a ticked camp object stands in. Reads differently from a player.
+  if (cov.campObject) return 'camp';
   if (cov.covered) return (cov.overriddenBy ?? []).length > 0 ? 'overlaps' : 'covered';
   // Someone here can bring it, they are just set to something else.
   return cov.possibleBy.length ? 'available' : 'missing';
 }
 
-const STATE_LABEL: Record<CoverState, string> = {
+export const STATE_LABEL: Record<CoverState, string> = {
   covered: 'Covered',
+  camp: 'Covered at camp',
   overlaps: 'Does not stack',
   // Not 'Available': a Paladin with five available blessings read as a Paladin who
   // brings five blessings, when one of them is a one-at-a-time choice they have not made.
@@ -771,6 +782,16 @@ export function buildSpellTip(effect: Effect): HTMLElement {
   return tip;
 }
 
+/** Whether a camp buff lasts into a raid instance is not known yet, so every camp cover says so. */
+export const CAMP_INSTANCE_NOTE = 'Whether camp buffs hold inside a raid instance is not confirmed.';
+
+function wastedLine(objectName: string, cov: EffectCoverage): string {
+  return (
+    objectName + ' is ticked at camp, but ' + cov.effect.name + ' already comes from ' +
+    cov.providers.map((p) => p.name).join(', ') + '.'
+  );
+}
+
 /** The same tooltip, plus who on this roster brings it and who does not. */
 export function buildEffectTip(cov: EffectCoverage, active: number): HTMLElement {
   const tip = buildSpellTip(cov.effect);
@@ -788,6 +809,14 @@ export function buildEffectTip(cov: EffectCoverage, active: number): HTMLElement
 
   if (state === 'available') {
     tip.appendChild(el('div', 'tip__note', 'Open that player and pick it, or tick the talent.'));
+  }
+
+  if (state === 'camp') {
+    tip.appendChild(el('div', 'tip__note', CAMP_INSTANCE_NOTE));
+  }
+  const wasted = cov.campWasted ? campObjectById(cov.campWasted) : undefined;
+  if (wasted) {
+    tip.appendChild(el('div', 'tip__note', wastedLine(wasted.name, cov)));
   }
 
   if (state === 'overlaps') {
@@ -871,6 +900,8 @@ function effectRow(cov: EffectCoverage, active: number, expanded: boolean, showS
   detail.appendChild(el('div', 'buff__who', providerLine(cov)));
   const real = lookupEffectText(cov.effect);
   if (real?.text) detail.appendChild(el('div', 'buff__blurb', real.text));
+  const wastedObject = cov.campWasted ? campObjectById(cov.campWasted) : undefined;
+  if (wastedObject) detail.appendChild(el('div', 'buff__clash', wastedLine(wastedObject.name, cov)));
   if (state === 'overlaps') {
     const others = (cov.overriddenBy ?? []).map((id) => effectById(id)?.name ?? id).join(', ');
     detail.appendChild(el('div', 'buff__clash', 'Does not stack with ' + others + '. Only the stronger one applies.'));
@@ -922,11 +953,12 @@ function panelHead(title: string, covered: number, total: number, extra?: HTMLEl
  * could switch to in a second. They are different problems and they now read as different
  * blocks, worst last.
  */
-const STATE_ORDER: Record<CoverState, number> = {
+export const STATE_ORDER: Record<CoverState, number> = {
   covered: 0,
-  overlaps: 1,
-  available: 2,
-  missing: 3,
+  camp: 1,
+  overlaps: 2,
+  available: 3,
+  missing: 4,
 };
 
 function ordered(rows: EffectCoverage[]): EffectCoverage[] {

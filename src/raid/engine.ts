@@ -11,6 +11,7 @@ import { GROUP_COUNT } from './types';
 import { EFFECTS, effectById } from './effects/index';
 import { CATEGORIES } from './categories';
 import { CLASSES, specById } from '../shared/classes';
+import { BASIC_CAMPFIRE_SLOTS, UPGRADED_CAMPFIRE_SLOTS, campObjectById, cleanCampPicks } from './camp';
 
 /**
  * 0 means no limit, which is the default. Classic capped a target at 16 debuffs;
@@ -26,7 +27,7 @@ export function emptyRoster(size: 40 | 20 | 10 = 40): Roster {
     size,
     groups: Array.from({ length: GROUP_COUNT }, () => Array.from({ length: 5 }, () => null)),
     bench: [],
-    settings: { debuffCap: DEFAULT_DEBUFF_CAP },
+    settings: { debuffCap: DEFAULT_DEBUFF_CAP, camp: [] },
   };
 }
 
@@ -124,6 +125,42 @@ export function computeCoverage(roster: Roster): Coverage {
     });
   }
 
+  /* ------------------------------------------------------------ camp objects */
+  // A camp buff is exclusive with its class buff, so it only does anything where nobody
+  // here brings that buff. Everyone sits at the same fire, so it reaches every group.
+  const picks = cleanCampPicks(roster.settings.camp);
+  for (const id of picks) {
+    const object = campObjectById(id);
+    if (!object?.replaces) continue;
+    const cov = byEffect.get(object.replaces);
+    if (!cov) continue;
+    if (cov.providers.length) {
+      cov.campWasted = id;
+      const names = cov.providers.map((p) => p.name).join(', ');
+      warnings.push({
+        level: 'info',
+        title: object.name + ' does nothing here',
+        detail:
+          names + (cov.providers.length === 1 ? ' brings ' : ' bring ') + cov.effect.name +
+          ', and the two are exclusive. Leave the slot for an object the raid is missing.',
+      });
+      continue;
+    }
+    cov.campObject = id;
+    cov.covered = true;
+    cov.possibleBy = [];
+    for (let g = 0; g < limit; g += 1) cov.groups[g] = true;
+  }
+  if (picks.length > BASIC_CAMPFIRE_SLOTS) {
+    warnings.push({
+      level: 'warn',
+      title: picks.length + ' camp objects on a fire that holds ' + BASIC_CAMPFIRE_SLOTS,
+      detail:
+        'A Basic Campfire holds ' + BASIC_CAMPFIRE_SLOTS + ' objects. A cook can build fires for ' +
+        UPGRADED_CAMPFIRE_SLOTS.join(' and ') + ', or untick some.',
+    });
+  }
+
   /* ------------------------------------------------------------- exclusivity */
   for (const cov of byEffect.values()) {
     if (!cov.covered) continue;
@@ -132,6 +169,8 @@ export function computeCoverage(roster: Roster): Coverage {
       const other = byEffect.get(otherId);
       if (!other?.covered) continue;
       clashing.push(otherId);
+      // A campfire is not a player who could do something else.
+      if (cov.campObject || other.campObject) continue;
 
       if (cov.effect.scope === 'party') {
         // Only a clash when both land on the same group.
