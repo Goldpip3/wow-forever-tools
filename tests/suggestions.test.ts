@@ -268,3 +268,35 @@ describe('export for other tools', () => {
     expect(text.length).toBeLessThan(4000);
   });
 });
+
+describe('camp buffs in the export', () => {
+  it('lists a camp-covered buff under At camp, not Missing', () => {
+    const roster = emptyRoster(10);
+    add(roster, 0, 0, 'warrior', 161, 'Ragnar');
+    roster.settings.camp = ['first-aid-kit'];
+    const coverage = computeCoverage(roster);
+    const data = buildExport(roster, coverage, 'https://example.test/');
+    expect(data.buffs.atCamp).toEqual([{ id: 'power-word-fortitude', name: 'Power Word: Fortitude', object: 'First Aid Kit' }]);
+    expect(data.buffs.missing.some((b) => b.id === 'power-word-fortitude')).toBe(false);
+    const text = asDiscordMessage(roster, coverage, 'https://example.test/');
+    expect(text).toContain('**At camp** Power Word: Fortitude (First Aid Kit)');
+    const missingLine = text.split('\n').find((l) => l.startsWith('**Missing**')) ?? '';
+    expect(missingLine).not.toContain('Power Word: Fortitude');
+  });
+
+  it('says which camp object is wasted', () => {
+    const roster = emptyRoster(10);
+    add(roster, 0, 0, 'priest', 202, 'Benedict');
+    roster.settings.camp = ['first-aid-kit'];
+    const text = asDiscordMessage(roster, computeCoverage(roster), 'https://example.test/');
+    expect(text).toContain('Wasted at camp: First Aid Kit (Benedict brings Power Word: Fortitude)');
+  });
+
+  it('leaves the export alone when nothing is ticked', () => {
+    const roster = emptyRoster(10);
+    add(roster, 0, 0, 'warrior', 161);
+    const data = buildExport(roster, computeCoverage(roster), 'https://example.test/');
+    expect(data.camp).toBeUndefined();
+    expect(data.buffs.atCamp).toBeUndefined();
+  });
+});

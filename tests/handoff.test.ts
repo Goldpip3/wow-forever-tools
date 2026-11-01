@@ -128,3 +128,15 @@ describe('ticking the handoff on the gear page', () => {
       .toBeGreaterThan(deriveStatSheet(clean, { ...fight, consumables: [] }).attackPower);
   });
 });
+
+describe('camp buffs in the handoff', () => {
+  it('names a camp-covered buff instead of simulating the class buff', () => {
+    const roster = emptyRoster(10);
+    const warrior = createPlayer('warrior', 161);
+    roster.groups[0]![0] = warrior;
+    roster.settings.camp = ['enchanted-lute'];
+    const h = handoffFor(roster, computeCoverage(roster), warrior)!;
+    expect(h.simulated).not.toContain('mark-of-the-wild');
+    expect(h.notSimulated).toContain('Mark of the Wild (at camp, Enchanted Lute)');
+  });
+});

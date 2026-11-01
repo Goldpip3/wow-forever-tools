@@ -103,5 +103,7 @@ export const KEY_ROSTERS = 'wf.rosters';
 export const KEY_CHARACTERS = 'wf.characters';
 export const KEY_PREFS = 'wf.prefs';
 export const KEY_REPORTS = 'wf.reports';
+/** Camp objects ticked for one real event, by event id. The bot has no field for them. */
+export const KEY_CAMP_PREFIX = 'wf.camp.';
 /** The character open in the simulator, whole, so a reload keeps its bags and bank. */
 export const KEY_DPS_CURRENT = 'wf.dps.current';

@@ -4,19 +4,23 @@ import { GROUP_COUNT, GROUP_SIZE } from './types';
 import { DEFAULT_DEBUFF_CAP, emptyRoster } from './engine';
 import { CLASS_IDS, specById, type Archetype, type ClassId } from '../shared/classes';
 import { defaultLoadout, defaultTalentToggles } from './loadout';
+import { cleanCampPicks } from './camp';
 
 /**
  * Rosters travel in the URL hash as compressed JSON. The compact shape keeps the
  * link short: players are tuples rather than objects.
  *
- *   [ version, size, debuffCap, slots[], bench[] ]
+ *   [ version, size, debuffCap, slots[], bench[], camp[]? ]
+ *
+ * camp holds the ticked camp object ids and is only written when there are some, so a
+ * roster with none packs exactly as it did before camp picks existed.
  *   slot  = null | [ groupIndex, slotIndex, ...player ]
  *   player = [ name, classId, specId, loadoutPairs, talentIds, unused, role? ]
  */
 
 type PackedPlayer = [string, string, number, Array<[string, string[]]>, string[], string[], string?];
 type PackedSlot = [number, number, ...PackedPlayer];
-type Packed = [number, number, number, PackedSlot[], PackedPlayer[]];
+type Packed = [number, number, number, PackedSlot[], PackedPlayer[], string[]?];
 
 const VERSION = 1;
 
@@ -64,20 +68,24 @@ export function packRoster(roster: Roster): Packed {
       if (player) slots.push([g, s, ...packPlayer(player)]);
     });
   });
-  return [
+  const packed: Packed = [
     VERSION,
     roster.size,
     roster.settings.debuffCap ?? DEFAULT_DEBUFF_CAP,
     slots,
     roster.bench.map(packPlayer),
   ];
+  const camp = cleanCampPicks(roster.settings.camp);
+  if (camp.length) packed[5] = camp;
+  return packed;
 }
 
 export function unpackRoster(packed: Packed): Roster {
-  const [, size, cap, slots, bench] = packed;
+  const [, size, cap, slots, bench, camp] = packed;
   const validSize: RaidSize = size === 10 || size === 20 ? size : 40;
   const roster = emptyRoster(validSize);
   roster.settings.debuffCap = Number.isFinite(cap) && cap > 0 ? cap : DEFAULT_DEBUFF_CAP;
+  roster.settings.camp = Array.isArray(camp) ? cleanCampPicks(camp) : [];
 
   for (const slot of slots ?? []) {
     const [g, s, ...rest] = slot;

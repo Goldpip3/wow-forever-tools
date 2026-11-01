@@ -75,6 +75,10 @@ import { looksLikeGroupBuilder, rosterFromSignups } from './groupbuilder';
 import { classTalents, loadTalentData } from '../talents/data';
 import type { TalentData } from '../talents/types';
 import { initSpellText } from './spelltext';
+import { renderCampPanel } from './camp-panel';
+import { cleanCampPicks, readCampPicks, writeCampPicks } from './camp';
+import { MIN_COMPARE, encodeCompareHash, isCompareHash, parseCompareHash, type CompareEntry } from './compare';
+import { renderCompare, renderCompareChooser, type CompareOption } from './compare-render';
 
 interface SavedRoster {
   id: string;
@@ -97,7 +101,11 @@ let suppressHash = false;
  * lives in it, so writing an encoded roster over the top would throw the token away and
  * break the page on reload.
  */
-let mode: 'planner' | 'roster' | 'intro' = 'planner';
+let mode: 'planner' | 'roster' | 'intro' | 'compare' = 'planner';
+/** The rosters on screen in compare mode. Planner mode only; roster mode never sees it. */
+let compareSet: CompareEntry[] = [];
+/** The planner hash compare was opened from, so Back returns to it. Empty after a pasted link. */
+let compareFrom = '';
 let link: RosterLink | null = null;
 /*
  * How this roster is authorised: a signed link, a session, or both.
@@ -179,9 +187,11 @@ function findPlayer(id: string): { player: Player; group: number; slot: number }
 
 function syncHash(): void {
   // The roster-mode hash carries the event id and the auth token. Never overwrite it.
-  if (mode === 'roster') return;
+  // The compare hash carries every roster in it; one roster's code would throw the rest away.
+  if (mode === 'roster' || mode === 'compare') return;
   suppressHash = true;
-  const next = isEmptyRoster(roster) ? '' : '#' + encodeRoster(roster);
+  // Camp picks made before anyone is seated still go in the link, so a reload keeps them.
+  const next = isEmptyRoster(roster) && !roster.settings.camp.length ? '' : '#' + encodeRoster(roster);
   history.replaceState(null, '', location.pathname + location.search + next);
   window.setTimeout(() => {
     suppressHash = false;
@@ -315,6 +325,24 @@ const handlers: RaidHandlers = {
   onSize: (size) => {
     if (mode === 'roster') return;
     roster.size = size;
+    update();
+  },
+
+  onToggleCamp: (id, on) => {
+    if (!mayEdit()) return;
+    const target = mode === 'roster' ? rosterState?.roster : roster;
+    if (!target) return;
+    const next = new Set(target.settings.camp);
+    if (on) next.add(id);
+    else next.delete(id);
+    target.settings.camp = cleanCampPicks([...next]);
+    // The bot has no field for camp picks. A save here would send unchanged seats and
+    // move the revision on, so roster mode keeps them on this device and only redraws.
+    if (mode === 'roster') {
+      if (rosterState) writeCampPicks(rosterState.event.id, target.settings.camp);
+      draw();
+      return;
+    }
     update();
   },
 
@@ -579,7 +607,16 @@ function renderSaveBar(): HTMLElement {
 
   const discord = el('button', 'btn', 'Copy for Discord');
   discord.addEventListener('click', handlers.onCopyDiscord);
-  row.append(nameInput, save, discord);
+  const compare = el('button', 'btn', 'Compare') as HTMLButtonElement;
+  const options = compareOptions();
+  if (options.length < MIN_COMPARE) {
+    compare.disabled = true;
+    compare.title = 'Save one more roster first. Compare needs two.';
+  } else {
+    compare.title = 'Put two to four rosters side by side, for a night with more than one raid';
+  }
+  compare.addEventListener('click', openCompareChooser);
+  row.append(nameInput, save, discord, compare);
   body.appendChild(row);
   body.appendChild(
     el(
@@ -624,6 +661,77 @@ function renderSaveBar(): HTMLElement {
   return panel;
 }
 
+/* ------------------------------------------------------------------- compare */
+
+/** The roster on screen, if anyone is in it, then every saved roster. */
+function compareOptions(): CompareOption[] {
+  const out: CompareOption[] = [];
+  if (!isEmptyRoster(roster)) out.push({ id: 'current', name: 'On screen', code: encodeRoster(roster), current: true });
+  for (const item of savedRosters()) out.push({ id: item.id, name: item.name, code: item.code });
+  return out;
+}
+
+function openCompareChooser(): void {
+  closeOverlays();
+  openOverlay(
+    renderCompareChooser(
+      compareOptions(),
+      (chosen) => {
+        closeOverlays();
+        compareFrom = location.hash;
+        // A hash change of its own, so the browser's Back button returns to the planner.
+        location.hash = encodeCompareHash(chosen);
+      },
+      closeOverlays,
+    ),
+  );
+}
+
+/** Rewrite the compare hash without a history entry, for a removal. */
+function writeCompareHash(): void {
+  suppressHash = true;
+  history.replaceState(null, '', location.pathname + location.search + '#' + encodeCompareHash(compareSet));
+  window.setTimeout(() => {
+    suppressHash = false;
+  }, 0);
+}
+
+const compareHandlers = {
+  onOpen: (index: number) => {
+    const entry = compareSet[index];
+    if (!entry) return;
+    location.hash = entry.code;
+  },
+  onRemove: (index: number) => {
+    compareSet.splice(index, 1);
+    if (compareSet.length < MIN_COMPARE) {
+      const left = compareSet[0];
+      toast('Fewer than two left, so this is the planner again.');
+      location.hash = left ? left.code : compareFrom.replace(/^#/, '');
+      return;
+    }
+    writeCompareHash();
+    draw();
+  },
+  onBack: () => {
+    location.hash = compareFrom.replace(/^#/, '');
+  },
+  onCopyLink: () => {
+    const url = location.origin + location.pathname + '#' + encodeCompareHash(compareSet);
+    void copyText(url, url.length > 1900 ? 'Copied. It is long, so Discord may not post it whole.' : 'Compare link copied');
+  },
+};
+
+function drawCompare(): void {
+  if (!app) return;
+  const scrollY = window.scrollY;
+  app.replaceChildren();
+  renderHeader({ page: 'raid', account: accountView(draw) });
+  app.appendChild(renderCompare(compareSet, compareHandlers));
+  app.appendChild(renderFooter());
+  window.scrollTo({ top: scrollY });
+}
+
 /* ------------------------------------------------------------------- drawing */
 
 /** Redraw the page, keeping the keyboard where it was. */
@@ -640,6 +748,10 @@ function drawNow(): void {
      boot and calls draw() again, which would otherwise paint the planner over it. */
   if (mode === 'intro') {
     drawRosterIntro();
+    return;
+  }
+  if (mode === 'compare') {
+    drawCompare();
     return;
   }
   if (!app) return;
@@ -676,6 +788,7 @@ function drawNow(): void {
 
   // Buffs, debuffs and utility side by side: no tabs, nothing hidden.
   const buffs = el('div', 'rcol rcol--buffs');
+  buffs.appendChild(renderCampPanel({ roster, coverage, canEdit: true }, handlers));
   buffs.appendChild(renderBuffsPanel(roster, coverage, draw));
   main.appendChild(buffs);
 
@@ -726,6 +839,20 @@ function readHash(): void {
     } catch {
       toast('That Group Builder link could not be read');
     }
+  }
+
+  // Several planner rosters side by side.
+  if (isCompareHash(hash)) {
+    const entries = parseCompareHash(hash);
+    if (entries.length >= MIN_COMPARE) {
+      compareSet = entries;
+      mode = 'compare';
+      draw();
+      return;
+    }
+    toast('That compare link had fewer than two rosters that would open.');
+    draw();
+    return;
   }
 
   const decoded = decodeRoster(hash);
@@ -1200,6 +1327,8 @@ function isCurrent(s: RosterSession): boolean {
 }
 
 function setSessionState(s: RosterSession, state: RosterState): void {
+  // Camp picks live on this device per event; the demo has none to read.
+  state.roster.settings.camp = readCampPicks(state.event.id);
   s.state = state;
   if (isCurrent(s)) rosterState = state;
 }
@@ -1397,6 +1526,7 @@ function drawRoster(): void {
   main.appendChild(centre);
 
   const buffs = el('div', 'rcol rcol--buffs');
+  buffs.appendChild(renderCampPanel({ roster, coverage, canEdit }, handlers));
   buffs.appendChild(renderBuffsPanel(roster, coverage, draw));
   main.appendChild(buffs);
 

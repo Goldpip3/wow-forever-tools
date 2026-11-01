@@ -4,6 +4,7 @@ import { encodeRoster } from './codec';
 import { ROLE_LABEL, ROLE_ORDER, CLASSES, roleOf } from '../shared/classes';
 import { overview, profileGroups, raidScore, suggestSwaps } from './suggestions';
 import { CATEGORIES } from './categories';
+import { campObjectById, campStates } from './camp';
 
 /**
  * A stable, machine-readable view of a roster. This is the shape a Discord bot
@@ -27,8 +28,19 @@ export interface RosterExport {
   }>;
   roles: Record<string, number>;
   buffs: {
-    covered: Array<{ id: string; name: string; scope: string; providers: string[] }>;
+    /** `camp` is set when a camp object stands in for it and nobody here brings it. */
+    covered: Array<{ id: string; name: string; scope: string; providers: string[]; camp?: string }>;
     missing: Array<{ id: string; name: string; scope: string }>;
+    /** Covered only by a camp object. Also listed under covered. */
+    atCamp?: Array<{ id: string; name: string; object: string }>;
+  };
+  /**
+   * Camp objects the leader ticked. Whether camp buffs hold inside a raid instance is not
+   * confirmed, so anything reading this should not count on them there.
+   */
+  camp?: {
+    picks: string[];
+    wasted: Array<{ object: string; effect: string; providers: string[] }>;
   };
   debuffs: {
     used: number;
@@ -62,6 +74,8 @@ export function buildExport(roster: Roster, coverage: Coverage, origin?: string)
   const covered: RosterExport['buffs']['covered'] = [];
   const missing: RosterExport['buffs']['missing'] = [];
   const onBoss: RosterExport['debuffs']['onBoss'] = [];
+  const atCamp: NonNullable<RosterExport['buffs']['atCamp']> = [];
+  const wasted: NonNullable<RosterExport['camp']>['wasted'] = [];
 
   for (const cov of coverage.byEffect.values()) {
     const row = {
@@ -73,8 +87,12 @@ export function buildExport(roster: Roster, coverage: Coverage, origin?: string)
     if (cov.effect.scope === 'target' && cov.covered) {
       onBoss.push({ id: row.id, name: row.name, providers: row.providers });
     }
+    const camp = cov.campObject ? campObjectById(cov.campObject) : undefined;
+    if (camp) atCamp.push({ id: row.id, name: row.name, object: camp.name });
+    const spare = cov.campWasted ? campObjectById(cov.campWasted) : undefined;
+    if (spare) wasted.push({ object: spare.name, effect: row.name, providers: row.providers });
     if (cov.effect.kind === 'buff' || cov.effect.kind === 'debuff') {
-      if (cov.covered) covered.push(row);
+      if (cov.covered) covered.push(camp ? { ...row, camp: camp.id } : row);
       else missing.push({ id: row.id, name: row.name, scope: row.scope });
     }
   }
@@ -90,7 +108,10 @@ export function buildExport(roster: Roster, coverage: Coverage, origin?: string)
     size: roster.size,
     players,
     roles,
-    buffs: { covered, missing },
+    buffs: { covered, missing, ...(atCamp.length ? { atCamp } : {}) },
+    ...(roster.settings.camp.length
+      ? { camp: { picks: campStates(roster, coverage).map((c) => c.object.id), wasted } }
+      : {}),
     debuffs: { used: coverage.debuffSlotsUsed, cap: coverage.debuffCap, onBoss },
     categories: CATEGORIES.map((c) => ({
       id: c.id,
@@ -145,6 +166,19 @@ export function asDiscordMessage(roster: Roster, coverage: Coverage, origin?: st
     lines.push(
       '**Missing** ' + missingBuffs.slice(0, 12).map((b) => b.name).join(', ') +
         (missingBuffs.length > 12 ? ' and ' + (missingBuffs.length - 12) + ' more' : ''),
+    );
+  }
+
+  if (data.buffs.atCamp?.length) {
+    lines.push(
+      '**At camp** ' + data.buffs.atCamp.map((b) => b.name + ' (' + b.object + ')').join(', ') +
+        '. Not confirmed to hold inside a raid instance.',
+    );
+  }
+  if (data.camp?.wasted.length) {
+    lines.push(
+      'Wasted at camp: ' +
+        data.camp.wasted.map((w) => w.object + ' (' + w.providers.join(', ') + ' brings ' + w.effect + ')').join(', '),
     );
   }
 
