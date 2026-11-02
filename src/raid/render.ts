@@ -56,6 +56,8 @@ export interface RaidHandlers {
   onSeatAll?: () => void;
   /** Tick or untick a camp object. Both modes; roster mode keeps it on this device. */
   onToggleCamp?: (id: string, on: boolean) => void;
+  /** Replace the ticked camp objects with these. */
+  onSetCamp?: (ids: string[]) => void;
 }
 
 /* ------------------------------------------------------------------ toolbar */
