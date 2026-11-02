@@ -11,7 +11,7 @@ import { computeCoverage, activeGroupCount } from './engine';
 import { buildEffectTip, renderRaidBuffBar } from './render';
 import { attachTooltips } from '../shared/tooltip';
 import { iconImg } from '../shared/icons';
-import { CLASSES, ROLE_ORDER, ROLE_SHORT, specById } from '../shared/classes';
+import { CLASSES, ROLE_ORDER, ROLE_SHORT, seatSpecOf } from '../shared/classes';
 import {
   MAX_COMPARE,
   MIN_COMPARE,
@@ -98,7 +98,7 @@ function renderCard(entry: CompareEntry, coverage: Coverage, index: number, coun
       const name = el('span', 'cmp-group__name', p.name);
       name.style.color = CLASSES[p.classId].color;
       li.appendChild(name);
-      const spec = specById(p.specId);
+      const spec = seatSpecOf(p);
       if (spec) li.appendChild(el('span', 'cmp-group__spec', spec.short));
       li.title = p.name + (spec ? ', ' + spec.name + ' ' + CLASSES[p.classId].name : '');
       list.appendChild(li);

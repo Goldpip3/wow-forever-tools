@@ -10,7 +10,7 @@ import type {
 import { GROUP_COUNT } from './types';
 import { EFFECTS, effectById } from './effects/index';
 import { CATEGORIES } from './categories';
-import { CLASSES, specById } from '../shared/classes';
+import { CLASSES, seatSpecOf } from '../shared/classes';
 import { BASIC_CAMPFIRE_SLOTS, UPGRADED_CAMPFIRE_SLOTS, campObjectById, cleanCampPicks } from './camp';
 
 /**
@@ -428,6 +428,6 @@ export function rosterSummary(roster: Roster): string {
 }
 
 export function specLabel(player: Player): string {
-  const spec = specById(player.specId);
-  return spec ? spec.name + ' ' + CLASSES[player.classId].name : CLASSES[player.classId].name;
+  const seat = seatSpecOf(player);
+  return seat ? seat.name + ' ' + CLASSES[player.classId].name : CLASSES[player.classId].name;
 }

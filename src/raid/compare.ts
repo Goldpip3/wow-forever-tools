@@ -17,7 +17,7 @@ import { decodeRoster } from './codec';
 import { playersInRaid } from './engine';
 import { overview } from './suggestions';
 import { campStates, type CampObject } from './camp';
-import { ALL_SPECS, CLASSES, CLASS_LIST, type ClassId, type RoleBucket } from '../shared/classes';
+import { ALL_SPECS, CLASSES, CLASS_LIST, seatSpecsFor, type ClassId, type RoleBucket } from '../shared/classes';
 
 export const MIN_COMPARE = 2;
 export const MAX_COMPARE = 4;
@@ -80,6 +80,7 @@ export interface CompareWarning {
 const MADE_UP_NAMES = new Set(
   [
     ...ALL_SPECS.map((s) => (s.short + ' ' + CLASSES[s.classId].name).toLowerCase()),
+    ...CLASS_LIST.flatMap((c) => seatSpecsFor(c.id).map((s) => (s.short + ' ' + c.name).toLowerCase())),
     ...CLASS_LIST.map((c) => c.name.toLowerCase()),
   ],
 );

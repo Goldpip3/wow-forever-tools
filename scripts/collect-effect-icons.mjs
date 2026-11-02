@@ -18,6 +18,8 @@ const SOURCES = [
   { dir: resolve(ROOT, 'src/dps'), skip: new Set() },
   { dir: resolve(ROOT, 'src/dps/data'), skip: new Set() },
   { dir: resolve(ROOT, 'src/guild'), skip: new Set() },
+  // The raid planner's Bear and Cat seats name their own icons there.
+  { dir: resolve(ROOT, 'src/shared'), skip: new Set() },
 ];
 
 /** Matches icon: 'name', "icon": "name", and the escaped form inside sample.ts. */
