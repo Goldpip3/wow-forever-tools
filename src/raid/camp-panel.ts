@@ -105,11 +105,16 @@ function partnerLine(object: CampObject, coverage: Coverage, picked: boolean): {
       : { text: 'A vendor. No buff.', cls: 'camp__partner' };
   }
   const name = effectById(object.replaces)?.name ?? object.replaces;
-  const cov = coverage.byEffect.get(object.replaces);
-  if (cov && cov.providers.length) {
-    const who = cov.providers.map((p) => p.name).join(', ');
+  // The buff itself, or one exclusive with it, like Leader of the Pack for the Camp Chair.
+  const blocker = [object.replaces, ...(object.blockedBy ?? [])]
+    .map((id) => coverage.byEffect.get(id))
+    .find((c) => !!c && c.providers.length > 0);
+  if (blocker) {
+    const who = blocker.providers.map((p) => p.name).join(', ');
     return {
-      text: (picked ? 'Wasted: ' : 'Not needed: ') + who + (cov.providers.length === 1 ? ' brings ' : ' bring ') + name + '.',
+      text:
+        (picked ? 'Wasted: ' : 'Not needed: ') + who + (blocker.providers.length === 1 ? ' brings ' : ' bring ') +
+        blocker.effect.name + '.',
       cls: 'camp__partner camp__partner--wasted',
     };
   }

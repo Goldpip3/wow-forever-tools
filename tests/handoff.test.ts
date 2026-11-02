@@ -140,3 +140,16 @@ describe('camp buffs in the handoff', () => {
     expect(h.notSimulated).toContain('Mark of the Wild (at camp, Enchanted Lute)');
   });
 });
+
+describe('two buffs that do not stack', () => {
+  it('hands over one of them, the one the simulator models', () => {
+    const roster = emptyRoster(40);
+    const warrior = createPlayer('warrior', 164);
+    roster.groups[0]![0] = warrior;
+    roster.groups[0]![1] = createPlayer('druid', 281, 'Claws');
+    roster.groups[1]![0] = createPlayer('druid', 283, 'Boomie');
+    const h = handoffFor(roster, computeCoverage(roster), warrior)!;
+    expect(h.simulated).toContain('moonkin-aura');
+    expect(h.notSimulated).not.toContain('Leader of the Pack');
+  });
+});

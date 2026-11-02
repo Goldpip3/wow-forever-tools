@@ -193,9 +193,11 @@ describe('effect catalog', () => {
     expect(CATEGORIES.find((c) => c.id === 'reduced-movement-speed')).toBeUndefined();
   });
 
-  it('lets the two crit auras stack, since the tooltips no longer say otherwise', () => {
-    expect(effectById('leader-of-the-pack')!.exclusiveWith ?? []).not.toContain('moonkin-form');
-    expect(effectById('moonkin-form')!.exclusiveWith ?? []).not.toContain('leader-of-the-pack');
+  it('treats the two crit auras as one, since raid leaders report they do not stack', () => {
+    expect(effectById('leader-of-the-pack')!.exclusiveWith).toContain('moonkin-form');
+    expect(effectById('moonkin-form')!.exclusiveWith).toContain('leader-of-the-pack');
+    expect(effectById('leader-of-the-pack')!.scope).toBe('raid');
+    expect(effectById('moonkin-form')!.scope).toBe('raid');
     expect(effectById('moonkin-form')!.categories).toEqual(['spell-crit', 'melee-and-ranged-crit']);
   });
 

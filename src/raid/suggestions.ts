@@ -83,6 +83,7 @@ export function bestCampObjects(roster: Roster, coverage: Coverage, n = 3): Camp
     if (!object.replaces) continue;
     const effect = coverage.byEffect.get(object.replaces);
     if (!effect || effect.providers.length) continue;
+    if ((object.blockedBy ?? []).some((b) => (coverage.byEffect.get(b)?.providers.length ?? 0) > 0)) continue;
     let worth = 0;
     const counts = new Map<Archetype, number>();
     for (const p of players) {

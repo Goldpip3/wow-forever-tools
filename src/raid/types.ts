@@ -132,6 +132,8 @@ export interface EffectCoverage {
   campObject?: string;
   /** A ticked camp object that does nothing, because a player here already brings this. */
   campWasted?: string;
+  /** What made `campWasted` pointless: this buff or one exclusive with it, and who brings it. */
+  campWastedBy?: { effect: string; providers: string[] };
 }
 
 export type WarningLevel = 'error' | 'warn' | 'info';

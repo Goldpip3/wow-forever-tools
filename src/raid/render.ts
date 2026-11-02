@@ -788,10 +788,9 @@ export function buildSpellTip(effect: Effect): HTMLElement {
 export const CAMP_INSTANCE_NOTE = 'Whether camp buffs hold inside a raid instance is not confirmed.';
 
 function wastedLine(objectName: string, cov: EffectCoverage): string {
-  return (
-    objectName + ' is ticked at camp, but ' + cov.effect.name + ' already comes from ' +
-    cov.providers.map((p) => p.name).join(', ') + '.'
-  );
+  const by = cov.campWastedBy ?? { effect: cov.effect.name, providers: cov.providers.map((p) => p.name) };
+  return objectName + ' is ticked at camp, but ' + by.providers.join(', ') + ' already ' +
+    (by.providers.length === 1 ? 'brings ' : 'bring ') + by.effect + '.';
 }
 
 /** The same tooltip, plus who on this roster brings it and who does not. */
