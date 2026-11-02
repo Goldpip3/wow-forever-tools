@@ -817,3 +817,13 @@
 .cmp-choose { display: flex; flex-direction: column; gap: 4px; margin: 6px 0 10px; max-height: 50vh; overflow: auto; }
 .cmp-choose__row { display: flex; gap: 8px; align-items: center; padding: 4px 6px; border: 1px solid var(--line); border-radius: var(--radius-sm); cursor: pointer; }
 .cmp-choose__foot { display: flex; justify-content: flex-end; }
+.camp-best { margin-bottom: 10px; padding: 8px; border: 1px solid rgba(229, 146, 74, .35); border-radius: var(--radius-sm); background: rgba(229, 146, 74, .05); }
+.camp-best .section-label { margin: 0 0 6px; color: var(--camp); }
+.camp-best__list { margin: 0 0 8px; padding-left: 18px; }
+.camp-best__item { margin-bottom: 6px; }
+.camp-best__item > .camp__icon { float: left; margin: 1px 6px 0 0; }
+.camp-best__text { overflow: hidden; }
+.camp-best__top { display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
+.camp-best__ticked { font-size: 11px; color: var(--camp); }
+.camp-best .drawer__hint { margin: 6px 0 0; }
+.camp__all { margin: 4px 0 6px; }

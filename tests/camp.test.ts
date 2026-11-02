@@ -16,6 +16,7 @@ import { activeGroupCount, computeCoverage, emptyRoster } from '../src/raid/engi
 import { createPlayer } from '../src/raid/loadout';
 import { decodeRoster, encodeRoster, packRoster } from '../src/raid/codec';
 import { isProfessionKey } from '../src/guild/professions';
+import { bestCampObjects } from '../src/raid/suggestions';
 import type { Roster } from '../src/raid/types';
 import type { ClassId } from '../src/shared/classes';
 
@@ -216,5 +217,48 @@ describe('camp picks in roster mode', () => {
   it('reads junk in storage as no picks', () => {
     localStorage.setItem('wf.camp.99', '{"x":1}');
     expect(readCampPicks('99')).toEqual([]);
+  });
+});
+
+describe('the best camp objects for a raid', () => {
+  it('picks three, best first, and only for buffs nobody brings', () => {
+    const roster = emptyRoster(10);
+    add(roster, 0, 0, 'warrior', 163, 'Tank');
+    add(roster, 0, 1, 'warrior', 164, 'Fury1');
+    add(roster, 0, 2, 'warrior', 164, 'Fury2');
+    add(roster, 0, 3, 'rogue', 181, 'Rogue1');
+    add(roster, 0, 4, 'rogue', 181, 'Rogue2');
+    add(roster, 1, 0, 'priest', 202, 'Healer');
+    const best = bestCampObjects(roster, computeCoverage(roster), 3);
+    expect(best).toHaveLength(3);
+    expect(best.map((b) => b.object.id)).not.toContain('first-aid-kit'); // the Priest brings Fortitude
+    for (let i = 1; i < best.length; i += 1) expect(best[i - 1]!.worth).toBeGreaterThanOrEqual(best[i]!.worth);
+    // A melee raid wants melee buffs ahead of Intellect.
+    expect(best.map((b) => b.object.id)).not.toContain('incense-candle');
+    expect(best[0]!.helps.find((h) => h.archetype === 'melee')?.n).toBe(4);
+  });
+
+  it('wants mana and Intellect for a caster raid', () => {
+    const roster = emptyRoster(10);
+    for (let i = 0; i < 4; i += 1) add(roster, 0, i, 'warlock', 302, 'Lock' + i);
+    add(roster, 1, 0, 'paladin', 381, 'Holy');
+    roster.groups[1]![0]!.loadout['paladin-blessing'] = ['blessing-of-kings'];
+    const ids = bestCampObjects(roster, computeCoverage(roster), 3).map((b) => b.object.id);
+    expect(ids).toContain('incense-candle');
+    expect(ids).not.toContain('sharpening-wheel');
+    expect(ids).not.toContain('fishing-bowl'); // the Paladin brings Kings
+  });
+
+  it('keeps an object it recommends after it is ticked', () => {
+    const roster = emptyRoster(10);
+    add(roster, 0, 0, 'warrior', 164, 'Fury');
+    const before = bestCampObjects(roster, computeCoverage(roster), 3).map((b) => b.object.id);
+    roster.settings.camp = before;
+    expect(bestCampObjects(roster, computeCoverage(roster), 3).map((b) => b.object.id)).toEqual(before);
+  });
+
+  it('has nothing to say about an empty raid', () => {
+    const roster = emptyRoster(10);
+    expect(bestCampObjects(roster, computeCoverage(roster), 3)).toEqual([]);
   });
 });

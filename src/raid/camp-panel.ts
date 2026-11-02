@@ -7,6 +7,17 @@ import type { Coverage, Roster } from './types';
 import type { RaidHandlers } from './render';
 import { CAMP_INSTANCE_NOTE } from './render';
 import { iconImg } from '../shared/icons';
+import type { Archetype } from '../shared/classes';
+
+/** One and many, in the words a raid leader uses. */
+const KIND: Record<Archetype, [string, string]> = {
+  tank: ['tank', 'tanks'],
+  melee: ['melee', 'melee'],
+  'ranged-physical': ['hunter', 'hunters'],
+  caster: ['caster', 'casters'],
+  healer: ['healer', 'healers'],
+};
+import { bestCampObjects, type CampPick } from './suggestions';
 import { effectById } from './effects/index';
 import {
   BASIC_CAMPFIRE_SLOTS,
@@ -15,9 +26,7 @@ import {
   CAMP_SOURCE,
   UPGRADED_CAMPFIRE_SLOTS,
   campSkillLabel,
-  campSuggestions,
   cleanCampPicks,
-  withArticle,
   type CampObject,
 } from './camp';
 
@@ -36,6 +45,56 @@ export interface CampPanelView {
   roster: Roster;
   coverage: Coverage;
   canEdit: boolean;
+}
+
+/** "6 melee, 2 tanks". */
+function helpsLine(pick: CampPick): string {
+  return pick.helps
+    .map((h) => h.n + ' ' + KIND[h.archetype][h.n === 1 ? 0 : 1])
+    .join(', ');
+}
+
+/** The best objects for this raid, numbered, with one button to tick them all. */
+function renderBest(best: CampPick[], picks: Set<string>, canEdit: boolean, h: RaidHandlers): HTMLElement {
+  const box = el('div', 'camp-best');
+  box.appendChild(el('div', 'section-label', 'Best ' + (best.length === 1 ? 'pick' : best.length) + ' for this raid'));
+
+  const list = el('ol', 'camp-best__list');
+  for (const pick of best) {
+    const li = el('li', 'camp-best__item' + (picks.has(pick.object.id) ? ' camp-best__item--on' : ''));
+    li.appendChild(iconImg(pick.object.icon, '', 'camp__icon'));
+    const text = el('div', 'camp-best__text');
+    const top = el('div', 'camp-best__top');
+    top.appendChild(el('span', 'camp__name', pick.object.name));
+    top.appendChild(el('span', 'tag', campSkillLabel(pick.object)));
+    if (picks.has(pick.object.id)) top.appendChild(el('span', 'camp-best__ticked', 'Ticked'));
+    text.appendChild(top);
+    const others = pick.effect.possibleBy.map((p) => p.name);
+    text.appendChild(
+      el(
+        'div',
+        'camp__partner',
+        'Stands in for ' + pick.effect.effect.name + '. Helps ' + helpsLine(pick) + '.' +
+          (others.length ? ' ' + others.slice(0, 2).join(' or ') + ' could bring the class buff instead.' : ''),
+      ),
+    );
+    li.appendChild(text);
+    list.appendChild(li);
+  }
+  box.appendChild(list);
+
+  const ids = best.map((p) => p.object.id);
+  const already = ids.length === picks.size && ids.every((id) => picks.has(id));
+  if (!already && canEdit && h.onSetCamp) {
+    const tick = el('button', 'btn btn--sm btn--gold', best.length === 1 ? 'Tick it' : 'Tick these ' + best.length);
+    tick.title = 'Replaces what is ticked now';
+    tick.addEventListener('click', () => h.onSetCamp?.(ids));
+    box.appendChild(tick);
+  }
+  box.appendChild(
+    el('p', 'drawer__hint', 'Ranked by who is in the raid, with the same rough weights the planner uses for seating.'),
+  );
+  return box;
 }
 
 /** What one object would do for this raid, in a sentence. */
@@ -61,8 +120,8 @@ function partnerLine(object: CampObject, coverage: Coverage, picked: boolean): {
 export function renderCampPanel(view: CampPanelView, h: RaidHandlers): HTMLElement {
   const { coverage } = view;
   const picks = new Set(cleanCampPicks(view.roster.settings.camp));
-  const suggestions = coverage.playerCount ? campSuggestions(coverage) : [];
-  const open = campOpen ?? (picks.size > 0 || suggestions.length > 0);
+  const best = bestCampObjects(view.roster, coverage, BASIC_CAMPFIRE_SLOTS);
+  const open = campOpen ?? (picks.size > 0 || best.length > 0);
 
   const panel = el('section', 'panel camp-panel');
 
@@ -96,24 +155,19 @@ export function renderCampPanel(view: CampPanelView, h: RaidHandlers): HTMLEleme
     el(
       'p',
       'drawer__hint',
-      'Tick what your raid will put down at the fire. Each one stands in for a class buff nobody here brings.',
+      'A Basic Campfire holds three objects. Each one stands in for a class buff, and does nothing where a player already brings it.',
     ),
   );
 
-  if (suggestions.length) {
-    const list = el('ul', 'camp__suggest');
-    for (const s of suggestions) {
-      const object = withArticle(s.object.name) + ' (' + campSkillLabel(s.object) + ')';
-      const text =
-        s.state === 'missing'
-          ? 'Nobody brings ' + s.effect.effect.name + '. ' + object + ' covers it at camp.'
-          : s.effect.effect.name + ' is not assigned. ' +
-            s.effect.possibleBy.map((p) => p.name).slice(0, 2).join(' or ') +
-            ' could switch to it, or ' + object.charAt(0).toLowerCase() + object.slice(1) + ' covers it at camp.';
-      list.appendChild(el('li', '', text));
-    }
-    body.appendChild(list);
+  if (best.length) {
+    body.appendChild(renderBest(best, picks, view.canEdit, h));
+  } else if (coverage.playerCount) {
+    body.appendChild(
+      el('p', 'drawer__hint', 'Your classes already bring every buff a camp object stands in for. A Camp Tent or a Reagent Bot is all a fire adds.'),
+    );
   }
+
+  body.appendChild(el('div', 'section-label camp__all', 'Every camp object'));
 
   for (const object of CAMP_OBJECTS) {
     const picked = picks.has(object.id);

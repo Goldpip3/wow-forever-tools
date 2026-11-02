@@ -329,13 +329,17 @@ const handlers: RaidHandlers = {
   },
 
   onToggleCamp: (id, on) => {
+    const next = new Set(mode === 'roster' ? rosterState?.roster.settings.camp ?? [] : roster.settings.camp);
+    if (on) next.add(id);
+    else next.delete(id);
+    handlers.onSetCamp?.([...next]);
+  },
+
+  onSetCamp: (ids) => {
     if (!mayEdit()) return;
     const target = mode === 'roster' ? rosterState?.roster : roster;
     if (!target) return;
-    const next = new Set(target.settings.camp);
-    if (on) next.add(id);
-    else next.delete(id);
-    target.settings.camp = cleanCampPicks([...next]);
+    target.settings.camp = cleanCampPicks(ids);
     // The bot has no field for camp picks. A save here would send unchanged seats and
     // move the revision on, so roster mode keeps them on this device and only redraws.
     if (mode === 'roster') {

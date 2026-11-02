@@ -2,6 +2,8 @@ import type { Coverage, Player, Roster } from './types';
 import { GROUP_SIZE } from './types';
 import { activeGroupCount, groupOf, specLabel } from './engine';
 import { effectsForSpec } from './effects/index';
+import { CAMP_OBJECTS, type CampObject } from './camp';
+import type { EffectCoverage } from './types';
 import {
   ARCHETYPE_LABEL,
   ARCHETYPE_ORDER,
@@ -46,6 +48,59 @@ const VALUE: Record<string, Partial<Record<Archetype, number>>> = {
   /* threat: everyone but the tank wants less of it */
   'reduced-threat': { melee: 4, caster: 4, 'ranged-physical': 4 },
 };
+
+/* ------------------------------------------------------------- camp objects */
+
+export interface CampPick {
+  object: CampObject;
+  /** The class buff it stands in for. Nobody seated brings it. */
+  effect: EffectCoverage;
+  /** The same rough weights as seating uses, summed over everyone in the raid. */
+  worth: number;
+  /** How many of each kind of player it helps, largest first. */
+  helps: Array<{ archetype: Archetype; n: number }>;
+}
+
+/**
+ * The camp objects that would help this raid most, best first.
+ *
+ * Only objects whose class buff nobody here brings: a camp buff does nothing on top of the
+ * class one. An object already ticked still counts, so the list does not shift when the
+ * leader ticks what it says. A Paladin set to another blessing does not rule an object out,
+ * since they can only bring one.
+ *
+ * The weights are the planner's rough ones, the same as for seating. They rank; they do not
+ * measure.
+ */
+export function bestCampObjects(roster: Roster, coverage: Coverage, n = 3): CampPick[] {
+  const active = activeGroupCount(roster.size);
+  const players: Player[] = [];
+  for (let g = 0; g < active; g += 1) for (const p of roster.groups[g] ?? []) if (p) players.push(p);
+  if (!players.length) return [];
+
+  const picks: CampPick[] = [];
+  for (const object of CAMP_OBJECTS) {
+    if (!object.replaces) continue;
+    const effect = coverage.byEffect.get(object.replaces);
+    if (!effect || effect.providers.length) continue;
+    let worth = 0;
+    const counts = new Map<Archetype, number>();
+    for (const p of players) {
+      const arch = archetypeFor(p);
+      const value = object.raises.reduce((sum, cat) => sum + (VALUE[cat]?.[arch] ?? 0), 0);
+      if (value <= 0) continue;
+      worth += value;
+      counts.set(arch, (counts.get(arch) ?? 0) + 1);
+    }
+    if (worth <= 0) continue;
+    const helps = ARCHETYPE_ORDER.filter((a) => counts.has(a))
+      .map((archetype) => ({ archetype, n: counts.get(archetype)! }))
+      .sort((a, b) => b.n - a.n);
+    picks.push({ object, effect, worth, helps });
+  }
+  // Ties keep catalog order, since sort is stable.
+  return picks.sort((a, b) => b.worth - a.worth).slice(0, n);
+}
 
 export interface SeatRef {
   group: number;

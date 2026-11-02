@@ -42,6 +42,12 @@ export interface CampObject {
   text: string | null;
   /** The planner effect it is exclusive with. Null where no class buff does the same thing. */
   replaces: string | null;
+  /**
+   * The planner's buff categories this object raises, for ranking which objects help a raid
+   * most. The Camp Chair's crit covers attacks as well as spells, which Moonkin Aura does not,
+   * so this is the object's own list rather than its class buff's.
+   */
+  raises: string[];
   /** A figure fan sites read off the beta client. Always shown as not verified. */
   estimate?: { text: string; source: string };
 }
@@ -72,6 +78,7 @@ export const CAMP_OBJECTS: readonly CampObject[] = [
       'Unpacks a First Aid Kit that allows you and others sitting nearby to gain 3-56 increased ' +
       'Stamina (level dependent), exclusive with Power Word: Fortitude.',
     replaces: 'power-word-fortitude',
+    raises: ['stamina'],
   },
   {
     id: 'fishing-bowl',
@@ -83,6 +90,7 @@ export const CAMP_OBJECTS: readonly CampObject[] = [
       'Places a small Fishing Bowl that allows you and others sitting nearby to gain 8% ' +
       'increased stats, exclusive with Blessing of Kings.',
     replaces: 'blessing-of-kings',
+    raises: ['all-stats'],
   },
   {
     id: 'mana-well',
@@ -94,6 +102,7 @@ export const CAMP_OBJECTS: readonly CampObject[] = [
       'Constructs a Mana Well that allows you and others sitting nearby to regenerate 10-29 Mana ' +
       'every 5 seconds (level dependent), mutually exclusive with Blessing of Wisdom.',
     replaces: 'blessing-of-wisdom',
+    raises: ['mana-regen'],
   },
   {
     id: 'sharpening-wheel',
@@ -105,6 +114,7 @@ export const CAMP_OBJECTS: readonly CampObject[] = [
       'Constructs a Sharpening Wheel that grants you and others sitting nearby 6-34 increased ' +
       'Strength (level dependent), mutually exclusive with Strength of Earth Totem.',
     replaces: 'strength-of-earth-totem',
+    raises: ['strength'],
   },
   {
     id: 'enchanted-lute',
@@ -117,6 +127,8 @@ export const CAMP_OBJECTS: readonly CampObject[] = [
       '0-13 increase to all stats, and 0-22 increase to all resistances (level dependent), ' +
       'mutually exclusive with Mark of the Wild.',
     replaces: 'mark-of-the-wild',
+    // Its 0-13 to all stats is small next to Kings' 8%, so it ranks on its armor.
+    raises: ['armor'],
     estimate: { text: '308 Armor at level 60', source: 'endgametools.com, from the beta client' },
   },
   {
@@ -129,6 +141,7 @@ export const CAMP_OBJECTS: readonly CampObject[] = [
       'Ignites an Incense Candle that allows you and others sitting nearby to gain 2-25 increased ' +
       'Intellect (level dependent), mutually exclusive with Arcane Intellect.',
     replaces: 'arcane-intellect',
+    raises: ['intellect'],
   },
   {
     id: 'camp-chair',
@@ -140,6 +153,7 @@ export const CAMP_OBJECTS: readonly CampObject[] = [
       'Assembles a Camp Chair that allows you and others sitting nearby to gain 2% increased ' +
       'critical strike chance with all spells and attacks, exclusive with Moonkin Aura.',
     replaces: 'moonkin-form',
+    raises: ['spell-crit', 'melee-and-ranged-crit'],
   },
   {
     id: 'faction-banner',
@@ -151,6 +165,7 @@ export const CAMP_OBJECTS: readonly CampObject[] = [
       'Unrolls a Faction Banner that allows you and other members of your faction sitting nearby ' +
       'to gain 14-32 increased Spirit (level dependent), mutually exclusive with Divine Spirit.',
     replaces: 'divine-spirit',
+    raises: ['spirit'],
   },
   {
     id: 'lodestone',
@@ -160,6 +175,7 @@ export const CAMP_OBJECTS: readonly CampObject[] = [
     icon: icon('mining'),
     text: null,
     replaces: 'blessing-of-might',
+    raises: ['melee-attack-power'],
     estimate: {
       text: '12 to 90 melee attack power by level, 90 from level 52, exclusive with Blessing of Might',
       source: 'endgametools.com and wowhandbook.com, from the beta client',
@@ -175,6 +191,7 @@ export const CAMP_OBJECTS: readonly CampObject[] = [
       'Builds a Camp Tent that allows you and others sitting nearby to increase Rested experience ' +
       'by 5% of a level. No effect if Rested experience already exceeds that value.',
     replaces: null,
+    raises: [],
   },
   {
     id: 'reagent-bot',
@@ -184,6 +201,7 @@ export const CAMP_OBJECTS: readonly CampObject[] = [
     icon: icon('engineering'),
     text: 'Summons a Reagent Bot that allows you and others nearby to purchase reagents.',
     replaces: null,
+    raises: [],
   },
 ];
 
