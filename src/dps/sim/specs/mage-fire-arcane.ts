@@ -354,7 +354,7 @@ const NEITHER: Record<string, string> = {
 
 const FIRE_ONLY: Record<string, string> = {
   'Improved Fire Blast': 'Fire Blast is not in the Arcane rotation.',
-  'Improved Fireball': 'Fireball is not in the Arcane rotation.',
+  Accelerant: 'Fireball is not in the Arcane rotation.',
   Ignite: 'the Arcane rotation casts no Fire spells.',
   Pyroblast: 'it is not in the Arcane rotation.',
   'Improved Scorch': 'Scorch is not in the Arcane rotation.',
@@ -363,12 +363,10 @@ const FIRE_ONLY: Record<string, string> = {
   'Blast Wave': 'it is not in the Arcane rotation.',
   'Fire Power': 'the Arcane rotation casts no Fire spells.',
   Combustion: 'the Arcane rotation casts no Fire spells.',
-  'Elemental Precision': 'it only helps Fire and Frost spells, and Arcane casts neither.',
   'Master of Elements': 'it only refunds Fire and Frost spells, and Arcane casts neither.',
 };
 
 const ARCANE_ONLY: Record<string, string> = {
-  'Arcane Focus': 'it only helps Arcane spells, and Fire casts none.',
   'Arcane Impact': 'it only helps Arcane spells, and Fire casts none.',
   'Arcane Blast': 'it is not in the Fire rotation.',
   'Missile Barrage': 'Arcane Missiles is not in the Fire rotation.',

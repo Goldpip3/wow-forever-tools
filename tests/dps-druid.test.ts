@@ -113,20 +113,6 @@ describe('Rip', () => {
 });
 
 describe('the talents', () => {
-  it('Berserk makes nearly every combo point strike a critical one', () => {
-    const plain = simulate(
-      {
-        specId: 281, stats: druid(), talents: { Berserk: 1 }, fight: fight({ overrides: { forceAverageDamage: true } }),
-        apl: [{ spellId: 'berserk' }, { spellId: 'claw', text: 'buff.berserk.up' }],
-      },
-      druidFeral,
-    );
-    const claw = plain.abilities.find((a) => a.id === 'claw')!;
-    // A strike that got past the boss's dodge crits unless the table ran out of
-    // room, which against a level 63 boss is most of them rather than all.
-    expect(claw.crits / claw.hits).toBeGreaterThan(0.75);
-  });
-
   it("Tiger's Fury raises physical damage by 15% for six seconds in every thirty", () => {
     const paws = (r: ReturnType<typeof run>) => r.abilities.find((a) => a.id === AUTO_ATTACK_ID.main)!;
     const idle = [{ spellId: 'claw', text: 'energy > 200' }];

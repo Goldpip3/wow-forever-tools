@@ -124,8 +124,8 @@ describe('frost talents', () => {
       .toBeLessThan(simulate(dear, mageFrost).resources.manaSpent);
   });
 
-  it('Elemental Precision lands more of them', () => {
-    const withHit = config({ 'Elemental Precision': 3 });
+  it('Precision lands more of them', () => {
+    const withHit = config({ Precision: 3 });
     delete withHit.fight.overrides!.forceSpellHit;
     withHit.fight.iterations = 200;
     const without = config();

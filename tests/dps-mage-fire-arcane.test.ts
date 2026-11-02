@@ -127,9 +127,9 @@ describe('Fire', () => {
     expect(uptime).toBeLessThan(2 * 3 * 1.5 + 1);
   });
 
-  it('Improved Fireball takes half a second off at five ranks', () => {
+  it('Accelerant takes half a second off at five ranks', () => {
     const slow = fire({}, [{ spellId: 'fireball' }]);
-    const fast = fire({ 'Improved Fireball': 5 }, [{ spellId: 'fireball' }]);
+    const fast = fire({ Accelerant: 5 }, [{ spellId: 'fireball' }]);
     expect(slow.abilities.find((a) => a.id === 'fireball')!.casts).toBe(Math.floor(300 / FIREBALL.castTime));
     expect(fast.abilities.find((a) => a.id === 'fireball')!.casts).toBe(100);
   });

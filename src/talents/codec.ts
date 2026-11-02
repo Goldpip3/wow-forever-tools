@@ -1,6 +1,7 @@
 import type { ClassTalents } from './types';
 import { MAX_LEVEL, MIN_LEVEL, emptyRanks, legalize, totalSpent, type BuildState, type Ranks } from './build';
 import { RENAMED_AT_70425, layoutBefore70425 } from './layout-70009';
+import { RENAMED_AT_70630, layoutBefore70630 } from './layout-70425';
 
 /**
  * Build codes match talentsforever.com so their links can be pasted here and back:
@@ -103,13 +104,44 @@ export function decode(cls: ClassTalents, input: string): BuildState | null {
 export function decodeChecked(
   cls: ClassTalents,
   input: string,
-): { build: BuildState; dropped: number; migrated?: boolean } | null {
+): { build: BuildState; dropped: number; migrated?: string } | null {
   const parsed = parseCode(input);
   if (!parsed) return null;
   const current = checkAgainst(cls, parsed);
-  const old = layoutBefore70425(dataKeyFor(parsed.classKey));
-  if (!old || !madeBefore70425(cls, old, parsed, current.dropped)) return current;
-  return { ...moveToCurrentTrees(cls, old, parsed), migrated: true };
+  // Each older layout is tried against the one that has read best so far, newest first.
+  let best: { layout: ClassTalents; dropped: number; era?: Era } = { layout: cls, dropped: current.dropped };
+  for (const era of erasFor(dataKeyFor(parsed.classKey))) {
+    if (!madeBefore(best.layout, era.layout, parsed, best.dropped)) continue;
+    best = { layout: era.layout, dropped: checkAgainst(era.layout, parsed).dropped, era };
+  }
+  if (!best.era) return current;
+  return { ...moveToCurrentTrees(cls, best.era, parsed), migrated: best.era.before };
+}
+
+/** The trees a class had before a build that moved its talents, and what that build renamed. */
+interface Era {
+  /** The build that changed the trees, as the page names it. */
+  before: string;
+  layout: ClassTalents;
+  /** Old name to the name it has now, through every build since. */
+  renamed: Record<string, string>;
+}
+
+/**
+ * Every older layout a class has, newest first. A class the later build left alone has no
+ * layout of its own for it, so the earlier one stands in for both.
+ */
+function erasFor(dataKey: string): Era[] {
+  const eras: Era[] = [];
+  const at70425 = layoutBefore70630(dataKey);
+  if (at70425) eras.push({ before: '1.60.1.70630', layout: at70425, renamed: RENAMED_AT_70630 });
+  const at70009 = layoutBefore70425(dataKey);
+  if (at70009) {
+    const renamed: Record<string, string> = { ...RENAMED_AT_70630 };
+    for (const [from, to] of Object.entries(RENAMED_AT_70425)) renamed[from] = RENAMED_AT_70630[to] ?? to;
+    eras.push({ before: '1.60.1.70425', layout: at70009, renamed });
+  }
+  return eras;
 }
 
 /** The build a code describes in one layout, and how many of its points broke the rules. */
@@ -129,7 +161,7 @@ function writtenPoints(cls: ClassTalents, parsed: ParsedCode): number {
 }
 
 /**
- * Whether a code was written against the trees before build 1.60.1.70425.
+ * Whether a code was written against an older layout rather than a newer one.
  *
  * Codes carry no version, so this goes on what the digits allow. A tree whose talent count
  * changed tells by its length, since every encoder writes a whole tree. Otherwise a code
@@ -137,7 +169,7 @@ function writtenPoints(cls: ClassTalents, parsed: ParsedCode): number {
  * A code both accept is read as new: that is every link made since, so a new link is never
  * moved, and an old one that happens to fit both is left as it reads.
  */
-function madeBefore70425(cls: ClassTalents, old: ClassTalents, parsed: ParsedCode, droppedNow: number): boolean {
+function madeBefore(cls: ClassTalents, old: ClassTalents, parsed: ParsedCode, droppedNow: number): boolean {
   let oldLength = false;
   let newLength = false;
   parsed.trees.forEach((segment, t) => {
@@ -152,27 +184,34 @@ function madeBefore70425(cls: ClassTalents, old: ClassTalents, parsed: ParsedCod
   return checkAgainst(old, parsed).dropped < droppedNow;
 }
 
-/** An old code read under the old rules, then each rank carried to its talent's new place by name. */
+/**
+ * An old code read under the old rules, then each rank carried to its talent's new place by
+ * name. A talent that moved to another tree, as Furor and Divine Intellect did, is followed
+ * there.
+ */
 function moveToCurrentTrees(
   cls: ClassTalents,
-  old: ClassTalents,
+  era: Era,
   parsed: ParsedCode,
 ): { build: BuildState; dropped: number } {
-  const then = checkAgainst(old, parsed);
+  const then = checkAgainst(era.layout, parsed);
   const ranks = emptyRanks(cls);
+  const anywhere = new Map<string, [number, number]>();
+  cls.trees.forEach((tree, t) => tree.talents.forEach((talent, i) => anywhere.set(talent.name, [t, i])));
   let lost = 0;
-  old.trees.forEach((tree, t) => {
-    const place = new Map(cls.trees[t]?.talents.map((talent, i) => [talent.name, i]) ?? []);
+  era.layout.trees.forEach((tree, t) => {
     tree.talents.forEach((talent, i) => {
       const rank = then.build.ranks[t]?.[i] ?? 0;
       if (!rank) return;
-      const at = place.get(RENAMED_AT_70425[talent.name] ?? talent.name);
-      if (at === undefined) {
+      const name = era.renamed[talent.name] ?? talent.name;
+      const same = cls.trees[t]?.talents.findIndex((x) => x.name === name) ?? -1;
+      const at: [number, number] | undefined = same >= 0 ? [t, same] : anywhere.get(name);
+      if (!at) {
         lost += rank;
         return;
       }
-      const max = cls.trees[t]!.talents[at]!.max;
-      ranks[t]![at] = Math.min(max, rank);
+      const max = cls.trees[at[0]]!.talents[at[1]]!.max;
+      ranks[at[0]]![at[1]] = Math.min(max, rank);
       lost += Math.max(0, rank - max);
     });
   });
@@ -191,10 +230,10 @@ function moveToCurrentTrees(
 export function legalCode(
   cls: ClassTalents,
   input: string,
-): { code: string; dropped: number; migrated?: boolean } | null {
+): { code: string; dropped: number; migrated?: string } | null {
   const checked = decodeChecked(cls, input);
   if (!checked) return null;
-  if (checked.migrated) return { code: encode(checked.build), dropped: checked.dropped, migrated: true };
+  if (checked.migrated) return { code: encode(checked.build), dropped: checked.dropped, migrated: checked.migrated };
   if (!checked.dropped) return { code: input.trim(), dropped: 0 };
   return { code: encode(checked.build), dropped: checked.dropped };
 }

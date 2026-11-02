@@ -33,7 +33,7 @@ export const HUNTER_EFFECTS: Effect[] = [
     },
     forever: {
       status: "changed",
-      note: "Ranged attack power only, for party or raid members within 45 yards, 30 min. Classic reached only the party. The talent is Rank 1 at 30. Rank 5, learned at 60, reads 50 in the beta client at build 1.60.1.70425, below Rank 4's 75.",
+      note: "Ranged attack power only, for party or raid members within 45 yards, 30 min. Classic reached only the party. The talent is Rank 1 at 15. Rank 5, learned at 60, reads 50 in the beta client at build 1.60.1.70630, after Rank 4's 40.",
     },
   },
   {

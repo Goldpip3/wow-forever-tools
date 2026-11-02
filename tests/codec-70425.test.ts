@@ -50,7 +50,7 @@ describe('a link made before build 1.60.1.70425', () => {
     });
     const cls = now('warrior');
     const got = decodeChecked(cls, encode(old))!;
-    expect(got.migrated).toBe(true);
+    expect(got.migrated).toBe('1.60.1.70425');
     expect(got.dropped).toBe(0);
     expect(rankOf(cls, got.build, 'Fury', 'Cruelty')).toBe(5);
     expect(rankOf(cls, got.build, 'Fury', 'Dual Wield Specialization')).toBe(5);
@@ -66,7 +66,7 @@ describe('a link made before build 1.60.1.70425', () => {
     });
     const cls = now('warlock');
     const got = decodeChecked(cls, encode(old))!;
-    expect(got.migrated).toBe(true);
+    expect(got.migrated).toBe('1.60.1.70425');
     expect(got.dropped).toBe(5);
     expect(rankOf(cls, got.build, 'Affliction', 'Improved Corruption')).toBe(5);
     expect(rankOf(cls, got.build, 'Affliction', 'Grim Reach')).toBe(0);
@@ -78,7 +78,7 @@ describe('a link made before build 1.60.1.70425', () => {
     });
     const cls = now('mage');
     const got = decodeChecked(cls, encode(old))!;
-    expect(got.migrated).toBe(true);
+    expect(got.migrated).toBe('1.60.1.70425');
     expect(rankOf(cls, got.build, 'Fire', 'Heating Up')).toBe(1);
     expect(rankOf(cls, got.build, 'Fire', 'Ignite')).toBe(5);
   });
@@ -87,7 +87,7 @@ describe('a link made before build 1.60.1.70425', () => {
     const old = buildIn(then('druid'), 'druid', { 'Feral Combat': { Ferocity: 5, 'Heart of the Wild': 5 } });
     const cls = now('druid');
     const got = legalCode(cls, encode(old))!;
-    expect(got.migrated).toBe(true);
+    expect(got.migrated).toBe('1.60.1.70425');
     expect(got.code).not.toBe(encode(old));
     expect(decodeChecked(cls, got.code)!.migrated).toBeUndefined();
   });

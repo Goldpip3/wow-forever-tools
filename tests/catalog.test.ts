@@ -196,7 +196,7 @@ describe('effect catalog', () => {
   it('lets the two crit auras stack, since the tooltips no longer say otherwise', () => {
     expect(effectById('leader-of-the-pack')!.exclusiveWith ?? []).not.toContain('moonkin-form');
     expect(effectById('moonkin-form')!.exclusiveWith ?? []).not.toContain('leader-of-the-pack');
-    expect(effectById('moonkin-form')!.categories).toEqual(['spell-crit']);
+    expect(effectById('moonkin-form')!.categories).toEqual(['spell-crit', 'melee-and-ranged-crit']);
   });
 
   it('puts the buffs that read "party or raid members" in raid scope', () => {

@@ -896,7 +896,7 @@ function checkBuild(player: Player): boolean {
   player.build = legal.code;
   if (legal.migrated) {
     toast(
-      player.name + '’s talent link was made for the trees before beta build 1.60.1.70425, so its points ' +
+      player.name + '’s talent link was made for the trees before beta build ' + legal.migrated + ', so its points ' +
         'were moved to where those talents are now.' +
         (legal.dropped ? ' ' + legal.dropped + (legal.dropped === 1 ? ' point was' : ' points were') + ' left out.' : ''),
       6000,

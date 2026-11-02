@@ -2,9 +2,8 @@
  * Druid abilities and the talents that change them, for Feral in Cat Form and,
  * further down, for Balance.
  *
- * Forever's Feral tree is its own. Berserk makes every combo point strike a
- * critical one, Blood Frenzy hands a point back on a critical strike, and Rend
- * and Tear rewards a bleeding target. Primal Bite, the talent that took Mangle's place, needs
+ * Forever's Feral tree is its own. Blood Frenzy hands a point back on a critical
+ * strike, and Rend and Tear rewards a bleeding target. Primal Bite, the talent that took Mangle's place, needs
  * Bear Form, so a cat never presses it. Every hook below is keyed by the name in
  * public/data/talents.generated.json and cites the description it was read
  * from.
@@ -42,7 +41,6 @@ export const CAT_FORM = {
 
 /** 'Increases Physical damage done by 15% for 6 sec.' on a 30 sec cooldown. */
 export const TIGERS_FURY = { duration: 6, damage: 0.15, cooldown: 30 };
-export const BERSERK = { duration: 15, cooldown: 180 };
 /**
  * Rank 6: 243 over twelve seconds at one point and 153 more for each point
  * after, so 855 at five.
@@ -180,28 +178,6 @@ export const TIGERS_FURY_SPELL: AbilityDef = {
   ),
 };
 
-export const BERSERK_SPELL: AbilityDef = {
-  id: 'berserk',
-  name: 'Berserk',
-  icon: 'ability_druid_berserk',
-  school: 'physical',
-  kind: 'item',
-  resource: 'energy',
-  castTime: 0,
-  gcd: 0,
-  cost: 0,
-  cooldown: BERSERK.cooldown,
-  minDamage: 0,
-  maxDamage: 0,
-  coefficient: 0,
-  forever: {
-    status: 'new',
-    note:
-      'Fifteen seconds of every combo point strike a critical one, on a 3 min cooldown, in the ' +
-      'beta client at build 1.60.1.70009. What it does to Primal Bite needs Bear Form.',
-  },
-};
-
 export const FERAL_ABILITIES: AbilityDef[] = [
   CLAW,
   SHRED,
@@ -209,10 +185,9 @@ export const FERAL_ABILITIES: AbilityDef[] = [
   RIP_SPELL,
   FEROCIOUS_BITE,
   TIGERS_FURY_SPELL,
-  BERSERK_SPELL,
 ];
 
-/** Strikes that earn a combo point, which Blood Frenzy and Berserk both read. */
+/** Strikes that earn a combo point, which Blood Frenzy reads. */
 export const GENERATORS = new Set(['claw', 'shred', 'rake']);
 
 /* --------------------------------------------------------------- talents */
@@ -221,9 +196,9 @@ export const DRUID_TALENT_HOOKS: Record<string, TalentHook> = {
   /* --------------------------------------------------------------- Balance */
 
   // 'Increases the periodic damage and healing done by your spells and
-  // abilities by 1%.'
+  // abilities by 2%.'
   Genesis: (rank, mods) => {
-    mods.flags.periodicDamage = 0.01 * rank;
+    mods.flags.periodicDamage = 0.02 * rank;
   },
 
   // 'Increases your critical strike chance with spells and melee attacks by 2%.'
@@ -290,8 +265,8 @@ export const DRUID_TALENT_HOOKS: Record<string, TalentHook> = {
     mods.critBonus.physical = (mods.critBonus.physical ?? 0) + 0.1 * rank;
   },
 
-  // 'While in Cat Form ... increases the melee and ranged Critical Strike chance of
-  // all party or raid members within 45 yards by 3%.' The druid is one of them.
+  // 'While in Cat Form ... increases the Critical Strike chance of all party or
+  // raid members within 45 yards by 3%.' The druid is one of them.
   'Leader of the Pack': (_rank, mods) => {
     mods.meleeCrit += 3;
   },
@@ -301,21 +276,13 @@ export const DRUID_TALENT_HOOKS: Record<string, TalentHook> = {
     mods.flags.rendAndTear = 0.02 * rank;
   },
 
-  // 'Causes your Primal Bite ability to strike up to 3 targets, removes its
-  // cooldown, and increases the critical strike chance of your Combo
-  // Point-generating abilities by 100%.' Primal Bite needs Bear Form, so a cat
-  // only gets the crit. It is a button; the hook only says the druid has it.
-  Berserk: (_rank, mods) => {
-    mods.flags.berserk = 1;
-  },
-
   /* ----------------------------------------------------------- Restoration */
 
-  // '... increases all damage you deal by 1%.'
+  // '... increases all damage you deal by 2%.'
   Naturalist: (rank, mods) => {
-    mods.physicalDamage *= 1 + 0.01 * rank;
+    mods.physicalDamage *= 1 + 0.02 * rank;
     for (const school of ['nature', 'arcane'] as const) {
-      mods.schoolDamage[school] = (mods.schoolDamage[school] ?? 1) * (1 + 0.01 * rank);
+      mods.schoolDamage[school] = (mods.schoolDamage[school] ?? 1) * (1 + 0.02 * rank);
     }
   },
 };
@@ -431,9 +398,9 @@ export const BALANCE_TALENT_HOOKS: Record<string, TalentHook> = {
   Naturalist: DRUID_TALENT_HOOKS.Naturalist!,
 
   // 'Increases the periodic damage and healing done by your spells and
-  // abilities by 1%.'
+  // abilities by 2%.'
   Genesis: (rank, mods) => {
-    mods.flags.periodicDamage = 0.01 * rank;
+    mods.flags.periodicDamage = 0.02 * rank;
   },
 
   // 'Reduces the cast time of your Wrath spell by 0.1 sec and its Mana cost by 10%.'
@@ -501,8 +468,8 @@ export const BALANCE_TALENT_HOOKS: Record<string, TalentHook> = {
     }
   },
 
-  // '... all party or raid members within 45 yards have their spell Critical Strike
-  // chance increased by 3%.' The druid is one of them; the fight settings decide whether it is
+  // '... all party or raid members within 45 yards have their Critical Strike chance
+  // increased by 3%.' The druid is one of them, and only its spells count here; the fight settings decide whether it is
   // already counted as a raid buff.
   'Moonkin Form': (_rank, mods) => {
     mods.flags.moonkinForm = 1;
