@@ -262,3 +262,36 @@ describe('the best camp objects for a raid', () => {
     expect(bestCampObjects(roster, computeCoverage(roster), 3)).toEqual([]);
   });
 });
+
+describe('the Camp Chair and the Druid crit auras', () => {
+  it('calls the chair wasted when a Feral Druid brings Leader of the Pack', () => {
+    const roster = emptyRoster(10);
+    add(roster, 0, 0, 'druid', 281, 'Claws');
+    add(roster, 0, 1, 'warrior', 164, 'Grom');
+    roster.settings.camp = ['camp-chair'];
+    const coverage = computeCoverage(roster);
+    const moonkin = coverage.byEffect.get('moonkin-form')!;
+    expect(moonkin.campObject).toBeUndefined();
+    expect(moonkin.campWasted).toBe('camp-chair');
+    expect(moonkin.campWastedBy).toEqual({ effect: 'Leader of the Pack', providers: ['Claws'] });
+    const note = coverage.warnings.find((w) => w.title === 'Camp Chair does nothing here');
+    expect(note?.detail).toContain('Claws brings Leader of the Pack');
+  });
+
+  it('does not recommend the chair when a Druid brings either aura', () => {
+    for (const spec of [281, 283]) {
+      const roster = emptyRoster(10);
+      add(roster, 0, 0, 'druid', spec, 'Druid');
+      add(roster, 0, 1, 'warrior', 164, 'Grom');
+      const ids = bestCampObjects(roster, computeCoverage(roster), 9).map((b) => b.object.id);
+      expect(ids, String(spec)).not.toContain('camp-chair');
+    }
+  });
+
+  it('still covers the crit with the chair when no Druid is seated', () => {
+    const roster = emptyRoster(10);
+    add(roster, 0, 0, 'warrior', 164, 'Grom');
+    roster.settings.camp = ['camp-chair'];
+    expect(computeCoverage(roster).byEffect.get('moonkin-form')!.campObject).toBe('camp-chair');
+  });
+});

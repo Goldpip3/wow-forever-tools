@@ -48,6 +48,12 @@ export interface CampObject {
    * so this is the object's own list rather than its class buff's.
    */
   raises: string[];
+  /**
+   * Other planner effects that make this object pointless when a player brings one. The Camp
+   * Chair replaces Moonkin Aura, and Leader of the Pack is the same 3% aura, so a Feral Druid
+   * leaves the chair nothing to do.
+   */
+  blockedBy?: string[];
   /** A figure fan sites read off the beta client. Always shown as not verified. */
   estimate?: { text: string; source: string };
 }
@@ -153,6 +159,7 @@ export const CAMP_OBJECTS: readonly CampObject[] = [
       'Assembles a Camp Chair that allows you and others sitting nearby to gain 2% increased ' +
       'critical strike chance with all spells and attacks, exclusive with Moonkin Aura.',
     replaces: 'moonkin-form',
+    blockedBy: ['leader-of-the-pack'],
     raises: ['spell-crit', 'melee-and-ranged-crit'],
   },
   {

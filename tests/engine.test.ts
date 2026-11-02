@@ -130,14 +130,15 @@ describe('scope resolution', () => {
 });
 
 describe('exclusivity', () => {
-  it('lets both crit auras run in one group', () => {
+  it('says the two crit auras do not stack, wherever the Druids sit', () => {
     const roster = emptyRoster(40);
     add(roster, 1, 0, 'druid', 281, 'Claws');
-    add(roster, 1, 1, 'druid', 283, 'Boomie');
+    add(roster, 5, 1, 'druid', 283, 'Boomie');
     const cov = computeCoverage(roster);
-    expect(cov.warnings.find((w) => w.title.includes('do not stack'))).toBeUndefined();
-    expect(cov.byEffect.get('leader-of-the-pack')!.overriddenBy).toBeUndefined();
-    expect(cov.byEffect.get('moonkin-form')!.overriddenBy).toBeUndefined();
+    expect(cov.byEffect.get('leader-of-the-pack')!.overriddenBy).toEqual(['moonkin-form']);
+    expect(cov.byEffect.get('moonkin-form')!.overriddenBy).toEqual(['leader-of-the-pack']);
+    const notes = cov.warnings.filter((w) => w.title === 'Leader of the Pack and Moonkin Aura do not stack');
+    expect(notes).toHaveLength(1);
   });
 
   it('covers reduced armor from the warrior alone, and adding a rogue costs no slot', () => {

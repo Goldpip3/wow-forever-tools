@@ -134,14 +134,18 @@ export function computeCoverage(roster: Roster): Coverage {
     if (!object?.replaces) continue;
     const cov = byEffect.get(object.replaces);
     if (!cov) continue;
-    if (cov.providers.length) {
+    const blocker = [cov, ...(object.blockedBy ?? []).map((b) => byEffect.get(b))].find(
+      (c): c is EffectCoverage => !!c && c.providers.length > 0,
+    );
+    if (blocker) {
       cov.campWasted = id;
-      const names = cov.providers.map((p) => p.name).join(', ');
+      const names = blocker.providers.map((p) => p.name);
+      cov.campWastedBy = { effect: blocker.effect.name, providers: names };
       warnings.push({
         level: 'info',
         title: object.name + ' does nothing here',
         detail:
-          names + (cov.providers.length === 1 ? ' brings ' : ' bring ') + cov.effect.name +
+          names.join(', ') + (names.length === 1 ? ' brings ' : ' bring ') + blocker.effect.name +
           ', and the two are exclusive. Leave the slot for an object the raid is missing.',
       });
       continue;

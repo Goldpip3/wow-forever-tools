@@ -90,7 +90,10 @@ export function buildExport(roster: Roster, coverage: Coverage, origin?: string)
     const camp = cov.campObject ? campObjectById(cov.campObject) : undefined;
     if (camp) atCamp.push({ id: row.id, name: row.name, object: camp.name });
     const spare = cov.campWasted ? campObjectById(cov.campWasted) : undefined;
-    if (spare) wasted.push({ object: spare.name, effect: row.name, providers: row.providers });
+    if (spare) {
+      const by = cov.campWastedBy ?? { effect: row.name, providers: row.providers };
+      wasted.push({ object: spare.name, effect: by.effect, providers: by.providers });
+    }
     if (cov.effect.kind === 'buff' || cov.effect.kind === 'debuff') {
       if (cov.covered) covered.push(camp ? { ...row, camp: camp.id } : row);
       else missing.push({ id: row.id, name: row.name, scope: row.scope });

@@ -49,10 +49,11 @@ export const DRUID_EFFECTS: Effect[] = [
         choice: FORM,
       },
     ],
+    exclusiveWith: ["moonkin-form"],
     values: { forever: "+3% critical strike to party or raid members within 45 yards" },
     forever: {
       status: "changed",
-      note: "Forever gives +3% critical strike chance to all party or raid members within 45 yards at build 1.60.1.70630. The tooltip no longer says melee and ranged, so spells count too. Classic gave melee and ranged crit to the party only. The tooltip does not say it is exclusive with Moonkin Aura, so the two stack.",
+      note: "Forever gives +3% critical strike chance to all party or raid members within 45 yards at build 1.60.1.70630. The tooltip no longer says melee and ranged, so spells count too. Classic gave melee and ranged crit to the party only. Both tooltips at build 1.60.1.70630 give the same 3% critical strike chance and do not say they are exclusive. Raid leaders report the two do not stack, and SimForever models them as one aura (PR 182), so the planner treats them as one. Not confirmed by Blizzard.",
     },
   },
   {
@@ -70,13 +71,14 @@ export const DRUID_EFFECTS: Effect[] = [
         choice: FORM,
       },
     ],
+    exclusiveWith: ["leader-of-the-pack"],
     values: {
       classic: "+3% spell crit to the party",
       forever: "+3% critical strike to party or raid members within 45 yards",
     },
     forever: {
       status: "changed",
-      note: "Forever raises critical strike chance for all party or raid members within 45 yards at build 1.60.1.70630, where Classic gave spell crit to the party only. Build 1.60.1.70425 said spell crit; the tooltip now leaves spell out, so melee and ranged count too. It does not say it is exclusive with Leader of the Pack.",
+      note: "Forever raises critical strike chance for all party or raid members within 45 yards at build 1.60.1.70630, where Classic gave spell crit to the party only. Build 1.60.1.70425 said spell crit; the tooltip now leaves spell out, so melee and ranged count too. Both tooltips at build 1.60.1.70630 give the same 3% critical strike chance and do not say they are exclusive. Raid leaders report the two do not stack, and SimForever models them as one aura (PR 182), so the planner treats them as one. Not confirmed by Blizzard.",
     },
   },
   {

@@ -78,7 +78,16 @@ export function handoffFor(roster: Roster, coverage: Coverage, player: Player): 
   for (const cov of coverage.byEffect.values()) {
     const { effect } = cov;
     if (effect.kind !== 'buff' && effect.kind !== 'debuff') continue;
-    if (!cov.covered || cov.overriddenBy?.length) continue;
+    if (!cov.covered) continue;
+    // Two buffs that do not stack: only one applies, so hand over one of them, not neither.
+    // The one the simulator can model wins; otherwise the first by id, so it is always the same.
+    const beaten = (cov.overriddenBy ?? []).some((other) => {
+      if (!coverage.byEffect.get(other)?.covered) return false;
+      const mine = !!SIM_BUFF_FOR[effect.id];
+      const theirs = !!SIM_BUFF_FOR[other];
+      return theirs !== mine ? theirs : other < effect.id;
+    });
+    if (beaten) continue;
     const reaches =
       effect.scope === 'raid' || effect.scope === 'target' || (effect.scope === 'party' && !!cov.groups[group]);
     if (!reaches) continue;
