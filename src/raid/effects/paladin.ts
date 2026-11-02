@@ -152,8 +152,8 @@ export const PALADIN_EFFECTS: Effect[] = [
     categories: ["reduced-threat"],
     providers: [{ classId: "paladin", specs: ANY, choice: BLESSING }],
     forever: {
-      status: "changed",
-      note: "Called Salvation at build 1.60.1.70425, and its text no longer calls it a Blessing. Same 30% less threat, for 1 hour rather than 5 min. Mass Salvation gives it to every member of the target's class.",
+      status: "unverified",
+      note: "Not in the Paladin spellbook at build 1.60.1.70630, nor is Mass Salvation, so it may be gone. At build 1.60.1.70425 it was called Salvation: 30% less threat for 1 hour.",
     },
   },
   {
@@ -178,8 +178,8 @@ export const PALADIN_EFFECTS: Effect[] = [
     categories: ["misc-utility"],
     providers: [{ classId: "paladin", specs: ANY, choice: BLESSING }],
     forever: {
-      status: "changed",
-      note: "Same 400 and 115 to Holy Light and Flash of Light. It lasts an hour rather than 5 min.",
+      status: "unverified",
+      note: "Not in the Paladin spellbook at build 1.60.1.70630, so it may be gone. At build 1.60.1.70425 it gave the same 400 and 115 to Holy Light and Flash of Light as Classic, for an hour.",
     },
   },
 
@@ -335,7 +335,7 @@ export const PALADIN_EFFECTS: Effect[] = [
     providers: [{ classId: "paladin", specs: [PROT, RET, HOLY] }],
     forever: {
       status: "new",
-      note: "The tank seal. Every hit adds Holy damage, and with a shield up you also get an absorb worth half of it. Judging it taunts for 4 sec.",
+      note: "The tank seal. Every hit adds Holy damage, and with a shield up you also get an absorb worth half of it. Judging it taunts for 3 sec.",
     },
   },
   {

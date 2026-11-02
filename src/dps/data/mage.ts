@@ -157,8 +157,8 @@ export const FROST_TALENT_HOOKS: Record<string, TalentHook> = {
     addCastTime(mods, FROSTBOLT.id, -0.1 * rank);
   },
 
-  'Elemental Precision': (rank, mods) => {
-    // Two per cent per rank, for frost and fire. A frost mage casts nothing else.
+  // 'Improves your chance to hit with all spells by 2%.'
+  Precision: (rank, mods) => {
     mods.spellHit += 2 * rank;
   },
 

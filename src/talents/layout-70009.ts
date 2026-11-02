@@ -11,9 +11,10 @@ import type { ClassTalents, Talent } from './types';
  * nothing more. Taken from the talentsforever.com export generated 2026-10-01.
  */
 
-type Row = [name: string, max: number, row: number, col: number, req?: string];
+export type LayoutRow = [name: string, max: number, row: number, col: number, req?: string];
+export type Layout = Array<[tree: string, talents: LayoutRow[]]>;
 
-const LAYOUT: Record<string, Array<[tree: string, talents: Row[]]>> = {
+const LAYOUT: Record<string, Layout> = {
   Warrior: [
     ["Arms", [
       ["Improved Heroic Strike", 3, 1, 1],
@@ -397,18 +398,23 @@ export function layoutBefore70425(dataKey: string): ClassTalents | null {
   if (!rows) return null;
   let cls = built.get(dataKey);
   if (!cls) {
-    cls = {
-      icon: '',
-      trees: rows.map(([name, talents]) => ({
-        name,
-        bg: 0,
-        icon: '',
-        talents: talents.map(([talentName, max, row, col, req]): Talent => ({
-          name: talentName, max, row, col, icon: '', desc: [], ...(req ? { req } : {}),
-        })),
-      })),
-    };
+    cls = buildLayout(rows);
     built.set(dataKey, cls);
   }
   return cls;
+}
+
+/** Trees the rules can read, from the rows a layout file keeps. */
+export function buildLayout(rows: Layout): ClassTalents {
+  return {
+    icon: '',
+    trees: rows.map(([name, talents]) => ({
+      name,
+      bg: 0,
+      icon: '',
+      talents: talents.map(([talentName, max, row, col, req]): Talent => ({
+        name: talentName, max, row, col, icon: '', desc: [], ...(req ? { req } : {}),
+      })),
+    })),
+  };
 }

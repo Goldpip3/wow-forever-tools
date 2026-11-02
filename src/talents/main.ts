@@ -109,7 +109,7 @@ async function switchClass(classKey: string, level: number, code?: string): Prom
   update();
   if (decoded?.migrated) {
     toast(
-      'That link was made for the trees before beta build 1.60.1.70425, so its points were moved to where ' +
+      'That link was made for the trees before beta build ' + decoded.migrated + ', so its points were moved to where ' +
         'those talents are now.' + (decoded.dropped ? ' ' + pointsLeftOut(decoded.dropped) : ''),
       6000,
     );

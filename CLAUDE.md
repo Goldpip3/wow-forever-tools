@@ -91,7 +91,7 @@ planner code, so the codec does not change for it.
 
 ```
 npm run dev      # vite on 5273
-npm test         # vitest, 1171 tests
+npm test         # vitest, 1179 tests
 npm run build    # typecheck, then dist/
 npm run e2e      # Playwright smoke tests against dist/; build first
 npm run import   # refetch talent data after the beta changes

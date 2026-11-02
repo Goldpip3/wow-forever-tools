@@ -123,11 +123,10 @@ export const BUFFS: BuffDef[] = [
     kind: 'raid',
     icon: 'spell_nature_moonglow',
     from: 'Balance Druid',
-    stats: { spellCrit: 3 },
-    roles: ['caster'],
+    stats: { spellCrit: 3, crit: 3 },
     forever: {
       status: 'changed',
-      note: 'Moonkin Form gives party or raid members within 45 yards 3% spell critical strike chance. It no longer says it is exclusive with Leader of the Pack.',
+      note: 'Moonkin Form gives party or raid members within 45 yards 3% critical strike chance. At build 1.60.1.70630 it no longer says spell, so attacks count too. It does not say it is exclusive with Leader of the Pack.',
     },
   },
 
@@ -270,7 +269,7 @@ export const BUFFS: BuffDef[] = [
     forever: {
       status: 'changed',
       note:
-        'Ranged attack power only, nothing for melee. The talent teaches rank 1 at 30; rank 5, ' +
+        'Ranged attack power only, nothing for melee. The talent teaches rank 1 at 15; rank 5, ' +
         'trained at 60, gives 50.',
     },
   },

@@ -9,7 +9,6 @@
 
 import * as K from '../../data/combat-constants';
 import {
-  BERSERK,
   CAT_FORM,
   CAT_PAWS,
   DRUID_TALENT_HOOKS,
@@ -24,7 +23,6 @@ import type { PriorityEntry } from '../rotation';
 
 export const DRUID_AURAS = {
   tigersFury: 'tigers-fury',
-  berserk: 'berserk',
   rip: 'rip',
   rake: 'rake',
 };
@@ -60,17 +58,12 @@ export const druidFeral: SpecModule = {
   },
 
   rotations: {
-    standard: (talents): PriorityEntry[] => [
+    standard: (): PriorityEntry[] => [
       // Tiger's Fury costs nothing now, so it goes on cooldown.
       {
         spellId: 'tigers-fury',
         when: (ctx) => !ctx.has(DRUID_AURAS.tigersFury),
         text: 'not buff.tigers-fury.up',
-      },
-      {
-        spellId: 'berserk',
-        when: (ctx) => (talents.Berserk ?? 0) > 0 && ctx.timeLeft > 15,
-        text: 'talent.berserk and time_left > 15',
       },
       {
         spellId: 'rip',
@@ -126,10 +119,6 @@ export const druidFeral: SpecModule = {
 
   hasteFor: (actor) => 1 + (actor.stats.haste ?? 0) / 100,
 
-  /** Berserk makes every combo point strike a critical one. */
-  critBonusFor: ({ spellId, actor, now }) =>
-    (GENERATORS.has(spellId) && actor.auras.has(DRUID_AURAS.berserk, now) ? 100 : 0),
-
   /**
    * Tiger's Fury on every physical hit, and Rend and Tear for strikes that are
    * pressed while something bleeds.
@@ -147,9 +136,6 @@ export const druidFeral: SpecModule = {
     if (spellId === 'rip') pointsSpent = actor.comboPoints;
     if (spellId === 'tigers-fury') {
       actor.auras.apply(DRUID_AURAS.tigersFury, now, { duration: TIGERS_FURY.duration });
-    }
-    if (spellId === 'berserk') {
-      actor.auras.apply(DRUID_AURAS.berserk, now, { duration: BERSERK.duration });
     }
   },
 
@@ -196,8 +182,9 @@ export const druidFeral: SpecModule = {
     'Thick Hide': 'armor does nothing to damage.',
     'Feral Charge': 'the boss stands still, so there is nothing to charge at.',
     'Primal Bite': 'it needs Bear Form, and the druid here is in Cat Form.',
-    'Shifting Power': 'its talent text gives no cooldown, so how often it could be pressed is not known.',
-    'Improved Shifting Power': 'Shifting Power is not in the rotation.',
+    'Shifting Power': 'it is not in the rotation, which never spends mana.',
+    Lacerate: 'it costs Rage, so it is a Bear Form strike, and the druid here is in Cat Form.',
+    'Predatory Discipline': 'energy left over is not turned into Ferocious Bite damage here, with or without it.',
     'Natural Reaction': 'a dodge chance, which does nothing to damage.',
     Furor: 'the druid is in Cat Form from the pull and never leaves it.',
     'Improved Wrath': 'a cat does not cast Wrath.',
@@ -218,7 +205,7 @@ export const druidFeral: SpecModule = {
     'Natural Shapeshifter': 'the druid never shifts during the fight.',
     Reflection: 'a cat does not spend mana.',
     'Gift of Nature': 'healing is not simulated.',
-    'Gift of the Earthmother': 'healing is not simulated.',
+    Bloom: 'healing is not simulated.',
     'Tranquil Spirit': 'healing is not simulated.',
     'Improved Rejuvenation': 'healing is not simulated.',
     Swiftmend: 'healing is not simulated.',

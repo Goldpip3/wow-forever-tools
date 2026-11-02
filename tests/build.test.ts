@@ -384,8 +384,8 @@ describe('every talent, every rank', () => {
     const balance = druid.trees[treeIndex(druid, 'Balance')]!;
     const genesis = balance.talents[talentIndex(druid, 'Balance', 'Genesis')]!;
     const texts = [1, 2, 3, 4, 5].map((r) => rankText(genesis, r).text);
-    expect(texts[0]).toMatch(/by 1%/);
-    expect(texts[4]).toMatch(/by 5%/);
+    expect(texts[0]).toMatch(/by 2%/);
+    expect(texts[4]).toMatch(/by 10%/);
     expect(new Set(texts).size).toBe(5);
   });
 

@@ -139,7 +139,7 @@ export const priestShadow: SpecModule = {
     Inspiration: 'healing is not simulated.',
     'Holy Reach': 'range does nothing to damage.',
     'Improved Healing': 'healing is not simulated.',
-    'Binding Heal': 'healing is not simulated.',
+    'Holy Binding': 'healing is not simulated.',
     'Litany of Light': 'healing is not simulated.',
     'Spirit of Redemption': 'nothing here kills you.',
     'Spiritual Healing': 'healing is not simulated.',

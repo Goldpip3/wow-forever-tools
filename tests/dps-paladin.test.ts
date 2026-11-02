@@ -91,9 +91,9 @@ describe('Hammer of Wrath', () => {
     expect(hammer.casts).toBeLessThanOrEqual(Math.ceil(60 / HAMMER_OF_WRATH.cooldown!) + 1);
   });
 
-  it('is instant with both ranks of Instrument of Law', () => {
+  it('is instant with all five ranks of Champion of the Light', () => {
     const slow = run({}, {}, [{ spellId: 'hammer-of-wrath' }]);
-    const fast = run({ 'Instrument of Law': 2 }, {}, [{ spellId: 'hammer-of-wrath' }]);
+    const fast = run({ 'Champion of the Light': 5 }, {}, [{ spellId: 'hammer-of-wrath' }]);
     expect(fast.abilities.find((a) => a.id === 'hammer-of-wrath')!.casts)
       .toBeGreaterThanOrEqual(slow.abilities.find((a) => a.id === 'hammer-of-wrath')!.casts);
     // Swinging never stops for it either way; an instant does not clip a swing.

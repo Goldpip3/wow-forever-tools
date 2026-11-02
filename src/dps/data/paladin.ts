@@ -14,7 +14,7 @@
  */
 
 import type { AbilityDef, TalentHook } from '../sim/spells';
-import { addCastTime, multiplyCost, multiplyDamage } from '../sim/spells';
+import { addCastTime, addSpellCrit, multiplyCost, multiplyDamage } from '../sim/spells';
 
 /* ---------------------------------------------------------------- numbers */
 
@@ -155,43 +155,30 @@ export const PALADIN_ABILITIES: AbilityDef[] = [
 export const PALADIN_TALENT_HOOKS: Record<string, TalentHook> = {
   /* ----------------------------------------------------------------- Holy */
 
-  // 'Increases the damage done by your Seals and Judgements by 5%.'
+  // 'Increases the damage done by your Seals and Judgements by 3%.' 15% at rank 5.
   'Improved Seals': (rank, mods) => {
-    mods.flags.sealDamage = 0.05 * rank;
-    multiplyDamage(mods, JUDGEMENT_SPELL.id, 1 + 0.05 * rank);
+    mods.flags.sealDamage = 0.03 * rank;
+    multiplyDamage(mods, JUDGEMENT_SPELL.id, 1 + 0.03 * rank);
   },
 
-  // 'Increases the critical strike chance of your Holy Shock and Holy Strike
-  // spells by 3%, and all other spells by 1%.' The spec reads the Holy Strike
-  // part from the flag.
-  'Holy Power': (rank, mods) => {
-    mods.spellCrit.holy = (mods.spellCrit.holy ?? 0) + rank;
-    mods.flags.holyStrikeCrit = 3 * rank;
-  },
-
-  // 'Increases your chance to hit with Holy spells by 6%.'
+  // 'Improves your chance to hit with Holy spells by 4%, and reduces the duration
+  // of Silence effects on you by 10%.' Only the hit counts here.
   'Divine Precision': (rank, mods) => {
-    mods.spellHit += 6 * rank;
+    mods.spellHit += 4 * rank;
   },
 
-  // 'Allows 30% of your Mana regeneration to continue while casting.' That is
-  // the third rank; each is a tenth.
+  // 'Allows 15% of your Mana regeneration to continue while casting.' 30% at rank 2.
   Reverence: (rank, mods) => {
-    mods.flags.castingRegen = 0.1 * rank;
+    mods.flags.castingRegen = 0.15 * rank;
   },
 
   /* ----------------------------------------------------------- Protection */
 
-  // 'Increases your chance to hit with all spells and attacks by 1%.'
+  // 'Improves your chance to hit by 1%.' Counted for spells too, as before: the
+  // text does not say which.
   Precision: (rank, mods) => {
     mods.meleeHit += rank;
     mods.spellHit += rank;
-  },
-
-  // 'Increases the damage you deal with one-handed melee weapons by 3%.' 7% at
-  // rank 2, 10% at rank 3.
-  'One-Handed Weapon Specialization': (rank, mods) => {
-    mods.flags.oneHandedDamage = [0, 0.03, 0.07, 0.1][Math.max(0, Math.min(3, rank))] ?? 0;
   },
 
   /* --------------------------------------------------------- Retribution */
@@ -216,12 +203,14 @@ export const PALADIN_TALENT_HOOKS: Record<string, TalentHook> = {
     mods.flags.sanctifiedShare = [0.2, 0.4, 0.6][r - 1]!;
   },
 
-  // 'Increases your chance to get a critical strike with melee attacks by 1%.'
+  // 'Improves your chance to get a critical strike with all spells and attacks by 2%.'
   Conviction: (rank, mods) => {
-    mods.meleeCrit += rank;
+    mods.meleeCrit += 2 * rank;
+    addSpellCrit(mods, 'holy', 2 * rank);
   },
 
-  // 'Increases the damage you deal with two-handed melee weapons by 2%.'
+  // 'Increases the physical damage you deal by 2%, and reduces all threat you
+  // generate by 7% while a two-handed melee weapon is equipped.'
   'Two-Handed Weapon Specialization': (rank, mods) => {
     mods.flags.twoHandedDamage = 0.02 * rank;
   },
@@ -244,15 +233,10 @@ export const PALADIN_TALENT_HOOKS: Record<string, TalentHook> = {
     multiplyDamage(mods, HOLY_STRIKE_SPELL.id, 1.2);
   },
 
-  // 'Reduces the Mana cost of your Seal spells by 20%, and when you replace your
-  // Seal of Command ... gain an Echo of that Seal.' Only the cost is counted:
-  // the rotation never swaps seals.
-  'Twist of Light': (_rank, mods) => {
-    multiplyCost(mods, SEAL_OF_COMMAND_SPELL.id, 0.8);
-  },
-
-  // 'Reduces the cast time of your Hammer of Wrath by 0.5 sec.' Both ranks given.
-  'Instrument of Law': (rank, mods) => {
-    addCastTime(mods, HAMMER_OF_WRATH.id, -0.5 * rank);
+  // 'Increases your spell damage by up to 12% of your Intellect, and reduces the
+  // cast time of your Hammer of Wrath by 0.2 sec.' 60% and 1.0 sec at rank 5. Only
+  // the cast time is counted here; the spell damage is already on the sheet.
+  'Champion of the Light': (rank, mods) => {
+    addCastTime(mods, HAMMER_OF_WRATH.id, -0.2 * rank);
   },
 };

@@ -275,6 +275,11 @@ const SHARED_HOOKS: Record<string, TalentHook> = {
     addCritBonus(mods, 'arcane', 0.5 * 0.2 * rank);
   },
 
+  // 'Improves your chance to hit with all spells by 2%.'
+  Precision: (rank, mods) => {
+    mods.spellHit += 2 * rank;
+  },
+
   // 'Increases the critical strike chance of your Arcane spells by 2%.'
   'Arcane Impact': (rank, mods) => {
     mods.spellCrit.arcane = (mods.spellCrit.arcane ?? 0) + 2 * rank;
@@ -317,8 +322,9 @@ export const FIRE_TALENT_HOOKS: Record<string, TalentHook> = {
     mods.flags.incineration = 2 * rank;
   },
 
-  // 'Reduces the casting time of your Fireball and Frostfire Bolt spells by 0.1 sec.'
-  'Improved Fireball': (rank, mods) => {
+  // 'Reduces the casting time of your Fireball, Frostfire Bolt, and Arcane Wrath
+  // spells by 0.1 sec.'
+  Accelerant: (rank, mods) => {
     addCastTime(mods, FIREBALL.id, -0.1 * rank);
   },
 
@@ -357,22 +363,10 @@ export const FIRE_TALENT_HOOKS: Record<string, TalentHook> = {
   Combustion: (_rank, mods) => {
     mods.flags.combustion = 1;
   },
-
-  // 'Improves your chance to hit with Frost and Fire spells by 2%.' A Fire
-  // mage casts nothing else.
-  'Elemental Precision': (rank, mods) => {
-    mods.spellHit += 2 * rank;
-  },
 };
 
 export const ARCANE_TALENT_HOOKS: Record<string, TalentHook> = {
   ...SHARED_HOOKS,
-
-  // 'Increases your chance to hit with your Arcane spells by 1%.' An Arcane
-  // mage casts nothing else.
-  'Arcane Focus': (rank, mods) => {
-    mods.spellHit += rank;
-  },
 
   // 'Increases the critical strike chance of your Fire Blast, Ice Lance,
   // Arcane Blast, and Scorch spells by 2%.'

@@ -55,6 +55,15 @@ test('a talent link from the trees before build 1.60.1.70425 is moved to the new
   await expect(page).toHaveURL(/#warrior\/60\/00000000000000000-35050025052000000-000000000000000000$/);
 });
 
+test('a talent link from the trees before build 1.60.1.70630 is moved to the new ones and says so', async ({ page }) => {
+  // Sixteen Protection digits is the old tree; the new one has seventeen. Divine Intellect
+  // was a Holy talent then and is a Protection one now.
+  await page.goto('/talents.html#paladin/60/55000000000000000-0000000000000000-05221000000000000');
+  await expect(page.locator('#toast')).toContainText('made for the trees before beta build 1.60.1.70630');
+  await expect(page).toHaveURL(/#paladin\/60\/\d{17}-\d{17}-\d{17}$/);
+  await expect(page).toHaveURL(/#paladin\/60\/05\d{15}-5\d{16}-/);
+});
+
 test('a talent link that breaks the rules is repaired and says so, and an illegal removal is refused', async ({ page }) => {
   await page.goto('/talents.html#warrior/10/05000000000000000-00000000000000000-000000000000000000');
   await expect(page.locator('#toast')).toContainText('4 points in that link broke the talent rules');

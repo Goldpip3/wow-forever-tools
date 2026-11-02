@@ -129,7 +129,7 @@ function resolveSpells(spec: SpecModule, mods: SpellMods): Map<string, ResolvedS
       : declared;
 
     // A cast shortened to nothing or less becomes instant, which is what a
-    // talent like Instrument of Law says outright. Anything short of that is
+    // talent like Champion of the Light at rank 5 says outright. Anything short of that is
     // held at the floor, the way Improved Frostbolt always has been.
     const after = def.castTime + (mods.castTime[def.id] ?? 0);
     const shortened = def.castTime > 0 && after > 0

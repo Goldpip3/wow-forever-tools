@@ -97,17 +97,12 @@ export const paladinRetribution: SpecModule = {
 
     // Only once per run: the mods are shared between iterations.
     if (!mods.flags.weaponSpecDone && main) {
-      const bonus = main.twoHanded ? mods.flags.twoHandedDamage ?? 0 : mods.flags.oneHandedDamage ?? 0;
-      mods.physicalDamage *= 1 + bonus;
+      if (main.twoHanded) mods.physicalDamage *= 1 + (mods.flags.twoHandedDamage ?? 0);
       mods.flags.weaponSpecDone = 1;
     }
   },
 
   hasteFor: (actor) => 1 + (actor.stats.haste ?? 0) / 100,
-
-  /** Holy Power adds critical strike chance to both parts of Holy Strike. */
-  critBonusFor: ({ spellId, mods }) =>
-    (spellId === HOLY_STRIKE_SPELL_ID || spellId === HOLY_STRIKE_HOLY_ID ? mods.flags.holyStrikeCrit ?? 0 : 0),
 
   /** Vengeance raises Physical and Holy damage for each critical strike stacked. */
   damageBonusFor: ({ school, actor, now, mods }) => {
@@ -181,8 +176,6 @@ export const paladinRetribution: SpecModule = {
       'the strength it adds is already on your sheet, but new strength from a gear change is not scaled by it.',
     'Divine Intellect':
       'the intellect it adds is already on your sheet, but new intellect from a gear change is not scaled by it.',
-    'Champion of the Light':
-      'the spell damage it gives is already on your sheet, but new intellect from a gear change is not turned into more of it.',
     Vindication: 'the tree says "a chance" without saying what the chance is.',
     'Consecrated Ground': 'it depends on where enemies walk, and the boss stands still.',
     'Swift Judgement': 'it is a button that finishes a cooldown, and no rotation here holds it.',
@@ -191,7 +184,13 @@ export const paladinRetribution: SpecModule = {
     'Eye for an Eye': 'it reflects damage taken, and nothing hits you.',
     Repentance: 'it incapacitates a humanoid, which a boss is not.',
     'Unyielding Faith': 'nothing here fears you.',
-    'Voice of Truth': 'nothing here silences you.',
+    Stoicism: 'nothing here stuns you.',
+    'Turn Evil': 'Turn Undead is not in any rotation.',
+    'Unsealed Wrath': 'the rotation keeps one seal up, so there is never a different seal to release the copies.',
+    Shieldsworn: 'it makes Holy Strike strike with a shield, and the tree does not say what that does to its damage.',
+    'Holy Power': 'it only raises critical heals, and healing is not simulated.',
+    'Oath of Light': 'healing is not simulated.',
+    'Boundless Light': 'healing is not simulated.',
     'Healing Light': 'healing is not simulated.',
     'Spiritual Focus': 'healing is not simulated.',
     'Purifying Power': 'Exorcism and Holy Wrath only hit demons and undead.',
@@ -204,7 +203,6 @@ export const paladinRetribution: SpecModule = {
     Redoubt: 'blocking does nothing to damage.',
     "Guardian's Favor": 'neither blessing it changes deals damage.',
     Anticipation: 'defense does nothing to damage.',
-    'Improved Seal of Fury': 'Seal of Fury is the tank seal.',
     'Improved Righteous Fury': 'it reduces damage taken.',
     'Shield Specialization': 'it needs a shield and a block.',
     'Sacred Duty': 'stamina and defensive cooldowns do nothing to damage.',
@@ -214,7 +212,8 @@ export const paladinRetribution: SpecModule = {
   },
 
   partlyModelledTalents: {
-    'Twist of Light': 'the cheaper seal is counted; the Echo is not, because the rotation keeps one seal up.',
+    'Champion of the Light':
+      'the faster Hammer of Wrath is counted; the spell damage is already on your sheet, but new intellect from a gear change is not turned into more of it.',
   },
 
   notes: [
