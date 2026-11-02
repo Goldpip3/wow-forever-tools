@@ -15,7 +15,7 @@ import {
 import { copyText, toast } from '../shared/toast';
 import { focusIntoDialog, focusKey, keepFocus, restoreFocus } from '../shared/focus';
 import { KEY_ROSTERS, hasStrings, readList, writeJson } from '../shared/storage';
-import { CLASSES, type ClassId } from '../shared/classes';
+import { CLASSES, FERAL_SPEC_ID, seatSpecOf, type Archetype, type ClassId } from '../shared/classes';
 import { GROUP_COUNT, GROUP_SIZE, type Player, type Roster } from './types';
 import { computeCoverage, emptyRoster } from './engine';
 import { createPlayer, spreadChoices } from './loadout';
@@ -276,9 +276,9 @@ const handlers: RaidHandlers = {
     openPicker(group, slot);
   },
 
-  onDropSpec: (classId, specId, group, slot) => {
+  onDropSpec: (classId, specId, group, slot, role) => {
     if (mode === 'roster') return;
-    roster.groups[group]![slot] = spreadChoices(createPlayer(classId, specId), onRoster());
+    roster.groups[group]![slot] = spreadChoices(newSeatPlayer(classId, specId, role), onRoster());
     update();
   },
 
@@ -399,14 +399,23 @@ const handlers: RaidHandlers = {
 
 /* --------------------------------------------------------------- the picker */
 
+/** A made-up player for a seat. A bear or a cat is named for its job: "Bear Druid". */
+function newSeatPlayer(classId: ClassId, specId: number, role?: Archetype): Player {
+  const player = createPlayer(classId, specId);
+  if (role) player.role = role;
+  const seat = seatSpecOf(player);
+  if (seat && specId === FERAL_SPEC_ID) player.name = seat.short + ' ' + CLASSES[classId].name;
+  return player;
+}
+
 function openPicker(group: number, slot: number): void {
   closeOverlays();
   openOverlay(
     renderSpecPicker(
       group,
       slot,
-      (classId, specId) => {
-        roster.groups[group]![slot] = spreadChoices(createPlayer(classId, specId), onRoster());
+      (classId, specId, role) => {
+        roster.groups[group]![slot] = spreadChoices(newSeatPlayer(classId, specId, role), onRoster());
         closeOverlays();
         update();
       },
@@ -420,6 +429,8 @@ function openLoadout(playerId: string): void {
   const found = findPlayer(playerId);
   if (!found) return;
   const specAtOpen = found.player.specId;
+  // Bear and cat share a spec id, so the drawer has to notice a change of job too.
+  const roleAtOpen = found.player.role;
   // Anyone may look. Only someone who may edit gets controls that do anything.
   const readOnly = !mayEdit();
 
@@ -432,7 +443,7 @@ function openLoadout(playerId: string): void {
         // A pasted link is held to the talent rules before it is kept.
         checkBuild(found.player);
         update();
-        if (found.player.specId !== specAtOpen) openLoadout(playerId);
+        if (found.player.specId !== specAtOpen || found.player.role !== roleAtOpen) openLoadout(playerId);
       },
       onClose: closeOverlays,
     }),

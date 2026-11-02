@@ -1,5 +1,5 @@
 import type { Player } from './types';
-import { CLASSES, specById } from '../shared/classes';
+import { CLASSES, seatSpecOf, seatSpecsFor, specById } from '../shared/classes';
 import { iconImg } from '../shared/icons';
 import { choicesFor, petGatedFor, talentGatedFor } from './loadout';
 import { resetPlayerToSpec } from './codec';
@@ -123,16 +123,22 @@ export function renderDrawer(shown: Player, h: DrawerHandlers): HTMLElement {
   /* spec */
   const specSec = section('Spec', 'Changing spec resets this player to that spec’s usual buffs.');
   const picker = el('div', 'spec-picker');
-  for (const option of info.specs) {
-    const btn = el('button', 'btn btn--sm' + (option.id === player.specId ? ' btn--on' : ''));
+  const current = seatSpecOf(player);
+  for (const option of seatSpecsFor(player.classId)) {
+    const on = option === current;
+    const btn = el('button', 'btn btn--sm' + (on ? ' btn--on' : ''));
     btn.appendChild(iconImg(option.icon, ''));
     btn.appendChild(el('span', '', option.short));
+    btn.title = option.name;
     btn.style.display = 'inline-flex';
     btn.style.alignItems = 'center';
     btn.style.gap = '5px';
     btn.addEventListener('click', () => {
-      if (option.id === player.specId) return;
-      resetPlayerToSpec(player, option.id);
+      if (on) return;
+      // Bear to cat is the same tree, so the talents and picks stay; only the job changes.
+      if (option.specId !== player.specId) resetPlayerToSpec(player, option.specId);
+      if (option.role) player.role = option.role;
+      else delete player.role;
       h.onChange();
     });
     picker.appendChild(btn);

@@ -191,3 +191,46 @@ export function bucketOf(archetype: Archetype): RoleBucket {
 export function roleOf(p: { classId: ClassId; specId: number; role?: Archetype }): RoleBucket {
   return bucketOf(archetypeFor(p));
 }
+
+/* ------------------------------------------------------------- seat specs */
+
+/** Feral Combat's talent-tab id. One tree, two jobs: a bear tanks, a cat does damage. */
+export const FERAL_SPEC_ID = 281;
+
+/**
+ * A spec as the raid planner offers it. Feral Combat is offered twice, as a bear tank and a
+ * cat, because the talent tree cannot say which job a Feral Druid does on the night. Both keep
+ * spec id 281; the bear is told apart by `role: 'tank'` on the player, which the planner link,
+ * the Group Builder import and the bot's "guardian" spec key already carry.
+ */
+export interface SeatSpec {
+  classId: ClassId;
+  specId: number;
+  /** Set only where it differs from what the spec id alone says. */
+  role?: Archetype;
+  /** "Feral Combat (bear tank)", for tooltips and exports. */
+  name: string;
+  /** "Bear", for seats and buttons. */
+  short: string;
+  icon: string;
+}
+
+const FERAL_SEATS: SeatSpec[] = [
+  { classId: 'druid', specId: FERAL_SPEC_ID, role: 'tank', name: 'Feral Combat (bear tank)', short: 'Bear', icon: 'ability_racial_bearform' },
+  { classId: 'druid', specId: FERAL_SPEC_ID, name: 'Feral Combat (cat)', short: 'Cat', icon: 'ability_druid_catform' },
+];
+
+/** Every spec a seat can hold for a class, with Feral split into bear and cat. */
+export function seatSpecsFor(classId: ClassId): SeatSpec[] {
+  return CLASSES[classId].specs.flatMap((s) =>
+    s.id === FERAL_SPEC_ID
+      ? FERAL_SEATS
+      : [{ classId, specId: s.id, name: s.name, short: s.short, icon: s.icon }],
+  );
+}
+
+/** Which of those a player is. A Feral Druid with no role is a cat, as it always was. */
+export function seatSpecOf(p: { classId: ClassId; specId: number; role?: Archetype }): SeatSpec | undefined {
+  const options = seatSpecsFor(p.classId).filter((o) => o.specId === p.specId);
+  return options.find((o) => o.role === p.role) ?? options.find((o) => !o.role) ?? options[0];
+}

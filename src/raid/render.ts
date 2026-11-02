@@ -3,12 +3,14 @@ import { GROUP_COUNT, GROUP_SIZE } from './types';
 import {
   CLASSES,
   CLASS_LIST,
-  specById,
   ARCHETYPE_LABEL,
   ROLE_LABEL,
   ROLE_ORDER,
   ROLE_SHORT,
   archetypeFor,
+  seatSpecOf,
+  seatSpecsFor,
+  type Archetype,
   type ClassId,
 } from '../shared/classes';
 import { iconImg } from '../shared/icons';
@@ -29,7 +31,7 @@ function el(tag: string, cls?: string, text?: string): HTMLElement {
 
 export interface RaidHandlers {
   onPickSeat: (group: number, slot: number) => void;
-  onDropSpec: (classId: ClassId, specId: number, group: number, slot: number) => void;
+  onDropSpec: (classId: ClassId, specId: number, group: number, slot: number, role?: Archetype) => void;
   onMovePlayer: (playerId: string, group: number, slot: number) => void;
   onRemove: (group: number, slot: number) => void;
   onRename: (playerId: string, name: string) => void;
@@ -149,10 +151,10 @@ function seatCard(
     if (!raw) return;
     try {
       const data = JSON.parse(raw) as
-        | { kind: 'spec'; classId: ClassId; specId: number }
+        | { kind: 'spec'; classId: ClassId; specId: number; role?: Archetype }
         | { kind: 'player'; playerId: string }
         | { kind: 'pool'; userId: string };
-      if (data.kind === 'spec') h.onDropSpec(data.classId, data.specId, group, slot);
+      if (data.kind === 'spec') h.onDropSpec(data.classId, data.specId, group, slot, data.role);
       else if (data.kind === 'pool') h.onSeatFromPool?.(data.userId, group, slot);
       else h.onMovePlayer(data.playerId, group, slot);
     } catch {
@@ -173,7 +175,7 @@ function seatCard(
   }
 
   const info = CLASSES[player.classId];
-  const spec = specById(player.specId);
+  const spec = seatSpecOf(player);
   const arch = archetypeFor(player);
 
   cell.draggable = canEdit;
@@ -235,6 +237,7 @@ function seatCard(
      decision about them, which is why it sits next to their name and not in place of it. */
   const specLine = el('div', 'seat__spec');
   specLine.appendChild(el('span', '', spec?.short ?? ''));
+  if (spec?.role) specLine.title = spec.name;
   if (player.discord && player.discord.signupStatus !== 'primary') {
     const mark = el('span', 'seat__signup', SIGNUP_LABEL[player.discord.signupStatus] ??
       player.discord.signupStatus);
@@ -412,7 +415,7 @@ export function renderOverview(roster: Roster, h: RaidHandlers): HTMLElement {
       for (const { player, group } of list) {
         const row = el('button', 'ov__row');
         const info = CLASSES[player.classId];
-        const spec = specById(player.specId);
+        const spec = seatSpecOf(player);
         row.appendChild(iconImg(spec?.icon ?? info.icon, '', 'ov__icon'));
         const name = el('span', 'ov__name', player.name);
         name.style.color = info.color;
@@ -1256,7 +1259,7 @@ export function renderSeatChooser(
   const list = el('div', 'pool');
   for (const { player, cut } of waiting) {
     const info = CLASSES[player.classId];
-    const spec = specById(player.specId);
+    const spec = seatSpecOf(player);
     const row = el('button', 'poolrow poolrow--pick' + (cut ? ' poolrow--cut' : ''));
     row.style.setProperty('--class-color', info.color);
     row.appendChild(iconImg(spec?.icon ?? info.icon, '', 'poolrow__icon'));
@@ -1293,7 +1296,7 @@ export function renderSeatChooser(
 export function renderSpecPicker(
   group: number,
   slot: number,
-  onPick: (classId: ClassId, specId: number) => void,
+  onPick: (classId: ClassId, specId: number, role?: Archetype) => void,
   onClose: () => void,
 ): HTMLElement {
   const overlay = el('div', 'modal');
@@ -1317,12 +1320,12 @@ export function renderSpecPicker(
     card.appendChild(name);
 
     const specs = el('div', 'picker__specs');
-    for (const spec of info.specs) {
+    for (const spec of seatSpecsFor(info.id)) {
       const btn = el('button', 'picker__spec');
       btn.appendChild(iconImg(spec.icon, '', 'picker__spec-icon'));
       btn.appendChild(el('span', 'picker__spec-name', spec.short));
       btn.title = spec.name + ' ' + info.name;
-      btn.addEventListener('click', () => onPick(info.id, spec.id));
+      btn.addEventListener('click', () => onPick(info.id, spec.specId, spec.role));
       specs.appendChild(btn);
     }
     card.appendChild(specs);
@@ -1393,7 +1396,7 @@ function poolRow(
   position = 0,
 ): HTMLElement {
   const info = CLASSES[player.classId];
-  const spec = specById(player.specId);
+  const spec = seatSpecOf(player);
   const row = el('div', 'poolrow' + (cut ? ' poolrow--cut' : ''));
   row.style.setProperty('--class-color', info.color);
 
